@@ -1,0 +1,48 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { voterService } from '@/services/voter.service';
+import { createVoterSchema, updateVoterSchema } from '@/lib/schemas';
+import { successResponse, paginatedResponse } from '@/utils/api-response';
+import { handleError } from '@/utils/error-handler';
+
+// GET /api/voters?awardId=xxx
+export async function GET(req: NextRequest) {
+  try {
+    const awardId = req.nextUrl.searchParams.get('awardId');
+    const page = parseInt(req.nextUrl.searchParams.get('page') || '1');
+    const limit = parseInt(req.nextUrl.searchParams.get('limit') || '50');
+    
+    if (!awardId) {
+      return NextResponse.json(
+        { success: false, message: 'awardId query parameter is required' },
+        { status: 400 }
+      );
+    }
+    
+    const result = await voterService.getVotersByAward(awardId, page, limit);
+    
+    return NextResponse.json(
+      paginatedResponse('Voters retrieved successfully', result.voters, result.pagination)
+    );
+  } catch (error: any) {
+    const { statusCode, message } = handleError(error);
+    return NextResponse.json({ success: false, message }, { status: statusCode });
+  }
+}
+
+// POST /api/voters
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const validatedData = createVoterSchema.parse(body);
+    
+    const voter = await voterService.createVoter(validatedData);
+    
+    return NextResponse.json(
+      successResponse('Voter created successfully', voter),
+      { status: 201 }
+    );
+  } catch (error: any) {
+    const { statusCode, message } = handleError(error);
+    return NextResponse.json({ success: false, message }, { status: statusCode });
+  }
+}

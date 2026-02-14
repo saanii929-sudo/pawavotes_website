@@ -1,0 +1,51 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { stageService } from '@/services/stage.service';
+import { updateStageSchema } from '@/lib/schemas';
+import { successResponse } from '@/utils/api-response';
+import { handleError } from '@/utils/error-handler';
+
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const stage = await stageService.getStageById(id);
+    return NextResponse.json(successResponse('Stage retrieved successfully', stage));
+  } catch (error: any) {
+    const { statusCode, message } = handleError(error);
+    return NextResponse.json({ success: false, message }, { status: statusCode });
+  }
+}
+
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const body = await req.json();
+    const validatedData = updateStageSchema.parse(body);
+    
+    const stage = await stageService.updateStage(id, validatedData);
+    
+    return NextResponse.json(successResponse('Stage updated successfully', stage));
+  } catch (error: any) {
+    const { statusCode, message } = handleError(error);
+    return NextResponse.json({ success: false, message }, { status: statusCode });
+  }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    await stageService.deleteStage(id);
+    return NextResponse.json(successResponse('Stage deleted successfully'));
+  } catch (error: any) {
+    const { statusCode, message } = handleError(error);
+    return NextResponse.json({ success: false, message }, { status: statusCode });
+  }
+}
