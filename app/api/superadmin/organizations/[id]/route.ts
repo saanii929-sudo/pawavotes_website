@@ -7,12 +7,14 @@ import { withAuth } from '@/middleware/auth';
 // GET single organization
 async function getOrganization(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectDB();
 
-    const organization = await Organization.findById(params.id).select('-password');
+    const { id } = await params;
+
+    const organization = await Organization.findById(id).select('-password');
 
     if (!organization) {
       return NextResponse.json(
@@ -37,11 +39,12 @@ async function getOrganization(
 // PUT update organization
 async function updateOrganization(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectDB();
 
+    const { id } = await params;
     const body = await req.json();
     const { password, ...updateData } = body;
 
@@ -50,7 +53,7 @@ async function updateOrganization(
     }
 
     const organization = await Organization.findByIdAndUpdate(
-      params.id,
+      id,
       updateData,
       { new: true, runValidators: true }
     ).select('-password');
@@ -79,12 +82,14 @@ async function updateOrganization(
 // DELETE organization
 async function deleteOrganization(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectDB();
 
-    const organization = await Organization.findByIdAndDelete(params.id);
+    const { id } = await params;
+
+    const organization = await Organization.findByIdAndDelete(id);
 
     if (!organization) {
       return NextResponse.json(

@@ -9,6 +9,7 @@ export interface IOrganization extends Document {
   website?: string;
   description?: string;
   logo?: string;
+  eventType: 'awards' | 'election';
   status: 'active' | 'inactive' | 'suspended';
   subscriptionPlan?: string;
   createdBy: string;
@@ -56,6 +57,11 @@ const OrganizationSchema: Schema = new Schema(
     logo: {
       type: String,
     },
+    eventType: {
+      type: String,
+      enum: ['awards', 'election'],
+      default: 'awards',
+    },
     socialMedia: {
       facebook: { type: String, trim: true },
       instagram: { type: String, trim: true },
@@ -87,7 +93,11 @@ const OrganizationSchema: Schema = new Schema(
   }
 );
 
-const Organization: Model<IOrganization> =
-  mongoose.models.Organization || mongoose.model<IOrganization>('Organization', OrganizationSchema);
+// Delete existing model if it exists to avoid caching issues
+if (mongoose.models.Organization) {
+  delete mongoose.models.Organization;
+}
+
+const Organization: Model<IOrganization> = mongoose.model<IOrganization>('Organization', OrganizationSchema);
 
 export default Organization;

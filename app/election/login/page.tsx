@@ -1,11 +1,11 @@
 "use client";
 
-import Image from "next/image";
-import { motion } from "framer-motion";
-import { Mail, Lock } from "lucide-react";
-import toast, { Toaster } from "react-hot-toast";
-import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { useState, FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
+import Image from 'next/image';
+import { Vote, Lock, Key, Mail} from 'lucide-react';
+import toast, { Toaster } from 'react-hot-toast';
+import { motion } from 'framer-motion';
 
 const fadeIn = {
   hidden: { opacity: 0 },
@@ -17,78 +17,53 @@ const fadeUp = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.6 } },
 };
 
-export default function LoginPage() {
+
+export default function VoterLoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [token, setToken] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
 
-    const loadingToast = toast.loading("Logging in...");
+    const loadingToast = toast.loading('Verifying credentials...');
 
     try {
-      // Try organization login first
-      let response = await fetch("/api/auth/login", {
-        method: "POST",
+      const response = await fetch('/api/elections/auth/login', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          email: email.trim(),
-          password: password,
-          userType: "organization",
+          token: token.trim().toUpperCase(),
+          password: password.trim(),
         }),
       });
 
-      let data = await response.json();
-
-      // If organization login fails, try org-admin login
-      if (!response.ok) {
-        response = await fetch("/api/auth/login", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email: email.trim(),
-            password: password,
-            userType: "org-admin",
-          }),
-        });
-
-        data = await response.json();
-      }
+      const data = await response.json();
 
       if (response.ok && data.success) {
-        toast.success("Login successful! Redirecting...", {
-          id: loadingToast,
-        });
+        toast.success('Login successful!', { id: loadingToast });
 
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("user", JSON.stringify(data.user));
+        // Store voter data
+        localStorage.setItem('voterToken', token.trim().toUpperCase());
+        localStorage.setItem('voterData', JSON.stringify(data.data));
 
-        // Redirect based on eventType
-        const redirectPath = data.user.eventType === 'election' 
-          ? '/election-dashboard' 
-          : '/dashboard';
-
+        // Redirect to election page with token
         setTimeout(() => {
-          router.push(redirectPath);
+          router.push(`/election?token=${token.trim().toUpperCase()}`);
         }, 500);
       } else {
-        toast.error(
-          data.error || "Login failed. Please check your credentials.",
-          {
-            id: loadingToast,
-            duration: 4000,
-          },
-        );
+        toast.error(data.error || 'Invalid credentials', {
+          id: loadingToast,
+          duration: 4000,
+        });
       }
-    } catch (err: any) {
-      toast.error("Network error. Please try again.", {
+    } catch (error) {
+      console.error('Login error:', error);
+      toast.error('Network error. Please try again.', {
         id: loadingToast,
         duration: 4000,
       });
@@ -96,6 +71,7 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
   return (
     <>
       <Toaster
@@ -163,26 +139,26 @@ export default function LoginPage() {
             </div>
 
             <h1 className="mb-2 text-center text-2xl font-bold text-gray-900">
-              Welcome back
+              Voter Login
             </h1>
             <p className="mb-8 text-center text-gray-600">
-              Sign in to continue to Pawavotes
+              Enter your credentials to cast your vote
             </p>
 
             <form className="space-y-5" onSubmit={handleSubmit}>
               {/* Email */}
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">
-                  Email address
+                  Voter Token
                 </label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
                   <input
-                    type="email"
+                    type="text"
                     required
-                    placeholder="you@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter your 8-character token"
+                    value={token}
+                    onChange={(e) => setToken(e.target.value.toUpperCase())}
                     className="w-full rounded-lg border border-gray-300 py-3 pl-11 pr-4 text-sm focus:border-green-600 focus:outline-none focus:ring-2 focus:ring-green-600/20"
                   />
                 </div>
@@ -198,26 +174,14 @@ export default function LoginPage() {
                   <input
                     type="password"
                     required
-                    placeholder="••••••••"
+                    placeholder="Enter your 6-digit password"
                     value={password}
+                    minLength={6}
+                    disabled={loading}
                     onChange={(e) => setPassword(e.target.value)}
                     className="w-full rounded-lg border border-gray-300 py-3 pl-11 pr-4 text-sm focus:border-green-600 focus:outline-none focus:ring-2 focus:ring-green-600/20"
                   />
                 </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex items-center justify-between text-sm">
-                <label className="flex items-center gap-2 text-gray-600">
-                  <input type="checkbox" className="rounded border-gray-300" />
-                  Remember me
-                </label>
-                <a
-                  href="/forgot-password"
-                  className="text-green-600 hover:underline"
-                >
-                  Forgot password?
-                </a>
               </div>
 
               {/* Submit */}
@@ -225,21 +189,17 @@ export default function LoginPage() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 type="submit"
+                disabled={loading}
                 className="w-full rounded-lg bg-green-600 py-3 font-semibold text-white hover:bg-green-500"
               >
-                Sign In
+                {loading ? 'Verifying...' : 'Login to Vote'}
               </motion.button>
             </form>
-              {/* Sign up */}
-              <p className="mt-4 text-center text-sm text-gray-600">
-                Don&apos;t have an account?{" "}
-                <a
-                  href="/contact-us"
-                  className="text-green-600 hover:underline"
-                >
-                  Contact us
-                </a>
-              </p>
+          <div className="text-center mt-6">
+            <p className="text-gray-600 text-sm">
+              Powered by Pawavotes Election System
+            </p>
+          </div>
           </motion.div>
         </div>
       </motion.section>

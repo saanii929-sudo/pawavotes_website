@@ -100,10 +100,13 @@ async function createCategory(req: NextRequest) {
       );
     }
 
+    // Get the organizationId based on user role
+    const organizationId = user.role === 'org-admin' ? user.organizationId : user.id;
+
     // Verify award belongs to organization
     const award = await Award.findOne({
       _id: awardId,
-      organizationId: user.id,
+      organizationId: organizationId,
     });
 
     if (!award) {
@@ -118,7 +121,7 @@ async function createCategory(req: NextRequest) {
       description,
       awardId,
       awardName: award.name,
-      organizationId: user.id,
+      organizationId: organizationId,
       price: price || 0,
       isPublished: isPublished || false,
       order: order || 0,

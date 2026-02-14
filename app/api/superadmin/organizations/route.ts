@@ -64,11 +64,20 @@ async function createOrganization(req: NextRequest) {
     await connectDB();
 
     const body = await req.json();
-    const { name, email, password, phone, address, website, description, status } = body;
+    const { name, email, password, phone, address, website, description, eventType, status } = body;
+
+    console.log('Creating organization with data:', { name, email, eventType, status });
 
     if (!name || !email || !password) {
       return NextResponse.json(
         { error: 'Name, email, and password are required' },
+        { status: 400 }
+      );
+    }
+
+    if (!eventType) {
+      return NextResponse.json(
+        { error: 'Event type is required' },
         { status: 400 }
       );
     }
@@ -94,9 +103,12 @@ async function createOrganization(req: NextRequest) {
       address,
       website,
       description,
+      eventType: eventType || 'awards',
       status: status || 'active',
       createdBy: (req as any).user?.id || 'superadmin',
     });
+
+    console.log('Organization created successfully:', organization._id, 'eventType:', organization.eventType);
 
     const orgData = organization.toObject();
     delete orgData.password;

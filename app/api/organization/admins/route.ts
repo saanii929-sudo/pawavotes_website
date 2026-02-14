@@ -131,15 +131,24 @@ export async function POST(req: NextRequest) {
     const Organization = require('@/models/Organization').default;
     const organization = await Organization.findById(decoded.id);
 
+    // Build invitation link
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    const invitationLink = `${baseUrl}/accept-invitation?token=${invitationToken}`;
+
     // Send invitation email
-    const emailSent = await sendInvitationEmail({
-      to: email,
+    console.log('Sending invitation email to:', email);
+    console.log('Organization name:', organization?.name);
+    console.log('Invitation link:', invitationLink);
+    
+    const emailSent = await sendInvitationEmail(
+      email,
       name,
-      organizationName: organization?.name || 'Organization',
-      password: randomPassword,
-      invitationToken,
-      expiryDate: invitationExpiry,
-    });
+      organization?.name || 'Organization',
+      invitationLink,
+      randomPassword
+    );
+
+    console.log('Email sent status:', emailSent);
 
     if (!emailSent) {
       console.warn('Failed to send invitation email');

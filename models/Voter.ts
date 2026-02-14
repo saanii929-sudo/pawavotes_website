@@ -1,67 +1,93 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
 export interface IVoter extends Document {
-  email: string;
+  electionId: mongoose.Types.ObjectId;
+  organizationId: mongoose.Types.ObjectId;
+  name: string;
+  email?: string;
   phone?: string;
-  name?: string;
-  awardId: string;
-  voteCount: number;
-  totalSpent: number;
-  lastVotedAt?: Date;
-  status: 'active' | 'banned' | 'inactive';
-  metadata?: Record<string, any>;
+  voterId?: string;
+  token: string;
+  password: string;
+  hasVoted: boolean;
+  votedAt?: Date;
+  status: 'active' | 'expired' | 'disabled';
+  metadata?: {
+    department?: string;
+    class?: string;
+    studentId?: string;
+    [key: string]: any;
+  };
   createdAt: Date;
   updatedAt: Date;
 }
 
 const VoterSchema: Schema = new Schema(
   {
+    electionId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Election',
+      required: true,
+    },
+    organizationId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Organization',
+      required: true,
+    },
+    name: {
+      type: String,
+      required: [true, 'Voter name is required'],
+      trim: true,
+    },
     email: {
       type: String,
-      required: [true, 'Email is required'],
-      lowercase: true,
       trim: true,
+      lowercase: true,
     },
     phone: {
       type: String,
       trim: true,
     },
-    name: {
+    voterId: {
       type: String,
       trim: true,
     },
-    awardId: {
-      type: Schema.Types.ObjectId,
-      required: [true, 'Award ID is required'],
-      ref: 'Award',
+    token: {
+      type: String,
+      required: true,
+      unique: true,
+      index: true,
     },
-    voteCount: {
-      type: Number,
-      default: 0,
+    password: {
+      type: String,
+      required: true,
     },
-    totalSpent: {
-      type: Number,
-      default: 0,
+    hasVoted: {
+      type: Boolean,
+      default: false,
     },
-    lastVotedAt: Date,
+    votedAt: {
+      type: Date,
+    },
     status: {
       type: String,
-      enum: ['active', 'banned', 'inactive'],
+      enum: ['active', 'expired', 'disabled'],
       default: 'active',
     },
-    metadata: Schema.Types.Mixed,
+    metadata: {
+      type: Schema.Types.Mixed,
+      default: {},
+    },
   },
   {
     timestamps: true,
-    indexes: [
-      { awardId: 1, email: 1 },
-      { awardId: 1, status: 1 },
-      { createdAt: 1 },
-    ],
   }
 );
 
-const Voter: Model<IVoter> =
-  mongoose.models.Voter || mongoose.model<IVoter>('Voter', VoterSchema);
+if (mongoose.models.Voter) {
+  delete mongoose.models.Voter;
+}
+
+const Voter: Model<IVoter> = mongoose.model<IVoter>('Voter', VoterSchema);
 
 export default Voter;

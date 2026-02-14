@@ -10,6 +10,15 @@ interface EmailOptions {
 
 export async function sendEmail(options: EmailOptions): Promise<boolean> {
   try {
+    console.log('Attempting to send email to:', options.to);
+    console.log('SMTP Config:', {
+      host: process.env.SMTP_HOST,
+      port: process.env.SMTP_PORT,
+      from: process.env.SMTP_FROM,
+      hasUsername: !!process.env.SMTP_USERNAME,
+      hasPassword: !!process.env.SMTP_PASSWORD,
+    });
+
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: parseInt(process.env.SMTP_PORT || '465'),
@@ -27,8 +36,12 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
       html: options.html,
       text: options.text,
     });
+    
+    console.log('Email sent successfully to:', options.to);
     return true;
   } catch (error: any) {
+    console.error('Email sending failed:', error.message);
+    console.error('Full error:', error);
     return false;
   }
 }
@@ -105,6 +118,109 @@ export async function sendNomineeApprovalEmail(
   return sendEmail({
     to: email,
     subject: `🎉 Nomination Approved - ${awardName}`,
+    html,
+    text,
+  });
+}
+
+// Generate a random password
+export function generateRandomPassword(length: number = 12): string {
+  const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
+  let password = '';
+  for (let i = 0; i < length; i++) {
+    password += charset.charAt(Math.floor(Math.random() * charset.length));
+  }
+  return password;
+}
+
+// Generate a random invitation token
+export function generateInvitationToken(): string {
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+}
+
+// Send invitation email to admin
+export async function sendInvitationEmail(
+  email: string,
+  name: string,
+  organizationName: string,
+  invitationLink: string,
+  temporaryPassword: string
+): Promise<boolean> {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
+        .info-box { background: white; border-left: 4px solid #16a34a; padding: 15px; margin: 20px 0; }
+        .button { display: inline-block; background: #16a34a; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+        .footer { text-align: center; margin-top: 30px; color: #6b7280; font-size: 14px; }
+        .password { font-family: monospace; font-size: 18px; font-weight: bold; color: #dc2626; background: #fee; padding: 10px; border-radius: 4px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>Welcome to ${organizationName}!</h1>
+        </div>
+        <div class="content">
+          <h2>Hello ${name},</h2>
+          <p>You have been invited to join <strong>${organizationName}</strong> as an administrator.</p>
+          
+          <div class="info-box">
+            <p><strong>Your Login Credentials:</strong></p>
+            <p>Email: <strong>${email}</strong></p>
+            <p>Temporary Password: <span class="password">${temporaryPassword}</span></p>
+          </div>
+          
+          <p>Please click the button below to accept your invitation and set up your account:</p>
+          
+          <div style="text-align: center;">
+            <a href="${invitationLink}" class="button">Accept Invitation</a>
+          </div>
+          
+          <p><strong>Important:</strong> This invitation link will expire in 7 days. For security reasons, please change your password after your first login.</p>
+          
+          <p>If you did not expect this invitation, please ignore this email.</p>
+          
+          <p>Best regards,<br>${organizationName} Team</p>
+        </div>
+        <div class="footer">
+          <p>This is an automated message. Please do not reply to this email.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const text = `
+    Welcome to ${organizationName}!
+    
+    Hello ${name},
+    
+    You have been invited to join ${organizationName} as an administrator.
+    
+    Your Login Credentials:
+    Email: ${email}
+    Temporary Password: ${temporaryPassword}
+    
+    Please visit the following link to accept your invitation:
+    ${invitationLink}
+    
+    This invitation link will expire in 7 days. For security reasons, please change your password after your first login.
+    
+    If you did not expect this invitation, please ignore this email.
+    
+    Best regards,
+    ${organizationName} Team
+  `;
+
+  return sendEmail({
+    to: email,
+    subject: `Invitation to join ${organizationName}`,
     html,
     text,
   });

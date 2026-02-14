@@ -1,6 +1,14 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { Plus, ChevronLeft, X, Info, Edit2, Trash2, MoreVertical } from "lucide-react";
+import {
+  Plus,
+  ChevronLeft,
+  X,
+  Info,
+  Edit2,
+  Trash2,
+  MoreVertical,
+} from "lucide-react";
 import Image from "next/image";
 import toast from "react-hot-toast";
 
@@ -14,8 +22,8 @@ interface Stage {
   startTime: string;
   endTime: string;
   order: number;
-  stageType: 'nomination' | 'voting' | 'results';
-  status: 'upcoming' | 'active' | 'completed';
+  stageType: "nomination" | "voting" | "results";
+  status: "upcoming" | "active" | "completed";
   createdAt: string;
   updatedAt: string;
 }
@@ -48,7 +56,7 @@ const StagingManager = () => {
     endDate: "",
     startTime: "",
     endTime: "",
-    stageType: "nomination" as 'nomination' | 'voting' | 'results',
+    stageType: "nomination" as "nomination" | "voting" | "results",
     order: "1",
   });
 
@@ -105,14 +113,21 @@ const StagingManager = () => {
   };
 
   const handleSubmit = async () => {
-    if (!formData.name || !formData.startDate || !formData.endDate || !formData.startTime || !formData.endTime || !selectedAward) {
+    if (
+      !formData.name ||
+      !formData.startDate ||
+      !formData.endDate ||
+      !formData.startTime ||
+      !formData.endTime ||
+      !selectedAward
+    ) {
       toast.error("Please fill in all required fields");
       return;
     }
 
     const isEditing = !!editingStageId;
     const loadingToast = toast.loading(
-      isEditing ? "Updating stage..." : "Creating stage..."
+      isEditing ? "Updating stage..." : "Creating stage...",
     );
 
     try {
@@ -139,8 +154,10 @@ const StagingManager = () => {
 
       if (response.ok) {
         toast.success(
-          isEditing ? "Stage updated successfully!" : "Stage created successfully!",
-          { id: loadingToast }
+          isEditing
+            ? "Stage updated successfully!"
+            : "Stage created successfully!",
+          { id: loadingToast },
         );
         setFormData({
           name: "",
@@ -158,14 +175,15 @@ const StagingManager = () => {
       } else {
         const data = await response.json();
         toast.error(
-          data.message || (isEditing ? "Failed to update stage" : "Failed to create stage"),
-          { id: loadingToast }
+          data.message ||
+            (isEditing ? "Failed to update stage" : "Failed to create stage"),
+          { id: loadingToast },
         );
       }
     } catch (error) {
       toast.error(
         isEditing ? "Failed to update stage" : "Failed to create stage",
-        { id: loadingToast }
+        { id: loadingToast },
       );
     }
   };
@@ -174,8 +192,8 @@ const StagingManager = () => {
     setFormData({
       name: stage.name,
       description: stage.description || "",
-      startDate: stage.startDate.split('T')[0],
-      endDate: stage.endDate.split('T')[0],
+      startDate: stage.startDate.split("T")[0],
+      endDate: stage.endDate.split("T")[0],
       startTime: stage.startTime,
       endTime: stage.endTime,
       stageType: stage.stageType,
@@ -211,27 +229,27 @@ const StagingManager = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'active':
-        return 'bg-green-100 text-green-800';
-      case 'upcoming':
-        return 'bg-blue-100 text-blue-800';
-      case 'completed':
-        return 'bg-gray-100 text-gray-800';
+      case "active":
+        return "bg-green-100 text-green-800";
+      case "upcoming":
+        return "bg-blue-100 text-blue-800";
+      case "completed":
+        return "bg-gray-100 text-gray-800";
       default:
-        return 'bg-gray-100 text-gray-800';
+        return "bg-gray-100 text-gray-800";
     }
   };
 
   const getStageTypeColor = (type: string) => {
     switch (type) {
-      case 'nomination':
-        return 'bg-purple-100 text-purple-800';
-      case 'voting':
-        return 'bg-orange-100 text-orange-800';
-      case 'results':
-        return 'bg-cyan-100 text-cyan-800';
+      case "nomination":
+        return "bg-purple-100 text-purple-800";
+      case "voting":
+        return "bg-orange-100 text-orange-800";
+      case "results":
+        return "bg-cyan-100 text-cyan-800";
       default:
-        return 'bg-gray-100 text-gray-800';
+        return "bg-gray-100 text-gray-800";
     }
   };
 
@@ -241,7 +259,9 @@ const StagingManager = () => {
         <div className="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 sm:mb-8">
             <div className="w-full sm:w-auto">
-              <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Stages</h1>
+              <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">
+                Stages
+              </h1>
               <p className="text-xs sm:text-sm text-gray-500 mt-1">
                 Select an award program to proceed with staging management.
               </p>
@@ -328,18 +348,24 @@ const StagingManager = () => {
                     </p>
                     <div className="flex justify-between items-center text-xs">
                       <div>
-                        <span className="text-gray-500 text-[10px] sm:text-xs">Categories</span>
-                        <p className="font-semibold text-gray-900 text-sm">{award.categories}</p>
+                        <span className="text-gray-500 text-[10px] sm:text-xs">
+                          Categories
+                        </span>
+                        <p className="font-semibold text-gray-900 text-sm">
+                          {award.categories}
+                        </p>
                       </div>
                       <div>
-                        <span className="text-gray-500 text-[10px] sm:text-xs">Show Results</span>
+                        <span className="text-gray-500 text-[10px] sm:text-xs">
+                          Show Results
+                        </span>
                         <p className="font-semibold text-gray-900 text-sm text-end">
                           {award.settings?.showResults ? "Yes" : "No"}
                         </p>
                       </div>
                     </div>
                     <p className="text-green-600 text-[10px] sm:text-xs mt-3 flex items-start sm:items-center gap-1">
-                      <Info size={12} className="flex-shrink-0 mt-0.5 sm:mt-0" />
+                      <Info size={12} className="shrink-0 mt-0.5 sm:mt-0" />
                       <span>10% service fee later applied for all awards.</span>
                     </p>
                   </div>
@@ -365,8 +391,12 @@ const StagingManager = () => {
 
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 sm:mb-8">
             <div className="w-full sm:w-auto">
-              <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Stages</h1>
-              <p className="text-xs sm:text-sm text-gray-500 mt-1">{selectedAward?.name}</p>
+              <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">
+                Stages
+              </h1>
+              <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                {selectedAward?.name}
+              </p>
             </div>
             <button
               onClick={() => setShowModal(true)}
@@ -383,7 +413,10 @@ const StagingManager = () => {
               <p className="text-gray-500">Loading stages...</p>
             </div>
           ) : stages.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 flex items-center justify-center" style={{ minHeight: "400px" }}>
+            <div
+              className="bg-white rounded-xl border border-gray-200 flex items-center justify-center"
+              style={{ minHeight: "400px" }}
+            >
               <div className="text-center flex flex-col items-center gap-4">
                 <h2 className="text-xl md:text-2xl font-bold text-black mb-4">
                   You do not have any stages.
@@ -430,10 +463,14 @@ const StagingManager = () => {
                     {stages.map((stage) => (
                       <tr key={stage._id} className="hover:bg-gray-50">
                         <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">{stage.order}</div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {stage.order}
+                          </div>
                         </td>
                         <td className="px-4 sm:px-6 py-4">
-                          <div className="text-sm font-medium text-gray-900">{stage.name}</div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {stage.name}
+                          </div>
                           {stage.description && (
                             <div className="text-xs text-gray-500 mt-1 max-w-xs truncate">
                               {stage.description}
@@ -441,32 +478,67 @@ const StagingManager = () => {
                           )}
                         </td>
                         <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStageTypeColor(stage.stageType)}`}>
-                            {stage.stageType.charAt(0).toUpperCase() + stage.stageType.slice(1)}
+                          <span
+                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStageTypeColor(stage.stageType)}`}
+                          >
+                            {stage.stageType.charAt(0).toUpperCase() +
+                              stage.stageType.slice(1)}
                           </span>
                         </td>
                         <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          <div>{new Date(stage.startDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
-                          <div className="text-xs text-gray-400">{stage.startTime}</div>
+                          <div>
+                            {new Date(stage.startDate).toLocaleDateString(
+                              "en-GB",
+                              {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric",
+                              },
+                            )}
+                          </div>
+                          <div className="text-xs text-gray-400">
+                            {stage.startTime}
+                          </div>
                         </td>
                         <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          <div>{new Date(stage.endDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
-                          <div className="text-xs text-gray-400">{stage.endTime}</div>
+                          <div>
+                            {new Date(stage.endDate).toLocaleDateString(
+                              "en-GB",
+                              {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric",
+                              },
+                            )}
+                          </div>
+                          <div className="text-xs text-gray-400">
+                            {stage.endTime}
+                          </div>
                         </td>
                         <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(stage.status)}`}>
-                            {stage.status.charAt(0).toUpperCase() + stage.status.slice(1)}
+                          <span
+                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(stage.status)}`}
+                          >
+                            {stage.status.charAt(0).toUpperCase() +
+                              stage.status.slice(1)}
                           </span>
                         </td>
                         <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <div className="relative inline-block">
                             <button
                               onClick={() =>
-                                setShowActionMenu(showActionMenu === stage._id ? null : stage._id)
+                                setShowActionMenu(
+                                  showActionMenu === stage._id
+                                    ? null
+                                    : stage._id,
+                                )
                               }
                               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                             >
-                              <MoreVertical size={18} className="text-gray-400" />
+                              <MoreVertical
+                                size={18}
+                                className="text-gray-400"
+                              />
                             </button>
 
                             {showActionMenu === stage._id && (
@@ -499,7 +571,6 @@ const StagingManager = () => {
         </div>
       )}
 
-      {/* Add/Edit Modal */}
       {showModal && (
         <>
           <div
@@ -524,31 +595,32 @@ const StagingManager = () => {
               className="bg-white rounded-xl shadow-2xl w-full max-w-2xl relative max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
-              <button
-                onClick={() => {
-                  setShowModal(false);
-                  setFormData({
-                    name: "",
-                    description: "",
-                    startDate: "",
-                    endDate: "",
-                    startTime: "",
-                    endTime: "",
-                    stageType: "nomination",
-                    order: "1",
-                  });
-                  setEditingStageId(null);
-                }}
-                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <X size={24} />
-              </button>
-
-              <div className="p-6">
-                <h2 className="text-xl font-semibold text-gray-900 mb-6">
+              <div className="flex justify-between items-center p-4 bg-green-600">
+                <h2 className="text-xl font-semibold text-white">
                   {editingStageId ? "Edit Stage" : "Add Stage"}
                 </h2>
+                <button
+                  onClick={() => {
+                    setShowModal(false);
+                    setFormData({
+                      name: "",
+                      description: "",
+                      startDate: "",
+                      endDate: "",
+                      startTime: "",
+                      endTime: "",
+                      stageType: "nomination",
+                      order: "1",
+                    });
+                    setEditingStageId(null);
+                  }}
+                  className="absolute top-4 right-4 text-white hover:text-white cursor-pointer transition-colors"
+                >
+                  <X size={24} />
+                </button>
+              </div>
 
+              <div className="p-6">
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -557,7 +629,9 @@ const StagingManager = () => {
                     <input
                       type="text"
                       value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, name: e.target.value })
+                      }
                       className="w-full text-black border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
                       placeholder="Enter stage name (e.g., Nomination Phase)"
                     />
@@ -569,7 +643,12 @@ const StagingManager = () => {
                     </label>
                     <textarea
                       value={formData.description}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          description: e.target.value,
+                        })
+                      }
                       rows={2}
                       className="w-full text-black border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none resize-none"
                       placeholder="Enter stage description..."
@@ -583,7 +662,15 @@ const StagingManager = () => {
                       </label>
                       <select
                         value={formData.stageType}
-                        onChange={(e) => setFormData({ ...formData, stageType: e.target.value as 'nomination' | 'voting' | 'results' })}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            stageType: e.target.value as
+                              | "nomination"
+                              | "voting"
+                              | "results",
+                          })
+                        }
                         className="w-full text-black border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
                       >
                         <option value="nomination">Nomination</option>
@@ -600,7 +687,9 @@ const StagingManager = () => {
                         type="number"
                         min="1"
                         value={formData.order}
-                        onChange={(e) => setFormData({ ...formData, order: e.target.value })}
+                        onChange={(e) =>
+                          setFormData({ ...formData, order: e.target.value })
+                        }
                         className="w-full text-black border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
                         placeholder="1"
                       />
@@ -615,7 +704,12 @@ const StagingManager = () => {
                       <input
                         type="date"
                         value={formData.startDate}
-                        onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            startDate: e.target.value,
+                          })
+                        }
                         className="w-full text-black border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
                       />
                     </div>
@@ -626,7 +720,9 @@ const StagingManager = () => {
                       <input
                         type="date"
                         value={formData.endDate}
-                        onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                        onChange={(e) =>
+                          setFormData({ ...formData, endDate: e.target.value })
+                        }
                         className="w-full text-black border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
                       />
                     </div>
@@ -640,7 +736,12 @@ const StagingManager = () => {
                       <input
                         type="time"
                         value={formData.startTime}
-                        onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            startTime: e.target.value,
+                          })
+                        }
                         className="w-full text-black border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
                       />
                     </div>
@@ -651,7 +752,9 @@ const StagingManager = () => {
                       <input
                         type="time"
                         value={formData.endTime}
-                        onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+                        onChange={(e) =>
+                          setFormData({ ...formData, endTime: e.target.value })
+                        }
                         className="w-full text-black border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
                       />
                     </div>
@@ -679,7 +782,13 @@ const StagingManager = () => {
                     </button>
                     <button
                       onClick={handleSubmit}
-                      disabled={!formData.name || !formData.startDate || !formData.endDate || !formData.startTime || !formData.endTime}
+                      disabled={
+                        !formData.name ||
+                        !formData.startDate ||
+                        !formData.endDate ||
+                        !formData.startTime ||
+                        !formData.endTime
+                      }
                       className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium disabled:bg-gray-300 disabled:cursor-not-allowed"
                     >
                       {editingStageId ? "Update" : "Submit"}

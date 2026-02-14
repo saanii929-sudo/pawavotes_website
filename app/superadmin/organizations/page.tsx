@@ -17,6 +17,7 @@ export default function OrganizationsPage() {
     address: "",
     website: "",
     description: "",
+    eventType: "awards",
     status: "active",
   });
 
@@ -49,6 +50,8 @@ export default function OrganizationsPage() {
     e.preventDefault();
     const token = localStorage.getItem("token");
 
+    console.log('Submitting organization with data:', formData);
+
     try {
       const url = editingOrg
         ? `/api/superadmin/organizations/${editingOrg._id}`
@@ -63,14 +66,18 @@ export default function OrganizationsPage() {
         body: JSON.stringify(formData),
       });
 
+      const data = await response.json();
+      console.log('Response:', data);
+
       if (response.ok) {
+        alert('Organization created successfully!');
         setShowModal(false);
         setEditingOrg(null);
         resetForm();
         fetchOrganizations();
       } else {
-        const error = await response.json();
-        alert(error.error || "Failed to save organization");
+        console.error('Error response:', data);
+        alert(data.error || "Failed to save organization");
       }
     } catch (error) {
       console.error("Failed to save organization:", error);
@@ -108,6 +115,7 @@ export default function OrganizationsPage() {
       address: "",
       website: "",
       description: "",
+      eventType: "awards",
       status: "active",
     });
   };
@@ -122,6 +130,7 @@ export default function OrganizationsPage() {
       address: org.address || "",
       website: org.website || "",
       description: org.description || "",
+      eventType: org.eventType || "awards",
       status: org.status,
     });
     setShowModal(true);
@@ -189,6 +198,9 @@ export default function OrganizationsPage() {
                   Email
                 </th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">
+                  Event Type
+                </th>
+                <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">
                   Phone
                 </th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">
@@ -207,6 +219,17 @@ export default function OrganizationsPage() {
                 <tr key={org._id} className="border-t hover:bg-gray-50">
                   <td className="py-3 px-4 text-sm font-medium">{org.name}</td>
                   <td className="py-3 px-4 text-sm">{org.email}</td>
+                  <td className="py-3 px-4">
+                    <span
+                      className={`inline-flex px-2 py-1 text-xs rounded-full font-medium ${
+                        org.eventType === "election"
+                          ? "bg-purple-100 text-purple-700"
+                          : "bg-blue-100 text-blue-700"
+                      }`}
+                    >
+                      {org.eventType === "election" ? "Election" : "Awards"}
+                    </span>
+                  </td>
                   <td className="py-3 px-4 text-sm">{org.phone || "-"}</td>
                   <td className="py-3 px-4">
                     <span
@@ -286,6 +309,27 @@ export default function OrganizationsPage() {
                       }
                       className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Event Type *
+                    </label>
+                    <select
+                      value={formData.eventType}
+                      onChange={(e) =>
+                        setFormData({ ...formData, eventType: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                    >
+                      <option value="awards">Awards & Entertainment</option>
+                      <option value="election">Institutional Elections</option>
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {formData.eventType === "awards" 
+                        ? "For awards, competitions, and entertainment voting"
+                        : "For school, university, and organizational elections"}
+                    </p>
                   </div>
 
                   <div>

@@ -12,16 +12,33 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 
+
+interface Award {
+  _id: string;
+  name: string;
+  code: string;
+  organizationName: string;
+  status: string;
+  categories: number;
+  settings?: { showResults: boolean };
+  banner?: string;
+}
+
+interface Category {
+  _id: string;
+  name: string;
+}
+
 const ManageCategoriesApp = () => {
   const [currentView, setCurrentView] = useState("list");
-  const [selectedAward, setSelectedAward] = useState(null);
+  const [selectedAward, setSelectedAward] = useState<Award | null>(null);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showActionMenu, setShowActionMenu] = useState(null);
   const [newCategory, setNewCategory] = useState({ name: "", publish: false });
-  const [awards, setAwards] = useState([]);
-  const [categories, setCategories] = useState([]);
+  const [awards, setAwards] = useState<Award[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingCategories, setLoadingCategories] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
 
   useEffect(() => {
     fetchAwards();
@@ -33,15 +50,13 @@ const ManageCategoriesApp = () => {
     }
   }, [selectedAward]);
 
+
   const fetchAwards = async () => {
     try {
       const token = localStorage.getItem("token");
       const response = await fetch("/api/awards", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
-
       if (response.ok) {
         const data = await response.json();
         setAwards(data.data);
@@ -49,38 +64,29 @@ const ManageCategoriesApp = () => {
         toast.error("Failed to fetch awards");
       }
     } catch (error) {
-      console.error("Failed to fetch awards:", error);
       toast.error("Failed to fetch awards");
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchCategories = async (awardId) => {
-    setLoadingCategories(true);
+  const fetchCategories = async (awardId: string) => {
     try {
       const token = localStorage.getItem("token");
       const response = await fetch(`/api/categories?awardId=${awardId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
-
       if (response.ok) {
         const data = await response.json();
         setCategories(data.data);
-      } else {
-        toast.error("Failed to fetch categories");
       }
     } catch (error) {
       console.error("Failed to fetch categories:", error);
-      toast.error("Failed to fetch categories");
-    } finally {
-      setLoadingCategories(false);
     }
   };
 
-  const handleViewCategories = (award) => {
+
+  const handleViewCategories = (award: Award) => {
     setSelectedAward(award);
     setCurrentView("categories");
   };
@@ -112,7 +118,7 @@ const ManageCategoriesApp = () => {
         setNewCategory({ name: "", publish: false });
         setShowCategoryModal(false);
         fetchCategories(selectedAward._id);
-        fetchAwards(); // Refresh to update category count
+        fetchAwards();
       } else {
         toast.error(data.error || "Failed to create category", { id: loadingToast });
       }
@@ -122,7 +128,7 @@ const ManageCategoriesApp = () => {
     }
   };
 
-  const handleDeleteCategory = async (categoryId) => {
+  const handleDeleteCategory = async (categoryId: Category) => {
     if (!confirm("Are you sure you want to delete this category?")) return;
 
     const loadingToast = toast.loading("Deleting category...");
@@ -138,8 +144,8 @@ const ManageCategoriesApp = () => {
 
       if (response.ok) {
         toast.success("Category deleted successfully!", { id: loadingToast });
-        fetchCategories(selectedAward._id);
-        fetchAwards(); // Refresh to update category count
+        fetchCategories(selectedAward!._id);
+        fetchAwards();
         setShowActionMenu(null);
       } else {
         toast.error("Failed to delete category", { id: loadingToast });
@@ -287,7 +293,7 @@ const ManageCategoriesApp = () => {
 
             <div className="flex flex-col sm:flex-row justify-between items-start gap-3 sm:gap-4 mb-6 sm:mb-8">
               <div className="w-full sm:w-auto">
-                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2 break-words">
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2 wrap-break-words">
                   Categories: {selectedAward?.name}
                 </h1>
                 <p className="text-gray-500 text-xs sm:text-sm">
@@ -362,11 +368,11 @@ const ManageCategoriesApp = () => {
                       className="p-3 sm:p-4 hover:bg-gray-50 transition-colors"
                     >
                       <div className="flex items-start sm:items-center gap-3 sm:gap-4">
-                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-green-100 flex items-center justify-center shrink-0">
                           <Award size={16} className="sm:w-5 sm:h-5 text-green-600" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-sm sm:text-base font-semibold text-gray-900 break-words">
+                          <h3 className="text-sm sm:text-base font-semibold text-gray-900 wrap-break-words">
                             {category.name}
                           </h3>
                           <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-2 sm:mt-1 text-xs sm:text-sm text-gray-500">
@@ -389,7 +395,7 @@ const ManageCategoriesApp = () => {
                             <span className="text-[10px] sm:text-xs">{category.nomineeCount} Entries</span>
                           </div>
                         </div>
-                        <div className="relative flex-shrink-0">
+                        <div className="relative shrink-0">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();

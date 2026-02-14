@@ -127,9 +127,7 @@ export default function Sidebar() {
     }
   }, []);
 
-  // Filter menu based on user role
   const filteredMenu = menu.filter(item => {
-    // Hide Organization menu for org-admins
     if (userRole === 'org-admin' && item.name === 'Organization') {
       return false;
     }
@@ -147,9 +145,8 @@ export default function Sidebar() {
 
   const SidebarContent = (
     <div className="w-64 relative bg-white h-full px-6 py-8">
-      {/* Header */}
-      <a href="/" className="flex items-center justify-between mb-10">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between mb-10">
+        <a href="/" className="flex items-center gap-2">
           {" "}
           <Image
             src="/images/logo.png"
@@ -161,7 +158,7 @@ export default function Sidebar() {
             {" "}
             Pawavotes{" "}
           </span>{" "}
-        </div>
+        </a>
 
         <button
           className="md:hidden absolute top-4 right-4 text-gray-400"
@@ -170,7 +167,7 @@ export default function Sidebar() {
           {" "}
           <X />{" "}
         </button>
-      </a>
+      </div>
 
       {/* Menu */}
       <nav className="space-y-2">

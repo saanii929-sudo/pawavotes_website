@@ -313,7 +313,7 @@ const BulkVotingManager = () => {
                       </div>
                     </div>
                     <p className="text-green-600 text-[10px] sm:text-xs mt-3 flex items-start sm:items-center gap-1">
-                      <Info size={12} className="flex-shrink-0 mt-0.5 sm:mt-0" />
+                      <Info size={12} className="shrink-0 mt-0.5 sm:mt-0" />
                       <span>10% service fee later applied for all awards.</span>
                     </p>
                   </div>
@@ -477,7 +477,6 @@ const BulkVotingManager = () => {
         </div>
       )}
 
-      {/* Add/Edit Modal */}
       {showModal && (
         <>
           <div
@@ -493,21 +492,22 @@ const BulkVotingManager = () => {
               className="bg-white rounded-xl shadow-2xl w-full max-w-md relative"
               onClick={(e) => e.stopPropagation()}
             >
+              <div className="flex bg-green-600 justify-between p-4 rounded-t-xl items-center">
+                <h2 className="text-xl font-semibold text-white">
+                  {editingPackageId ? "Edit Bulk Vote Package" : "Add Bulk Vote Package"}
+                </h2>
               <button
                 onClick={() => {
                   setShowModal(false);
                   setFormData({ amount: "", votes: "", description: "" });
                   setEditingPackageId(null);
                 }}
-                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+                className="absolute top-4 right-4 text-white cursor-pointer hover:bg-green-700 hover:rounded-xl p-1 hover:text-white transition-colors"
               >
                 <X size={24} />
-              </button>
+              </button></div>
 
               <div className="p-6">
-                <h2 className="text-xl font-semibold text-gray-900 mb-6">
-                  {editingPackageId ? "Edit Bulk Vote Package" : "Add Bulk Vote Package"}
-                </h2>
 
                 <div className="space-y-4">
                   <div>

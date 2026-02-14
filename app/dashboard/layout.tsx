@@ -40,6 +40,12 @@ export default function DashboardLayout({
         return;
       }
 
+      // Redirect election organizations to election dashboard
+      if (user.role === 'organization' && user.eventType === 'election') {
+        router.push('/election-dashboard');
+        return;
+      }
+
       setIsAuthenticated(true);
     } catch (error) {
       console.error('Auth error:', error);
