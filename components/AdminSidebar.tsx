@@ -1,31 +1,6 @@
 "use client";
 
-import {
-  LayoutGrid,
-  Award,
-  Calendar,
-  Building2,
-  ChevronDown,
-  X,
-  Edit3,
-  FolderOpen,
-  Users,
-  FileText,
-  Vote,
-  Layers,
-  BarChart3,
-  ArrowRightLeft,
-  CreditCard,
-  CalendarDays,
-  Clock,
-  CheckSquare,
-  UserCircle,
-  UserCog,
-  Settings,
-  Target,
-  MessageCircle,
-  UserCheck,
-} from "lucide-react";
+import { LayoutGrid, Building2, X, CreditCard, DollarSign } from "lucide-react";
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
@@ -35,23 +10,17 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useUI } from "@/context/ui-context";
 
 const menu = [
-  { name: "Overview", href: "/election-dashboard", icon: LayoutGrid },
-  { name: "Elections", href: "/election-dashboard/elections", icon: Vote },
+  { name: "Dashboard", href: "/superadmin", icon: LayoutGrid },
+  { name: "Organizations", href: "/superadmin/organizations", icon: Building2 },
+  { name: "Withdrawals", href: "/superadmin/withdrawals", icon: CreditCard },
   {
-    name: "Positions",
-    href: "/election-dashboard/positions",
-    icon: BarChart3,
+    name: "Platform Revenue",
+    href: "/superadmin/platform-revenue",
+    icon: DollarSign,
   },
-  {
-    name: "Candidates",
-    href: "/election-dashboard/candidates",
-    icon: UserCheck,
-  },
-  { name: "Voters", href: "/election-dashboard/voters", icon: Users },
-  { name: "Results", href: "/election-dashboard/results", icon: BarChart3 },
 ];
 
-export default function Sidebar1() {
+export default function AdminSidebar() {
   const pathname = usePathname();
   const { sidebarOpen, setSidebarOpen } = useUI();
   const [openDropdowns, setOpenDropdowns] = useState<string[]>([]);
@@ -85,7 +54,7 @@ export default function Sidebar1() {
           />{" "}
           <span className="text-xl absolute left-22 top-13 font-semibold text-green-600">
             {" "}
-            Pawavotes{" "}
+            SuperAdmin{" "}
           </span>{" "}
         </a>
 
@@ -105,20 +74,19 @@ export default function Sidebar1() {
 
           return (
             <div key={item.name} className="relative">
-                <Link
-                  href={item.href!}
-                  className={`flex items-center text-sm gap-3 px-4 py-3 rounded-lg transition
+              <Link
+                href={item.href!}
+                className={`flex items-center text-sm gap-3 px-4 py-3 rounded-lg transition
                     ${
                       pathname === item.href
                         ? "bg-green-500 text-white"
                         : "text-gray-500 hover:bg-gray-100"
                     }
                   `}
-                >
-                  <Icon size={18} />
-                  <span>{item.name}</span>
-                </Link>
-
+              >
+                <Icon size={18} />
+                <span>{item.name}</span>
+              </Link>
             </div>
           );
         })}

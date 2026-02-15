@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, useRef } from 'react';
 import toast from 'react-hot-toast';
 
-export default function Topbar1() {
+export default function AdminTopBar() {
   const { setSidebarOpen } = useUI();
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
@@ -64,7 +64,7 @@ export default function Topbar1() {
           <div className="text-right">
             <p className="text-sm font-medium text-black">{user?.name || 'User'}</p>
             <p className="text-xs text-gray-400">
-              {user?.role === 'org-admin' ? 'Admin' : 'Event Organizer'}
+              {user?.role === 'org-admin' ? 'Admin' : 'SuperAdmin'}
               {user?.organizationName && ` • ${user.organizationName}`}
             </p>
           </div>

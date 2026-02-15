@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import Sidebar from '@/components/sidebar1';
-import Topbar from '@/components/topbar1';
+import Sidebar1 from '@/components/sidebar1';
+import Topbar1 from '@/components/topbar1';
 import { UIProvider } from '@/context/ui-context';
 import { 
   LayoutGrid, 
@@ -105,9 +105,9 @@ export default function ElectionDashboardLayout({
           }}
         />
         <div className="flex min-h-screen bg-gray-50">
-          <Sidebar />
+          <Sidebar1 />
           <div className="flex-1 flex flex-col">
-            <Topbar />
+            <Topbar1 />
             <main className="p-4 md:px-24">{children}</main>
           </div>
         </div>
