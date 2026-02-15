@@ -72,7 +72,20 @@ export async function POST(req: NextRequest) {
 
     const existingTokens = new Set<string>();
     const votersToCreate = [];
-    const results = {
+    const results: {
+      success: Array<{
+        row: number;
+        name: string;
+        token: string;
+        password: string;
+        email?: string;
+      }>;
+      failed: Array<{
+        row: number;
+        data: any;
+        error: string;
+      }>;
+    } = {
       success: [],
       failed: [],
     };

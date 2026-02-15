@@ -6,10 +6,11 @@ import { handleError } from '@/utils/error-handler';
 // POST /api/categories/:id/publish
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const category = await categoryService.publishCategory(params.id);
+    const { id } = await params;
+    const category = await categoryService.publishCategory(id);
     return NextResponse.json(successResponse('Category published successfully', category));
   } catch (error: any) {
     const { statusCode, message } = handleError(error);

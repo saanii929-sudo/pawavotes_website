@@ -140,11 +140,11 @@ export async function POST(req: NextRequest) {
         
         if (!supporterExists) {
           campaign.supporters.push({
+            name: pendingVote.email,
             email: pendingVote.email,
             phone: pendingVote.phone,
             amount: pendingVote.amount,
-            votes: pendingVote.numberOfVotes,
-            date: new Date(),
+            joinedAt: new Date(),
           });
         } else {
           // Update existing supporter
@@ -153,7 +153,6 @@ export async function POST(req: NextRequest) {
           );
           if (supporter) {
             supporter.amount = (supporter.amount || 0) + pendingVote.amount;
-            supporter.votes = (supporter.votes || 0) + pendingVote.numberOfVotes;
           }
         }
 

@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Vote, CheckCircle, Calendar, Clock, Award } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
-export default function ElectionHomePage() {
+function ElectionHomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
@@ -165,6 +165,64 @@ export default function ElectionHomePage() {
           </div>
         </div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-white rounded-xl shadow-sm p-6 border">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                  <Calendar className="text-green-600" size={24} />
+                </div>
+                <h3 className="font-bold text-gray-900">Voting Period</h3>
+              </div>
+              <div className="space-y-2 text-sm">
+                <div>
+                  <p className="text-gray-600">Starts</p>
+                  <p className="font-medium text-gray-900">
+                    {new Date(election.startDate).toLocaleString()}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-600">Ends</p>
+                  <p className="font-medium text-gray-900">
+                    {new Date(election.endDate).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm p-6 border">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <CheckCircle className="text-blue-600" size={24} />
+                </div>
+                <h3 className="font-bold text-gray-900">Your Status</h3>
+              </div>
+              <div className="space-y-2 text-sm">
+                <div>
+                  <p className="text-gray-600">Voter Token</p>
+                  <p className="font-mono font-medium text-gray-900">{voterData.token}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600">Voting Status</p>
+                  <p className={`font-medium ${voterData.hasVoted ? 'text-green-600' : 'text-orange-600'}`}>
+                    {voterData.hasVoted ? '✓ Voted' : 'Not Voted Yet'}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm p-6 border">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                  <Clock className="text-orange-600" size={24} />
+                </div>
+                <h3 className="font-bold text-gray-900">Important</h3>
+              </div>
+              <ul className="space-y-2 text-sm text-gray-700">
+                <li>• You can only vote once</li>
+                <li>• Your vote is anonymous</li>
+                <li>• Credentials expire after voting</li>
+                <li>• Vote during the active period</li>
+              </ul>
+            </div>
+          </div>
           {!voterData.hasVoted && isActive && (
             <div className="mt-8 bg-green-50 rounded-xl p-6 border border-green-200">
               <h3 className="font-bold text-gray-900 mb-4">How to Vote</h3>
@@ -211,5 +269,13 @@ export default function ElectionHomePage() {
         </div>
       </div>
     </>
+  );
+}
+
+export default function ElectionHomePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+      <ElectionHomeContent />
+    </Suspense>
   );
 }

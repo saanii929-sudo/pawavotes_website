@@ -44,10 +44,10 @@ export async function GET(req: NextRequest) {
 
     for (const award of awards) {
       // Calculate revenue for this award
-      const votes = await Vote.find({ awardId: award._id, paymentStatus: 'completed' });
+      const votes = await Vote.find({ awardId: award._id.toString(), paymentStatus: 'completed' });
       const votingRevenue = votes.reduce((sum, v) => sum + (v.amount || 0), 0);
 
-      const payments = await Payment.find({ awardId: award._id, status: 'completed' });
+      const payments = await Payment.find({ awardId: award._id.toString(), status: 'completed' });
       const nominationRevenue = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
 
       const awardRevenue = votingRevenue + nominationRevenue;

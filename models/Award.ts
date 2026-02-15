@@ -19,6 +19,8 @@ export interface IAward extends Document {
   totalVotes: number;
   totalNominees: number;
   createdBy: string;
+  winnersAnnounced?: boolean;
+  winnersAnnouncedAt?: Date;
   nomination?: {
     enabled: boolean;
     type: 'free' | 'fixed' | 'category';
@@ -129,6 +131,13 @@ const AwardSchema: Schema = new Schema(
     createdBy: {
       type: String,
       required: true,
+    },
+    winnersAnnounced: {
+      type: Boolean,
+      default: false,
+    },
+    winnersAnnouncedAt: {
+      type: Date,
     },
     nomination: {
       enabled: {

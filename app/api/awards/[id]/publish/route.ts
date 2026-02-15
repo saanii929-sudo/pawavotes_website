@@ -7,10 +7,11 @@ import { handleError } from '@/utils/error-handler';
 // POST /api/awards/:id/publish
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const award = await awardService.publishAward(params.id);
+    const { id } = await params;
+    const award = await awardService.publishAward(id);
     return NextResponse.json(successResponse('Award published successfully', award));
   } catch (error: any) {
     const { statusCode, message } = handleError(error);

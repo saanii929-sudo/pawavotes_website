@@ -7,17 +7,16 @@ export interface JWTPayload {
   organizationId?: string;
 }
 
-export const generateToken = (payload: JWTPayload, expiresIn = '7d'): string => {
-  return jwt.sign(payload, process.env.JWT_SECRET || 'your-secret-key', {
+export const generateToken = (payload: JWTPayload, expiresIn: string | number = '7d'): string => {
+  const secret = process.env.JWT_SECRET || 'your-secret-key';
+  return jwt.sign(payload, secret, {
     expiresIn,
-  });
+  } as jwt.SignOptions);
 };
 
 export const verifyToken = (token: string): JWTPayload => {
-  return jwt.verify(
-    token,
-    process.env.JWT_SECRET || 'your-secret-key'
-  ) as JWTPayload;
+  const secret = process.env.JWT_SECRET || 'your-secret-key';
+  return jwt.verify(token, secret) as JWTPayload;
 };
 
 export const decodeToken = (token: string): JWTPayload | null => {

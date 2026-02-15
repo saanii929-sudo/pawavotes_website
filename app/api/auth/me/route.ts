@@ -47,10 +47,10 @@ async function getCurrentUser(req: NextRequest) {
       if (orgAdmin) {
         userData = {
           ...userData,
-          name: orgAdmin.username,
+          name: (orgAdmin as any).username,
           email: orgAdmin.email,
-          organizationId: orgAdmin.organizationId._id,
-          organizationName: orgAdmin.organizationId.name,
+          organizationId: (orgAdmin.organizationId as any)._id,
+          organizationName: (orgAdmin.organizationId as any).name,
           assignedAwards: orgAdmin.assignedAwards,
         };
       }

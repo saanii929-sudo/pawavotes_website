@@ -96,10 +96,7 @@ const CompactCountdown = ({
     return () => clearInterval(timer);
   }, [votingStartDate, votingEndDate, votingStartTime, votingEndTime]);
 
-  // Don't render if voting hasn't started or if there's no time text
-  if (phase === "upcoming" || !timeText) {
-    return null;
-  }
+
 
   const getPhaseColor = () => {
     switch (phase) {

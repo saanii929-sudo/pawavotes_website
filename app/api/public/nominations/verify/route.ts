@@ -97,9 +97,8 @@ export async function POST(req: NextRequest) {
     // Record payment
     await Payment.create({
       transactionId: reference,
-      nomineeId: nominee._id,
+      nomineeId: nominee._id.toString(),
       awardId: pendingNomination.awardId,
-      categoryId: pendingNomination.categoryId,
       paymentMethod: 'mobile_money',
       amount: pendingNomination.amount,
       currency: 'GHS',

@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
       id: user._id,
       email: user.email,
       role: role,
-      eventType: role === 'organization' ? user.eventType : undefined,
+      eventType: role === 'organization' ? (user as any).eventType : undefined,
       organizationId: role === 'org-admin' ? (user as any).organizationId._id : undefined,
       assignedAwards: role === 'org-admin' ? (user as any).assignedAwards : undefined,
     });
@@ -90,9 +90,9 @@ export async function POST(req: NextRequest) {
       user: {
         id: user._id,
         email: user.email,
-        name: user.username || user.name,
+        name: (user as any).username || (user as any).name,
         role: role,
-        eventType: role === 'organization' ? user.eventType : undefined,
+        eventType: role === 'organization' ? (user as any).eventType : undefined,
         organizationId: role === 'org-admin' ? (user as any).organizationId._id : undefined,
         organizationName: role === 'org-admin' ? (user as any).organizationId.name : undefined,
         assignedAwards: role === 'org-admin' ? (user as any).assignedAwards : undefined,

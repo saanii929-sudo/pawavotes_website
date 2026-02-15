@@ -38,7 +38,7 @@ export async function POST(
 
     // Check if voting has ended
     const now = new Date();
-    if (now < new Date(award.votingEndDate)) {
+    if (award.votingEndDate && now < new Date(award.votingEndDate)) {
       return NextResponse.json(
         { error: 'Voting period has not ended yet' },
         { status: 400 }

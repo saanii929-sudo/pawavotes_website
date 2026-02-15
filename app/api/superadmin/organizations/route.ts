@@ -110,7 +110,7 @@ async function createOrganization(req: NextRequest) {
 
     console.log('Organization created successfully:', organization._id, 'eventType:', organization.eventType);
 
-    const orgData = organization.toObject();
+    const orgData: any = organization.toObject();
     delete orgData.password;
 
     return NextResponse.json({

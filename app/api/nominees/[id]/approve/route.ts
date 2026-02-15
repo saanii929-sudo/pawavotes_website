@@ -63,7 +63,7 @@ async function approveNominee(req: NextRequest, { params }: { params: Promise<{ 
         { status: 400 }
       );
     }
-    const nomineeCode = await generateNomineeCode(nominee.awardId._id);
+    const nomineeCode = await generateNomineeCode((nominee.awardId as any)._id);
     nominee.nominationStatus = 'accepted';
     nominee.status = 'published';
     nominee.nomineeCode = nomineeCode;
@@ -73,7 +73,7 @@ async function approveNominee(req: NextRequest, { params }: { params: Promise<{ 
         nominee.email,
         nominee.name,
         nomineeCode,
-        nominee.awardId.name
+        (nominee.awardId as any).name
       );
     }
 

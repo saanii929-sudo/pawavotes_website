@@ -82,6 +82,7 @@ async function showWelcome(session: any) {
   }
   const now = new Date();
   const activeAwards = awards.filter(award => {
+    if (!award.votingStartDate || !award.votingEndDate) return false;
     const start = new Date(award.votingStartDate);
     const end = new Date(award.votingEndDate);
     return now >= start && now <= end;

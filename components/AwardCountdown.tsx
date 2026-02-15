@@ -129,11 +129,6 @@ const AwardCountdown = ({
     return null;
   }
 
-  // Don't show countdown if voting hasn't started yet
-  if (phase === "upcoming") {
-    return null;
-  }
-
   const getPhaseConfig = () => {
     switch (phase) {
       case "upcoming":
@@ -151,6 +146,7 @@ const AwardCountdown = ({
           icon: <Zap className="w-6 h-6" />,
         };
       case "ended":
+      default:
         return {
           title: "Voting Has Ended",
           gradient: "from-gray-500 via-gray-600 to-gray-700",
@@ -159,6 +155,11 @@ const AwardCountdown = ({
         };
     }
   };
+
+  // Don't show countdown if voting hasn't started yet
+  if (phase === "upcoming") {
+    return null;
+  }
 
   const config = getPhaseConfig();
 
@@ -252,7 +253,6 @@ const AwardCountdown = ({
         {/* Status Text */}
         <div className="text-center mt-3 sm:mt-4 md:mt-6">
           <p className="text-gray-400 text-xs sm:text-sm">
-            {phase === "upcoming" && "Get ready to cast your vote!"}
             {phase === "voting" && "Voting is live! Cast your vote now!"}
           </p>
         </div>

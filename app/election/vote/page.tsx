@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Vote, CheckCircle, Users, TrendingUp, ArrowLeft, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
@@ -24,7 +24,7 @@ interface Candidate {
   };
 }
 
-export default function VotingPage() {
+function VotingPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
@@ -554,5 +554,13 @@ export default function VotingPage() {
         </div>
       )}
     </>
+  );
+}
+
+export default function VotingPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+      <VotingPageContent />
+    </Suspense>
   );
 }

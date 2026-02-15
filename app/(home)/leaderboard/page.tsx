@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Trophy,
@@ -39,7 +39,7 @@ interface NomineeResult {
   rank: number;
 }
 
-export default function LeaderboardPage() {
+function LeaderboardContent() {
   const searchParams = useSearchParams();
   const awardId = searchParams.get("awardId");
 
@@ -524,5 +524,13 @@ function TableView({
         </table>
       </div>
     </div>
+  );
+}
+
+export default function LeaderboardPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+      <LeaderboardContent />
+    </Suspense>
   );
 }

@@ -33,7 +33,7 @@ const ManageCategoriesApp = () => {
   const [currentView, setCurrentView] = useState("list");
   const [selectedAward, setSelectedAward] = useState<Award | null>(null);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
-  const [showActionMenu, setShowActionMenu] = useState(null);
+  const [showActionMenu, setShowActionMenu] = useState<string | null>(null);
   const [newCategory, setNewCategory] = useState({ name: "", publish: false });
   const [awards, setAwards] = useState<Award[]>([]);
   const [loading, setLoading] = useState(true);

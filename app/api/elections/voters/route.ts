@@ -156,7 +156,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Return voter data with plain password (only shown once)
-    const voterData = voter.toObject();
+    const voterData: any = voter.toObject();
     delete voterData.password;
 
     return NextResponse.json({
@@ -184,6 +184,10 @@ async function sendVoterCredentials(
   password: string,
   electionTitle: string
 ): Promise<boolean> {
+  // Get the base URL from environment or use default
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const loginUrl = `${baseUrl}/election/login`;
+
   const html = `
     <!DOCTYPE html>
     <html>
@@ -197,9 +201,11 @@ async function sendVoterCredentials(
         .credential-item { margin: 15px 0; }
         .credential-label { font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; }
         .credential-value { font-size: 24px; font-weight: bold; color: #9333ea; font-family: monospace; letter-spacing: 2px; }
-        .button { display: inline-block; background: #9333ea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+        .button { display: inline-block; background: #9333ea; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: bold; font-size: 16px; }
+        .button:hover { background: #7e22ce; }
         .footer { text-align: center; margin-top: 30px; color: #6b7280; font-size: 14px; }
         .warning { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; }
+        .info-box { background: #e0e7ff; border-left: 4px solid #6366f1; padding: 15px; margin: 20px 0; }
       </style>
     </head>
     <body>
@@ -225,13 +231,24 @@ async function sendVoterCredentials(
             </div>
           </div>
           
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${loginUrl}" class="button" style="color: white;">
+              🗳️ Go to Voting Portal
+            </a>
+          </div>
+
+          <div class="info-box">
+            <strong>📍 Voting Portal URL:</strong><br>
+            <a href="${loginUrl}" style="color: #6366f1; word-break: break-all;">${loginUrl}</a>
+          </div>
+          
           <div class="warning">
             <strong>⚠️ Important:</strong> Keep these credentials safe. You will need them to cast your vote. These credentials will expire after you vote.
           </div>
           
           <p><strong>How to Vote:</strong></p>
           <ol>
-            <li>Visit the voting portal when the election starts</li>
+            <li>Click the button above or visit the voting portal link</li>
             <li>Enter your token and password</li>
             <li>Review the candidates and cast your vote</li>
             <li>Submit your ballot</li>
@@ -259,11 +276,13 @@ async function sendVoterCredentials(
     Token: ${token}
     Password: ${password}
     
+    Voting Portal: ${loginUrl}
+    
     Keep these credentials safe. You will need them to cast your vote.
     These credentials will expire after you vote.
     
     How to Vote:
-    1. Visit the voting portal when the election starts
+    1. Visit the voting portal: ${loginUrl}
     2. Enter your token and password
     3. Review the candidates and cast your vote
     4. Submit your ballot

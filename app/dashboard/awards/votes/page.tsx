@@ -294,7 +294,7 @@ const ManageVotesEnhanced = () => {
         let nomineeCategoryId;
         
         if (typeof n.categoryId === 'object' && n.categoryId !== null) {
-          nomineeCategoryId = (n.categoryId as any)._id?.toString() || n.categoryId.toString();
+          nomineeCategoryId = (n.categoryId as any)._id?.toString() || (n.categoryId as any).toString();
         } else {
           nomineeCategoryId = n.categoryId?.toString();
         }
