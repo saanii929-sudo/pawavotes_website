@@ -1,8 +1,17 @@
 "use client";
 import { useState, useEffect } from "react";
-import { X, Heart, Minus, Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { X, Heart, Minus, Plus, Package } from "lucide-react";
 import Image from "next/image";
 import toast from "react-hot-toast";
+
+interface BulkVotePackage {
+  _id: string;
+  amount: number;
+  votes: number;
+  currency: string;
+  description?: string;
+}
 
 interface VotingModalProps {
   isOpen: boolean;
@@ -17,6 +26,7 @@ interface VotingModalProps {
   awardId: string;
   categoryId: string;
   votingCost: number;
+  allowBulkVoting?: boolean;
 }
 
 const VotingModal = ({
@@ -27,22 +37,50 @@ const VotingModal = ({
   awardId,
   categoryId,
   votingCost,
+  allowBulkVoting = false,
 }: VotingModalProps) => {
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<"normal" | "bulk">("normal");
   const [numberOfVotes, setNumberOfVotes] = useState(1);
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [bulkPackages, setBulkPackages] = useState<BulkVotePackage[]>([]);
+  const [selectedPackage, setSelectedPackage] = useState<BulkVotePackage | null>(null);
+  const [loadingPackages, setLoadingPackages] = useState(false);
 
-  const totalAmount = numberOfVotes * votingCost;
+  const totalAmount = (!allowBulkVoting || activeTab === "normal")
+    ? numberOfVotes * votingCost 
+    : selectedPackage?.amount || 0;
 
   useEffect(() => {
     if (!isOpen) {
+      setActiveTab("normal");
       setNumberOfVotes(1);
       setEmail("");
       setPhone("");
       setIsProcessing(false);
+      setSelectedPackage(null);
+    } else {
+      // Fetch bulk packages when modal opens
+      fetchBulkPackages();
     }
   }, [isOpen]);
+
+  const fetchBulkPackages = async () => {
+    setLoadingPackages(true);
+    try {
+      const response = await fetch(`/api/bulk-vote-packages?awardId=${awardId}&onlyActive=true`);
+      const data = await response.json();
+      if (data.success) {
+        setBulkPackages(data.data || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch bulk packages:", error);
+    } finally {
+      setLoadingPackages(false);
+    }
+  };
 
   const handleIncrement = () => {
     setNumberOfVotes((prev) => prev + 1);
@@ -63,18 +101,31 @@ const VotingModal = ({
 
   const initializePaystack = async () => {
     try {
+      const voteData = allowBulkVoting && activeTab === "bulk" && selectedPackage
+        ? {
+            awardId,
+            categoryId,
+            nomineeId: nominee._id,
+            email: email.toLowerCase(),
+            phone,
+            numberOfVotes: selectedPackage.votes,
+            amount: selectedPackage.amount,
+            bulkPackageId: selectedPackage._id,
+          }
+        : {
+            awardId,
+            categoryId,
+            nomineeId: nominee._id,
+            email: email.toLowerCase(),
+            phone,
+            numberOfVotes,
+            amount: totalAmount,
+          };
+
       const response = await fetch("/api/public/votes/initialize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          awardId,
-          categoryId,
-          nomineeId: nominee._id,
-          email: email.toLowerCase(),
-          phone,
-          numberOfVotes,
-          amount: totalAmount,
-        }),
+        body: JSON.stringify(voteData),
       });
 
       const data = await response.json();
@@ -119,8 +170,13 @@ const VotingModal = ({
       return;
     }
 
-    if (numberOfVotes < 1) {
+    if ((!allowBulkVoting || activeTab === "normal") && numberOfVotes < 1) {
       toast.error("Please select at least 1 vote");
+      return;
+    }
+
+    if (allowBulkVoting && activeTab === "bulk" && !selectedPackage) {
+      toast.error("Please select a bulk vote package");
       return;
     }
 
@@ -140,6 +196,8 @@ const VotingModal = ({
         });
       }
 
+      const votesCount = allowBulkVoting && activeTab === "bulk" ? selectedPackage!.votes : numberOfVotes;
+
       // @ts-ignore
       const handler = window.PaystackPop.setup({
         key: initData.paystackPublicKey,
@@ -157,7 +215,12 @@ const VotingModal = ({
             {
               display_name: "Number of Votes",
               variable_name: "number_of_votes",
-              value: numberOfVotes.toString(),
+              value: votesCount.toString(),
+            },
+            {
+              display_name: "Vote Type",
+              variable_name: "vote_type",
+              value: activeTab === "bulk" ? "Bulk Package" : "Normal",
             },
           ],
         },
@@ -166,14 +229,18 @@ const VotingModal = ({
             try {
               const verifyData = await verifyPayment(response.reference);
               toast.success(
-                `Successfully voted ${numberOfVotes} time${numberOfVotes > 1 ? "s" : ""} for ${nominee.name}!`
+                `Successfully voted ${votesCount} time${votesCount > 1 ? "s" : ""} for ${nominee.name}!`
               );
+              
+              // Redirect to success page with vote details
+              const successUrl = `/vote-success?nominee=${encodeURIComponent(nominee.name)}&votes=${votesCount}&amount=${totalAmount}&type=${allowBulkVoting && activeTab === "bulk" ? "bulk" : "normal"}`;
+              
               if (onSuccess) {
                 onSuccess();
-              } else {
-                onClose();
-                window.location.reload();
               }
+              
+              onClose();
+              router.push(successUrl);
             } catch (error: any) {
               toast.error(error.message || "Failed to verify payment");
             } finally {
@@ -213,6 +280,40 @@ const VotingModal = ({
 
         {/* Content */}
         <div className="p-6">
+          {/* Tabs - Only show if bulk voting is allowed */}
+          {allowBulkVoting && (
+            <div className="flex gap-2 mb-6 border-b border-gray-200">
+              <button
+                onClick={() => setActiveTab("normal")}
+                disabled={isProcessing}
+                className={`flex-1 py-3 px-4 text-sm font-medium transition-colors relative ${
+                  activeTab === "normal"
+                    ? "text-green-600 border-b-2 border-green-600"
+                    : "text-gray-500 hover:text-gray-700"
+                } disabled:opacity-50`}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <Heart size={16} />
+                  Normal Voting
+                </div>
+              </button>
+              <button
+                onClick={() => setActiveTab("bulk")}
+                disabled={isProcessing}
+                className={`flex-1 py-3 px-4 text-sm font-medium transition-colors relative ${
+                  activeTab === "bulk"
+                    ? "text-green-600 border-b-2 border-green-600"
+                    : "text-gray-500 hover:text-gray-700"
+                } disabled:opacity-50`}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <Package size={16} />
+                  Bulk Voting
+                </div>
+              </button>
+            </div>
+          )}
+
           {/* Nominee Info */}
           <div className="flex items-center gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
             {nominee.image ? (
@@ -246,41 +347,97 @@ const VotingModal = ({
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Number of Votes */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Number of Votes
-              </label>
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={handleDecrement}
-                  disabled={numberOfVotes <= 1 || isProcessing}
-                  className="w-10 h-10 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Minus size={18} />
-                </button>
-                <input
-                  type="number"
-                  min="1"
-                  value={numberOfVotes}
-                  onChange={handleVoteCountChange}
-                  disabled={isProcessing}
-                  className="flex-1 text-center text-2xl font-bold border border-gray-300 rounded-lg py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-                <button
-                  type="button"
-                  onClick={handleIncrement}
-                  disabled={isProcessing}
-                  className="w-10 h-10 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Plus size={18} />
-                </button>
+            {/* Normal Voting Tab Content */}
+            {(!allowBulkVoting || activeTab === "normal") && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Number of Votes
+                </label>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleDecrement}
+                    disabled={numberOfVotes <= 1 || isProcessing}
+                    className="w-10 h-10 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Minus size={18} />
+                  </button>
+                  <input
+                    type="number"
+                    min="1"
+                    value={numberOfVotes}
+                    onChange={handleVoteCountChange}
+                    disabled={isProcessing}
+                    className="flex-1 text-center text-2xl font-bold border border-gray-300 rounded-lg py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleIncrement}
+                    disabled={isProcessing}
+                    className="w-10 h-10 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Plus size={18} />
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  GHS {votingCost.toFixed(2)} per vote
+                </p>
               </div>
-              <p className="text-xs text-gray-500 mt-2">
-                GHS {votingCost.toFixed(2)} per vote
-              </p>
-            </div>
+            )}
+
+            {/* Bulk Voting Tab Content */}
+            {allowBulkVoting && activeTab === "bulk" && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Select a Bulk Vote Package
+                </label>
+                {loadingPackages ? (
+                  <div className="text-center py-8">
+                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+                    <p className="text-sm text-gray-500 mt-2">Loading packages...</p>
+                  </div>
+                ) : bulkPackages.length === 0 ? (
+                  <div className="text-center py-8 bg-gray-50 rounded-lg">
+                    <Package className="mx-auto text-gray-400 mb-2" size={32} />
+                    <p className="text-sm text-gray-500">No bulk packages available</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-64 overflow-y-auto">
+                    {bulkPackages.map((pkg) => (
+                      <button
+                        key={pkg._id}
+                        type="button"
+                        onClick={() => setSelectedPackage(pkg)}
+                        disabled={isProcessing}
+                        className={`p-4 rounded-lg border-2 transition-all text-left ${
+                          selectedPackage?._id === pkg._id
+                            ? "border-green-600 bg-green-50"
+                            : "border-gray-200 hover:border-green-300"
+                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-2xl font-bold text-green-600">
+                            {pkg.votes}
+                          </span>
+                          <span className="text-xs text-gray-500">votes</span>
+                        </div>
+                        <div className="text-lg font-semibold text-gray-900 mb-1">
+                          {pkg.currency} {pkg.amount.toFixed(2)}
+                        </div>
+                        {pkg.description && (
+                          <p className="text-xs text-gray-600 line-clamp-2">
+                            {pkg.description}
+                          </p>
+                        )}
+                        <div className="mt-2 text-xs text-green-600 font-medium">
+                          {pkg.currency} {(pkg.amount / pkg.votes).toFixed(2)} per vote
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Email */}
             <div>
@@ -318,14 +475,26 @@ const VotingModal = ({
             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-gray-600">Number of Votes:</span>
-                <span className="font-semibold text-gray-900">{numberOfVotes}</span>
-              </div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-600">Price per Vote:</span>
                 <span className="font-semibold text-gray-900">
-                  GHS {votingCost.toFixed(2)}
+                  {allowBulkVoting && activeTab === "bulk" ? selectedPackage?.votes || 0 : numberOfVotes}
                 </span>
               </div>
+              {(!allowBulkVoting || activeTab === "normal") && (
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm text-gray-600">Price per Vote:</span>
+                  <span className="font-semibold text-gray-900">
+                    GHS {votingCost.toFixed(2)}
+                  </span>
+                </div>
+              )}
+              {allowBulkVoting && activeTab === "bulk" && selectedPackage && (
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm text-gray-600">Price per Vote:</span>
+                  <span className="font-semibold text-gray-900">
+                    GHS {(selectedPackage.amount / selectedPackage.votes).toFixed(2)}
+                  </span>
+                </div>
+              )}
               <div className="border-t border-green-200 pt-2 mt-2">
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-gray-900">Total Amount:</span>

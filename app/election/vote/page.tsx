@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Vote,
@@ -104,6 +104,7 @@ function VotingPageContent() {
       ...prev,
       [categoryId]: null,
     }));
+    toast.success("Position skipped");
   };
 
   const handleNextStep = () => {
@@ -166,11 +167,11 @@ function VotingPageContent() {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        toast.success("Vote submitted successfully!");
-        const updatedVoterData = { ...voterData, hasVoted: true };
-        localStorage.setItem("voterData", JSON.stringify(updatedVoterData));
+        toast.success("Vote submitted successfully! Logging out...");
+        localStorage.removeItem("voterData");
+        localStorage.removeItem("voterToken");
         setTimeout(() => {
-          router.push(`/election?token=${token}`);
+          router.push("/election/login");
         }, 2000);
       } else {
         toast.error(data.error || "Failed to submit vote");
@@ -324,9 +325,8 @@ function VotingPageContent() {
                               selectedVotes[category._id] === candidate._id;
 
                             return (
-                              <>
+                              <React.Fragment key={candidate._id}>
                                 <button
-                                  key={candidate._id}
                                   onClick={() =>
                                     handleSelectCandidate(
                                       category._id,
@@ -396,7 +396,7 @@ function VotingPageContent() {
                                     )}
                                   </div>
                                 </button>
-                              </>
+                              </React.Fragment>
                             );
                           })}
                         </div>
@@ -476,23 +476,25 @@ function VotingPageContent() {
                         Previous
                       </button>
 
-                      <button
-                        onClick={handleNextStep}
-                        disabled={!canProceed()}
-                        className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {currentStep === categories.length - 1 ? (
-                          <>
-                            <Vote size={20} />
-                            Review & Submit
-                          </>
-                        ) : (
-                          <>
-                            Next
-                            <ChevronRight size={20} />
-                          </>
-                        )}
-                      </button>
+                      <div className="flex flex-col items-end gap-2">
+                        <button
+                          onClick={handleNextStep}
+                          disabled={!canProceed()}
+                          className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {currentStep === categories.length - 1 ? (
+                            <>
+                              <Vote size={20} />
+                              Review & Submit
+                            </>
+                          ) : (
+                            <>
+                              Next
+                              <ChevronRight size={20} />
+                            </>
+                          )}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>

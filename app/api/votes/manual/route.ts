@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
+import { voteService } from '@/services/vote.service';
 import Vote from '@/models/Vote';
 import Nominee from '@/models/Nominee';
 import Category from '@/models/Category';
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { awardId, categoryId, nomineeId, numberOfVotes } = body;
+    const { awardId, categoryId, nomineeId, numberOfVotes, stageId } = body;
 
     if (!awardId || !categoryId || !nomineeId || !numberOfVotes) {
       return NextResponse.json(
@@ -68,16 +69,18 @@ export async function POST(req: NextRequest) {
     // Generate reference ID
     const referenceId = `MANUAL_${Date.now()}_${Math.random().toString(36).substring(7).toUpperCase()}`;
 
-    // Create vote record (amount is 0 for manual votes)
-    const vote = await Vote.create({
+    // Create vote with stage validation using VoteService
+    const vote = await voteService.createVote({
       awardId,
       categoryId,
       nomineeId,
+      stageId, // Will be auto-assigned if not provided
       voterEmail: decoded.email || 'manual@system.local',
       voterPhone: 'N/A',
       numberOfVotes,
-      amount: 0, // Manual votes don't generate revenue
+      voteCount: numberOfVotes,
       paymentReference: referenceId,
+      transactionReference: referenceId,
       paymentMethod: 'manual',
       paymentStatus: 'completed',
     });
@@ -100,18 +103,29 @@ export async function POST(req: NextRequest) {
       { $inc: { totalVotes: numberOfVotes } }
     );
 
-    console.log(`Manual votes added: ${numberOfVotes} votes for nominee ${nomineeId}`);
+    console.log(`Manual votes added: ${numberOfVotes} votes for nominee ${nomineeId}${vote.stageId ? ` in stage ${vote.stageId}` : ''}`);
+
+    // Get stage name if vote has stageId
+    let stageName = null;
+    if (vote.stageId) {
+      const Stage = (await import('@/models/Stage')).default;
+      const stage = await Stage.findById(vote.stageId).select('name');
+      stageName = stage?.name;
+    }
 
     return NextResponse.json({
       success: true,
       message: 'Votes added successfully',
-      data: vote,
+      data: {
+        ...vote.toObject(),
+        stageName,
+      },
     });
   } catch (error: any) {
     console.error('Add manual votes error:', error);
     return NextResponse.json(
       { error: 'Failed to add votes', details: error.message },
-      { status: 500 }
+      { status: error.statusCode || 500 }
     );
   }
 }

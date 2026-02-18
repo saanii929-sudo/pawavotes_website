@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
     const awardId = searchParams.get('awardId');
     const categoryId = searchParams.get('categoryId');
     const nomineeId = searchParams.get('nomineeId');
+    const stageId = searchParams.get('stageId');
 
     let query: any = {};
 
@@ -79,6 +80,10 @@ export async function GET(req: NextRequest) {
       query.nomineeId = nomineeId;
     }
 
+    if (stageId) {
+      query.stageId = stageId;
+    }
+
     // Only get completed payments
     query.paymentStatus = 'completed';
 
@@ -89,16 +94,20 @@ export async function GET(req: NextRequest) {
     // Populate nominee and category details
     const Nominee = (await import('@/models/Nominee')).default;
     const Category = (await import('@/models/Category')).default;
+    const Stage = (await import('@/models/Stage')).default;
 
     const votesWithDetails = await Promise.all(
       votes.map(async (vote) => {
         const nominee = await Nominee.findById(vote.nomineeId).select('name image').lean();
         const category = await Category.findById(vote.categoryId).select('name').lean();
+        const stage = vote.stageId ? await Stage.findById(vote.stageId).select('name order').lean() : null;
         
         return {
           ...vote,
+          bulkPackageId: vote.bulkPackageId || null, // Explicitly include bulkPackageId
           nominee,
           category,
+          stage,
         };
       })
     );

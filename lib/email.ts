@@ -1,4 +1,3 @@
-// Email service utility using nodemailer
 import nodemailer from 'nodemailer';
 
 interface EmailOptions {

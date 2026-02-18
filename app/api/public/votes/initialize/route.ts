@@ -9,7 +9,16 @@ export async function POST(req: NextRequest) {
     await connectDB();
 
     const body = await req.json();
-    const { awardId, categoryId, nomineeId, email, phone, numberOfVotes, amount } = body;
+    const { awardId, categoryId, nomineeId, email, phone, numberOfVotes, amount, bulkPackageId } = body;
+
+    console.log('Initialize vote - received data:', {
+      awardId,
+      categoryId,
+      nomineeId,
+      numberOfVotes,
+      amount,
+      bulkPackageId,
+    });
 
     // Validate required fields
     if (!awardId || !categoryId || !nomineeId || !email || !phone || !numberOfVotes || !amount) {
@@ -36,7 +45,7 @@ export async function POST(req: NextRequest) {
     const reference = `VOTE_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
 
     // Store pending vote in database
-    const pendingVote = await PendingVote.create({
+    const pendingVoteData = {
       reference,
       awardId,
       categoryId,
@@ -45,8 +54,13 @@ export async function POST(req: NextRequest) {
       phone,
       numberOfVotes,
       amount,
-      status: 'pending',
-    });
+      status: 'pending' as const,
+      ...(bulkPackageId && { bulkPackageId }),
+    };
+
+    console.log('Creating pending vote with data:', pendingVoteData);
+
+    const pendingVote = await PendingVote.create(pendingVoteData);
 
     // Get Paystack public key from environment
     const paystackPublicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;

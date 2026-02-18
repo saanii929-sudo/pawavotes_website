@@ -88,10 +88,11 @@ export async function POST(req: NextRequest) {
     console.log('Creating vote record:', {
       numberOfVotes: pendingVote.numberOfVotes,
       amount: pendingVote.amount,
+      bulkPackageId: pendingVote.bulkPackageId,
       reference,
     });
     
-    const vote = await Vote.create({
+    const voteData = {
       awardId: pendingVote.awardId,
       categoryId: pendingVote.categoryId,
       nomineeId: pendingVote.nomineeId,
@@ -101,8 +102,15 @@ export async function POST(req: NextRequest) {
       amount: pendingVote.amount,
       paymentReference: reference,
       paymentMethod: 'mobile_money',
-      paymentStatus: 'completed',
-    });
+      paymentStatus: 'completed' as const,
+      ...(pendingVote.bulkPackageId && { bulkPackageId: pendingVote.bulkPackageId }),
+    };
+
+    console.log('Vote data to be saved:', voteData);
+    
+    const vote = await Vote.create(voteData);
+    
+    console.log('Vote created successfully:', vote);
 
     // Update nominee vote count
     await Nominee.findByIdAndUpdate(

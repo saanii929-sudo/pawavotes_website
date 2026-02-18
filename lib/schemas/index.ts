@@ -79,15 +79,56 @@ export const createStageSchema = z.object({
   name: z.string().min(2, 'Stage name is required'),
   awardId: z.string().min(1, 'Award ID is required'),
   description: z.string().optional(),
-  startDate: z.string().datetime(),
-  endDate: z.string().datetime(),
+  startDate: z.string().min(1, 'Start date is required'),
+  endDate: z.string().min(1, 'End date is required'),
   startTime: z.string(),
   endTime: z.string(),
   order: z.number().min(1),
   stageType: z.enum(['nomination', 'voting', 'results']),
-});
+  qualificationRule: z.enum(['topN', 'threshold', 'manual']).default('manual'),
+  qualificationCount: z.number().min(1).optional(),
+  qualificationThreshold: z.number().min(1).optional(),
+}).refine(
+  (data) => {
+    if (data.qualificationRule === 'topN' && !data.qualificationCount) {
+      return false;
+    }
+    if (data.qualificationRule === 'threshold' && !data.qualificationThreshold) {
+      return false;
+    }
+    return true;
+  },
+  {
+    message: 'qualificationCount is required for topN rule, qualificationThreshold is required for threshold rule',
+  }
+);
 
-export const updateStageSchema = createStageSchema.partial();
+export const updateStageSchema = z.object({
+  name: z.string().min(2, 'Stage name is required').optional(),
+  description: z.string().optional(),
+  startDate: z.string().min(1, 'Start date is required').optional(),
+  endDate: z.string().min(1, 'End date is required').optional(),
+  startTime: z.string().optional(),
+  endTime: z.string().optional(),
+  order: z.number().min(1).optional(),
+  stageType: z.enum(['nomination', 'voting', 'results']).optional(),
+  qualificationRule: z.enum(['topN', 'threshold', 'manual']).optional(),
+  qualificationCount: z.number().min(1).optional(),
+  qualificationThreshold: z.number().min(1).optional(),
+}).refine(
+  (data) => {
+    if (data.qualificationRule === 'topN' && !data.qualificationCount) {
+      return false;
+    }
+    if (data.qualificationRule === 'threshold' && !data.qualificationThreshold) {
+      return false;
+    }
+    return true;
+  },
+  {
+    message: 'qualificationCount is required for topN rule, qualificationThreshold is required for threshold rule',
+  }
+);
 
 // Bulk Vote Package schemas
 export const createBulkVotePackageSchema = z.object({

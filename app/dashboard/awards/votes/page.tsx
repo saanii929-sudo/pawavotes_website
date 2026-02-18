@@ -35,6 +35,7 @@ interface Vote {
   voterPhone: string;
   numberOfVotes: number;
   amount: number;
+  bulkPackageId?: string;
   paymentReference: string;
   paymentMethod: string;
   paymentStatus: "completed" | "pending" | "failed";
@@ -257,13 +258,14 @@ const ManageVotesEnhanced = () => {
       return;
     }
 
-    const headers = ["Payment Reference", "Nominee", "Category", "Votes", "Amount", "Status", "Date"];
+    const headers = ["Payment Reference", "Nominee", "Category", "Votes", "Amount", "Type", "Status", "Date"];
     const rows = filteredVotes.map(vote => [
       vote.paymentReference,
       vote.nominee?.name || "N/A",
       vote.category?.name || "N/A",
       vote.numberOfVotes,
       `GHS ${vote.amount.toFixed(2)}`,
+      vote.bulkPackageId ? "Bulk" : "Normal",
       getStatusLabel(vote.paymentStatus),
       new Date(vote.createdAt).toLocaleDateString("en-GB", {
         day: "2-digit",
@@ -668,7 +670,17 @@ const ManageVotesEnhanced = () => {
                         </div>
 
                         <div className="text-right min-w-20">
-                          <p className="text-gray-600">Normal</p>
+                          <p className="text-gray-600">
+                            {vote.bulkPackageId ? (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                Bulk
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                Normal
+                              </span>
+                            )}
+                          </p>
                         </div>
 
                         <div className="text-right min-w-40">

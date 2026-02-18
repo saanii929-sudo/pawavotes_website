@@ -9,6 +9,7 @@ export interface IPendingVote extends Document {
   phone: string;
   numberOfVotes: number;
   amount: number;
+  bulkPackageId?: string;
   status: 'pending' | 'completed' | 'failed';
   paymentData?: any;
   createdAt: Date;
@@ -58,6 +59,11 @@ const PendingVoteSchema: Schema = new Schema(
       type: Number,
       required: true,
       min: 0,
+    },
+    bulkPackageId: {
+      type: String,
+      required: false,
+      index: true,
     },
     status: {
       type: String,

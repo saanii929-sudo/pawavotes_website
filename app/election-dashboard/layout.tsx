@@ -111,8 +111,6 @@ export default function ElectionDashboardLayout({
             <main className="p-4 md:px-24">{children}</main>
           </div>
         </div>
-        {/* Chatbot Widget */}
-        <ChatbotWidget />
       </UIProvider>
   );
 }

@@ -22,6 +22,15 @@ interface Category {
   name: string;
 }
 
+interface Stage {
+  _id: string;
+  name: string;
+  status: "upcoming" | "active" | "completed";
+  order: number;
+  startDate: string;
+  endDate: string;
+}
+
 interface NomineeResult {
   _id: string;
   nomineeId: {
@@ -45,7 +54,9 @@ function LeaderboardContent() {
 
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   const [categories, setCategories] = useState<Category[]>([]);
+  const [stages, setStages] = useState<Stage[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [selectedStage, setSelectedStage] = useState<string>("current");
   const [results, setResults] = useState<NomineeResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -62,6 +73,7 @@ function LeaderboardContent() {
     if (awardId) {
       fetchAwardDetails();
       fetchCategories();
+      fetchStages();
       fetchResults(true); // Initial load with loading state
 
       // Set up interval for real-time updates
@@ -71,7 +83,7 @@ function LeaderboardContent() {
 
       return () => clearInterval(interval);
     }
-  }, [awardId, selectedCategory]);
+  }, [awardId, selectedCategory, selectedStage]);
 
   const fetchAwardDetails = async () => {
     try {
@@ -100,6 +112,25 @@ function LeaderboardContent() {
     }
   };
 
+  const fetchStages = async () => {
+    try {
+      const response = await fetch(`/api/stages?awardId=${awardId}`);
+      if (response.ok) {
+        const data = await response.json();
+        const stagesList = data.data || [];
+        setStages(stagesList);
+        
+        // Auto-select active stage if available
+        const activeStage = stagesList.find((s: Stage) => s.status === "active");
+        if (activeStage && selectedStage === "current") {
+          setSelectedStage(activeStage._id);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch stages:", error);
+    }
+  };
+
   const fetchResults = async (showLoading = false) => {
     if (showLoading) {
       setLoading(true);
@@ -108,34 +139,36 @@ function LeaderboardContent() {
     }
     
     try {
-      const url =
-        selectedCategory === "all"
-          ? `/api/public/nominees?awardId=${awardId}`
-          : `/api/public/nominees?categoryId=${selectedCategory}`;
+      let url = `/api/leaderboard/${awardId}?`;
+      
+      // Add stage filter if a specific stage is selected
+      if (selectedStage && selectedStage !== "current" && selectedStage !== "all") {
+        url += `stageId=${selectedStage}&`;
+      }
+      
+      // Add category filter
+      if (selectedCategory !== "all") {
+        url += `categoryId=${selectedCategory}&`;
+      }
 
       const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
-        const resultsArray = (data.nominees || [])
-          .map((nominee: any) => ({
-            _id: nominee._id,
+        const resultsArray = (data.data || [])
+          .map((item: any, index: number) => ({
+            _id: item.nomineeId || item._id,
             nomineeId: {
-              _id: nominee._id,
-              name: nominee.name,
-              image: nominee.image || "",
+              _id: item.nomineeId || item._id,
+              name: item.nomineeName || item.name,
+              image: item.nomineeImage || item.image || "",
             },
             categoryId: {
-              _id: nominee.categoryId,
-              name: nominee.categoryName || "Unknown",
+              _id: item.categoryId || "",
+              name: item.categoryName || "Unknown",
             },
-            totalVotes: nominee.voteCount || 0,
+            totalVotes: item.voteCount || 0,
             totalAmount: 0,
-            voteCount: nominee.voteCount || 0,
-            rank: 0,
-          }))
-          .sort((a: any, b: any) => b.totalVotes - a.totalVotes)
-          .map((result: any, index: number) => ({
-            ...result,
+            voteCount: item.voteCount || 0,
             rank: index + 1,
           }));
 
@@ -225,16 +258,71 @@ function LeaderboardContent() {
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-2">
             <h1 className="text-4xl font-bold text-gray-900">🏆 {awardName}</h1>
-            <div className="flex items-center gap-2 bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-medium">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              Live
-            </div>
+            {selectedStage && selectedStage !== "all" && selectedStage !== "current" && (
+              <div
+                className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${
+                  stages.find((s) => s._id === selectedStage)?.status === "active"
+                    ? "bg-green-100 text-green-700"
+                    : "bg-gray-100 text-gray-700"
+                }`}
+              >
+                {stages.find((s) => s._id === selectedStage)?.status === "active" && (
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                )}
+                {stages.find((s) => s._id === selectedStage)?.name}
+              </div>
+            )}
+            {(!selectedStage || selectedStage === "all" || selectedStage === "current") && (
+              <div className="flex items-center gap-2 bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-medium">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                Live
+              </div>
+            )}
           </div>
+          {stages.length > 0 && (
+            <Link
+              href={`/leaderboard/history?awardId=${awardId}`}
+              className="inline-flex items-center gap-2 text-green-600 hover:text-green-700 text-sm font-medium mt-2"
+            >
+              View All Stage History →
+            </Link>
+          )}
         </div>
 
         {/* Filters */}
         <div className="bg-white rounded-xl shadow-sm p-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Stage Filter */}
+            {stages.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Stage / Round
+                </label>
+                <select
+                  value={selectedStage}
+                  onChange={(e) => setSelectedStage(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+                >
+                  <option value="all">All Stages</option>
+                  {stages.map((stage) => (
+                    <option key={stage._id} value={stage._id}>
+                      {stage.name}
+                      {stage.status === "active" && " (Active)"}
+                      {stage.status === "completed" && " (Completed)"}
+                    </option>
+                  ))}
+                </select>
+                {selectedStage !== "all" && selectedStage !== "current" && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    {stages.find((s) => s._id === selectedStage)?.status ===
+                    "completed"
+                      ? "📊 Final Results"
+                      : "🔴 Live Results"}
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Category Filter */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">

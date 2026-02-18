@@ -27,6 +27,36 @@ export async function PUT(
     const body = await req.json();
     const validatedData = updateStageSchema.parse(body);
     
+    // Get existing stage to check status
+    const existingStage = await stageService.getStageById(id);
+    
+    // Prevent editing active or completed stages
+    if (existingStage.status === 'active') {
+      return NextResponse.json(
+        { success: false, message: 'Cannot edit an active stage' },
+        { status: 400 }
+      );
+    }
+    
+    if (existingStage.status === 'completed') {
+      return NextResponse.json(
+        { success: false, message: 'Cannot edit a completed stage' },
+        { status: 400 }
+      );
+    }
+    
+    // Validate no overlap if dates are being changed
+    if (validatedData.startDate || validatedData.endDate) {
+      await stageService.validateNoOverlap(
+        existingStage.awardId.toString(),
+        validatedData.startDate ? new Date(validatedData.startDate) : existingStage.startDate,
+        validatedData.startTime || existingStage.startTime,
+        validatedData.endDate ? new Date(validatedData.endDate) : existingStage.endDate,
+        validatedData.endTime || existingStage.endTime,
+        id
+      );
+    }
+    
     const stage = await stageService.updateStage(id, validatedData);
     
     return NextResponse.json(successResponse('Stage updated successfully', stage));

@@ -10,6 +10,10 @@ interface CountdownProps {
   votingStartTime?: string;
   votingEndTime?: string;
   status?: string;
+  stageStartDate?: string;
+  stageEndDate?: string;
+  stageStartTime?: string;
+  stageEndTime?: string;
 }
 
 interface TimeLeft {
@@ -28,6 +32,10 @@ const AwardCountdown = ({
   votingStartTime,
   votingEndTime,
   status,
+  stageStartDate,
+  stageEndDate,
+  stageStartTime,
+  stageEndTime,
 }: CountdownProps) => {
   const [timeLeft, setTimeLeft] = useState<TimeLeft>({
     days: 0,
@@ -47,19 +55,31 @@ const AwardCountdown = ({
     const calculateTimeLeft = () => {
       const now = new Date().getTime();
       
-      // Combine date and time for voting start
+      // Prioritize stage datetime if available
       let votingStart: Date | null = null;
-      if (votingStartDate) {
+      let votingEnd: Date | null = null;
+      
+      if (stageStartDate && stageEndDate) {
+        // Use stage datetime
+        votingStart = new Date(stageStartDate);
+        if (stageStartTime) {
+          const [hours, minutes] = stageStartTime.split(':');
+          votingStart.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        }
+        
+        votingEnd = new Date(stageEndDate);
+        if (stageEndTime) {
+          const [hours, minutes] = stageEndTime.split(':');
+          votingEnd.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        }
+      } else if (votingStartDate && votingEndDate) {
+        // Fallback to award datetime
         votingStart = new Date(votingStartDate);
         if (votingStartTime) {
           const [hours, minutes] = votingStartTime.split(':');
           votingStart.setHours(parseInt(hours), parseInt(minutes), 0, 0);
         }
-      }
-
-      // Combine date and time for voting end
-      let votingEnd: Date | null = null;
-      if (votingEndDate) {
+        
         votingEnd = new Date(votingEndDate);
         if (votingEndTime) {
           const [hours, minutes] = votingEndTime.split(':');
@@ -123,7 +143,7 @@ const AwardCountdown = ({
     setTimeLeft(calculateTimeLeft());
 
     return () => clearInterval(timer);
-  }, [votingStartDate, votingEndDate, votingStartTime, votingEndTime]);
+  }, [votingStartDate, votingEndDate, votingStartTime, votingEndTime, stageStartDate, stageEndDate, stageStartTime, stageEndTime]);
 
   if (!mounted) {
     return null;

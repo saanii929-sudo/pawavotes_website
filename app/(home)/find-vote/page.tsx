@@ -39,7 +39,25 @@ interface Award {
   pricing?: {
     type: 'paid' | 'social';
     votingCost?: number;
+    socialOptions?: {
+      bulkVoting?: boolean;
+    };
   };
+  activeStage?: Stage; // Add active stage to award
+}
+
+interface Stage {
+  _id: string;
+  name: string;
+  description?: string;
+  startDate: string;
+  endDate: string;
+  startTime: string;
+  endTime: string;
+  stageType: 'nomination' | 'voting' | 'results';
+  status: 'upcoming' | 'active' | 'completed';
+  order: number;
+  awardId: string;
 }
 
 interface Category {
@@ -78,6 +96,7 @@ const PublicVotingPlatform = () => {
   const [selectedNominee, setSelectedNominee] = useState<Nominee | null>(null);
   const [categorySearchQuery, setCategorySearchQuery] = useState("");
   const [nomineeSearchQuery, setNomineeSearchQuery] = useState("");
+  const [activeStage, setActiveStage] = useState<Stage | null>(null);
 
   const maxVotes = Math.max(...nominees.map((n) => n.voteCount || 0), 1);
 
@@ -114,6 +133,26 @@ const PublicVotingPlatform = () => {
 
     const now = new Date();
     
+    // If award has an active stage, use stage datetime
+    if (activeStage) {
+      const stageStart = new Date(activeStage.startDate);
+      const stageEnd = new Date(activeStage.endDate);
+      
+      // Add time if available
+      if (activeStage.startTime) {
+        const [hours, minutes] = activeStage.startTime.split(':');
+        stageStart.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+      }
+      
+      if (activeStage.endTime) {
+        const [hours, minutes] = activeStage.endTime.split(':');
+        stageEnd.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+      }
+      
+      return now >= stageStart && now <= stageEnd;
+    }
+    
+    // Fallback to award's voting period if no active stage
     if (selectedAward.votingStartDate && selectedAward.votingEndDate) {
       const startDate = new Date(selectedAward.votingStartDate);
       const endDate = new Date(selectedAward.votingEndDate);
@@ -171,7 +210,25 @@ const PublicVotingPlatform = () => {
       const data = await response.json();
       
       if (data.success) {
-        setAwards(data.awards);
+        // Fetch active stages for all awards
+        const awardsWithStages = await Promise.all(
+          data.awards.map(async (award: Award) => {
+            try {
+              const stagesResponse = await fetch(`/api/stages?awardId=${award._id}`);
+              const stagesData = await stagesResponse.json();
+              
+              if (stagesData.success && stagesData.data) {
+                const activeStage = stagesData.data.find((stage: Stage) => stage.status === 'active');
+                return { ...award, activeStage: activeStage || undefined };
+              }
+            } catch (error) {
+              console.error(`Error fetching stages for award ${award._id}:`, error);
+            }
+            return award;
+          })
+        );
+        
+        setAwards(awardsWithStages);
       } else {
         toast.error('Failed to fetch awards');
       }
@@ -202,13 +259,90 @@ const PublicVotingPlatform = () => {
     }
   };
 
+  const fetchActiveStage = async (awardId: string) => {
+    try {
+      console.log('Fetching active stage for award:', awardId);
+      const response = await fetch(`/api/stages?awardId=${awardId}`);
+      const data = await response.json();
+      
+      console.log('Stages API response:', data);
+      
+      if (data.success && data.data) {
+        // Find the active stage
+        const active = data.data.find((stage: Stage) => stage.status === 'active');
+        console.log('Active stage found:', active);
+        setActiveStage(active || null);
+      } else {
+        console.log('No stages data in response');
+        setActiveStage(null);
+      }
+    } catch (error) {
+      console.error('Error fetching active stage:', error);
+      // Don't show error toast, just fall back to award datetime
+      setActiveStage(null);
+    }
+  };
+
   const fetchNominees = async (categoryId: string) => {
     try {
       setLoading(true);
+      
+      console.log('Fetching nominees for category:', categoryId);
+      console.log('Active stage:', activeStage);
+      
+      // If there's an active stage, fetch contestants for that stage and category
+      if (activeStage) {
+        console.log('Fetching contestants for stage:', activeStage._id);
+        const response = await fetch(`/api/stages/${activeStage._id}/contestants?categoryId=${categoryId}`);
+        const data = await response.json();
+        
+        console.log('Contestants API response:', data);
+        
+        if (data.success && data.data && data.data.length > 0) {
+          console.log('Found contestants:', data.data.length);
+          // Get the nominee IDs from contestants
+          const nomineeIds = data.data.map((contestant: any) => contestant.nomineeId);
+          console.log('Contestant nominee IDs:', nomineeIds);
+          
+          // Fetch full nominee data with vote counts
+          const nomineesResponse = await fetch(`/api/public/nominees?categoryId=${categoryId}`);
+          const nomineesData = await nomineesResponse.json();
+          
+          if (nomineesData.success) {
+            // Filter to only show nominees that are contestants in this stage
+            const stageNominees = nomineesData.nominees.filter((nominee: any) => 
+              nomineeIds.includes(nominee._id.toString())
+            );
+            console.log('Filtered stage nominees:', stageNominees.length);
+            setNominees(stageNominees);
+          } else {
+            // Fallback to contestant data without vote counts
+            const stageNominees = data.data.map((contestant: any) => ({
+              _id: contestant.nomineeId,
+              name: contestant.nomineeName,
+              categoryId: contestant.categoryId,
+              categoryName: contestant.categoryName,
+              image: contestant.nomineeImage,
+              voteCount: 0,
+            }));
+            console.log('Using contestant data as fallback:', stageNominees.length);
+            setNominees(stageNominees);
+          }
+          setLoading(false);
+          return;
+        } else {
+          console.log('No contestants found for this stage, showing all nominees');
+        }
+        // If no contestants found for this stage, fall through to show all nominees
+      }
+      
+      // Fallback: fetch all nominees for the category (for awards without stages or stages without contestants)
+      console.log('Fetching all nominees (no active stage or no contestants)');
       const response = await fetch(`/api/public/nominees?categoryId=${categoryId}`);
       const data = await response.json();
       
       if (data.success) {
+        console.log('All nominees fetched:', data.nominees.length);
         setNominees(data.nominees);
       } else {
         toast.error('Failed to fetch nominees');
@@ -278,6 +412,10 @@ const PublicVotingPlatform = () => {
               votingEndDate={award.votingEndDate}
               votingStartTime={award.votingStartTime}
               votingEndTime={award.votingEndTime}
+              stageStartDate={award.activeStage?.startDate}
+              stageEndDate={award.activeStage?.endDate}
+              stageStartTime={award.activeStage?.startTime}
+              stageEndTime={award.activeStage?.endTime}
             />
           </div>
         </div>
@@ -292,6 +430,10 @@ const PublicVotingPlatform = () => {
               votingEndDate={award.votingEndDate}
               votingStartTime={award.votingStartTime}
               votingEndTime={award.votingEndTime}
+              stageStartDate={award.activeStage?.startDate}
+              stageEndDate={award.activeStage?.endDate}
+              stageStartTime={award.activeStage?.startTime}
+              stageEndTime={award.activeStage?.endTime}
             />
           </div>
         </div>
@@ -348,6 +490,10 @@ const PublicVotingPlatform = () => {
             votingStartTime={selectedAward?.votingStartTime}
             votingEndTime={selectedAward?.votingEndTime}
             status={selectedAward?.status}
+            stageStartDate={activeStage?.startDate}
+            stageEndDate={activeStage?.endDate}
+            stageStartTime={activeStage?.startTime}
+            stageEndTime={activeStage?.endTime}
           />
         </div>
 
@@ -509,6 +655,10 @@ const PublicVotingPlatform = () => {
             votingStartTime={selectedAward?.votingStartTime}
             votingEndTime={selectedAward?.votingEndTime}
             status={selectedAward?.status}
+            stageStartDate={activeStage?.startDate}
+            stageEndDate={activeStage?.endDate}
+            stageStartTime={activeStage?.startTime}
+            stageEndTime={activeStage?.endTime}
           />
         </div>
 
@@ -737,6 +887,7 @@ const PublicVotingPlatform = () => {
           awardId={selectedAward._id}
           categoryId={selectedCategory._id}
           votingCost={selectedAward.pricing?.votingCost || 0.5}
+          allowBulkVoting={selectedAward.pricing?.socialOptions?.bulkVoting || false}
         />
       )}
     </div>
@@ -943,6 +1094,12 @@ const PublicVotingPlatform = () => {
                       setCurrentScreen("eventDetail");
                       setCategorySearchQuery("");
                       fetchCategories(award._id);
+                      // Set active stage from award if available, otherwise fetch it
+                      if (award.activeStage) {
+                        setActiveStage(award.activeStage);
+                      } else {
+                        fetchActiveStage(award._id);
+                      }
                     }}
                   />
                 ))}

@@ -7,6 +7,10 @@ interface CompactCountdownProps {
   votingEndDate?: string;
   votingStartTime?: string;
   votingEndTime?: string;
+  stageStartDate?: string;
+  stageEndDate?: string;
+  stageStartTime?: string;
+  stageEndTime?: string;
 }
 
 const CompactCountdown = ({
@@ -14,6 +18,10 @@ const CompactCountdown = ({
   votingEndDate,
   votingStartTime,
   votingEndTime,
+  stageStartDate,
+  stageEndDate,
+  stageStartTime,
+  stageEndTime,
 }: CompactCountdownProps) => {
   const [timeText, setTimeText] = useState<string>("");
   const [phase, setPhase] = useState<"upcoming" | "voting" | "ended">("upcoming");
@@ -22,19 +30,31 @@ const CompactCountdown = ({
     const calculateTimeLeft = () => {
       const now = new Date().getTime();
       
-      // Combine date and time for voting start
+      // Prioritize stage datetime if available
       let votingStart: Date | null = null;
-      if (votingStartDate) {
+      let votingEnd: Date | null = null;
+      
+      if (stageStartDate && stageEndDate) {
+        // Use stage datetime
+        votingStart = new Date(stageStartDate);
+        if (stageStartTime) {
+          const [hours, minutes] = stageStartTime.split(':');
+          votingStart.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        }
+        
+        votingEnd = new Date(stageEndDate);
+        if (stageEndTime) {
+          const [hours, minutes] = stageEndTime.split(':');
+          votingEnd.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        }
+      } else if (votingStartDate && votingEndDate) {
+        // Fallback to award datetime
         votingStart = new Date(votingStartDate);
         if (votingStartTime) {
           const [hours, minutes] = votingStartTime.split(':');
           votingStart.setHours(parseInt(hours), parseInt(minutes), 0, 0);
         }
-      }
-
-      // Combine date and time for voting end
-      let votingEnd: Date | null = null;
-      if (votingEndDate) {
+        
         votingEnd = new Date(votingEndDate);
         if (votingEndTime) {
           const [hours, minutes] = votingEndTime.split(':');
@@ -94,7 +114,7 @@ const CompactCountdown = ({
     calculateTimeLeft();
 
     return () => clearInterval(timer);
-  }, [votingStartDate, votingEndDate, votingStartTime, votingEndTime]);
+  }, [votingStartDate, votingEndDate, votingStartTime, votingEndTime, stageStartDate, stageEndDate, stageStartTime, stageEndTime]);
 
 
 

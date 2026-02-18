@@ -4,10 +4,12 @@ export interface IVote extends Document {
   awardId: string;
   categoryId: string;
   nomineeId: string;
+  stageId?: string;
   voterEmail: string;
   voterPhone: string;
   numberOfVotes: number;
   amount: number;
+  bulkPackageId?: string;
   paymentReference: string;
   paymentMethod: string;
   paymentStatus: 'pending' | 'completed' | 'failed';
@@ -37,6 +39,12 @@ const VoteSchema: Schema = new Schema(
       ref: 'Nominee',
       index: true,
     },
+    stageId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Stage',
+      index: true,
+      required: false,
+    },
     voterEmail: {
       type: String,
       required: true,
@@ -59,6 +67,12 @@ const VoteSchema: Schema = new Schema(
       type: Number,
       required: true,
       min: 0,
+    },
+    bulkPackageId: {
+      type: Schema.Types.ObjectId,
+      ref: 'BulkVotePackage',
+      required: false,
+      index: true,
     },
     paymentReference: {
       type: String,
@@ -86,6 +100,9 @@ const VoteSchema: Schema = new Schema(
     timestamps: true,
   }
 );
+
+// Compound index for stage-specific vote queries
+VoteSchema.index({ stageId: 1, categoryId: 1, nomineeId: 1 });
 
 const Vote: Model<IVote> =
   mongoose.models.Vote || mongoose.model<IVote>('Vote', VoteSchema);
