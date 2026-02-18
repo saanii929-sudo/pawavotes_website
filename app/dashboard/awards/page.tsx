@@ -8,6 +8,9 @@ import {
   ChevronRight,
   ChevronLeft,
   Info,
+  MoreVertical,
+  Edit2,
+  Trash2,
 } from "lucide-react";
 import Image from "next/image";
 import toast from "react-hot-toast";
@@ -20,6 +23,7 @@ const AwardPage = () => {
   const [editingAwardId, setEditingAwardId] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string>('organization');
   const [serviceFeePercentage, setServiceFeePercentage] = useState<number>(10);
+  const [showActionMenu, setShowActionMenu] = useState<string | null>(null);
 
   // Fetch awards from database
   useEffect(() => {
@@ -77,6 +81,35 @@ const AwardPage = () => {
       toast.error("Failed to fetch awards");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteAward = async (awardId: string, awardName: string) => {
+    if (!confirm(`Are you sure you want to delete "${awardName}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    const loadingToast = toast.loading("Deleting award...");
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`/api/awards/${awardId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        toast.success("Award deleted successfully!", { id: loadingToast });
+        fetchAwards(); // Refresh the list
+        setShowActionMenu(null);
+      } else {
+        const data = await response.json();
+        toast.error(data.error || "Failed to delete award", { id: loadingToast });
+      }
+    } catch (error) {
+      console.error("Failed to delete award:", error);
+      toast.error("Failed to delete award", { id: loadingToast });
     }
   };
   const [formData, setFormData] = useState({
@@ -457,68 +490,111 @@ const AwardPage = () => {
                   {awards.map((award: any) => (
                     <div
                       key={award._id}
-                      onClick={() => handleEditAward(award._id)}
-                      className="group overflow-hidden rounded-xl bg-white shadow transition cursor-pointer hover:shadow-lg"
+                      className="group overflow-hidden rounded-xl bg-white shadow transition hover:shadow-lg relative"
                     >
-                      <div className="relative aspect-square h-60 w-full overflow-hidden">
-                        <Image
-                          src={award.banner || "/images/events/event-1.png"}
-                          alt={award.name}
-                          fill
-                          className="object-cover  transition-transform duration-300 group-hover:scale-110"
-                        />
-                        <div className="absolute inset-0 bg-black/20" />
-                        <div className="absolute top-0 p-4 left-0 right-0 flex justify-between items-center">
-                          <div className="bg-[#FFFFFFCC] py-1 px-2 rounded-full text-xs">
-                            <p className="text-[10px] text-black font-semibold">
-                              Price (GHS {award.pricing?.votingCost?.toFixed(2) || '0.50'})
-                            </p>
+                      <div 
+                        onClick={() => handleEditAward(award._id)}
+                        className="cursor-pointer"
+                      >
+                        <div className="relative aspect-square h-60 w-full overflow-hidden">
+                          <Image
+                            src={award.banner || "/images/events/event-1.png"}
+                            alt={award.name}
+                            fill
+                            className="object-cover  transition-transform duration-300 group-hover:scale-110"
+                          />
+                          <div className="absolute inset-0 bg-black/20" />
+                          <div className="absolute top-0 p-4 left-0 right-0 flex justify-between items-center">
+                            <div className="bg-[#FFFFFFCC] py-1 px-2 rounded-full text-xs">
+                              <p className="text-[10px] text-black font-semibold">
+                                Price (GHS {award.pricing?.votingCost?.toFixed(2) || '0.50'})
+                              </p>
+                            </div>
+                            <div className={`${
+                              award.status === 'active' ? 'bg-[#16A34A]' : 
+                              award.status === 'voting' ? 'bg-blue-600' : 
+                              'bg-yellow-600'
+                            } py-1 px-2 rounded-full text-xs`}>
+                              <p className="text-[10px] text-white font-semibold uppercase">
+                                {award.status}
+                              </p>
+                            </div>
                           </div>
-                          <div className={`${
-                            award.status === 'active' ? 'bg-[#16A34A]' : 
-                            award.status === 'voting' ? 'bg-blue-600' : 
-                            'bg-yellow-600'
-                          } py-1 px-2 rounded-full text-xs`}>
-                            <p className="text-[10px] text-white font-semibold uppercase">
-                              {award.status}
+                        </div>
+                        <div className="flex flex-col sm:flex-row gap-4">
+                          <div className="flex-1 px-3 py-2">
+                            <div className="flex justify-between items-center">
+                              <h3 className="text-sm font-semibold text-gray-900 mb-1">
+                                {award.name}
+                              </h3>
+                              <p className="text-red-700 font-bold text-xs">
+                                {award.code}
+                              </p>
+                            </div>
+                            <p className="text-[10px] text-gray-500 mb-4">
+                              {award.organizationName}
+                            </p>
+                            <div className="flex justify-between items-center text-xs">
+                              <div>
+                                <span className="text-gray-500">Categories</span>
+                                <p className="font-semibold text-gray-900">
+                                  {award.categories}
+                                </p>
+                              </div>
+                              <div className="mt-2 sm:mt-0">
+                                <span className="text-gray-500">
+                                  Show Results
+                                </span>
+                                <p className="font-semibold text-gray-900 text-end">
+                                  {award.settings?.showResults ? 'Yes' : 'No'}
+                                </p>
+                              </div>
+                            </div>
+                            <p className="text-green-600 text-xs mt-3 flex items-center gap-1 mb-2">
+                              <Info size={14} />
+                              {serviceFeePercentage}% service fee later applied for all awards.
                             </p>
                           </div>
                         </div>
                       </div>
-                      <div className="flex flex-col sm:flex-row gap-4">
-                        <div className="flex-1 px-3 py-2">
-                          <div className="flex justify-between items-center">
-                            <h3 className="text-sm font-semibold text-gray-900 mb-1">
-                              {award.name}
-                            </h3>
-                            <p className="text-red-700 font-bold text-xs">
-                              {award.code}
-                            </p>
+                      
+                      {/* Action Menu Button */}
+                      <div className="absolute top-2 right-2 z-10">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowActionMenu(showActionMenu === award._id ? null : award._id);
+                          }}
+                          className="p-2 bg-white/90 hover:bg-white rounded-lg shadow-md transition-colors"
+                        >
+                          <MoreVertical size={18} className="text-gray-700" />
+                        </button>
+                        
+                        {showActionMenu === award._id && (
+                          <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowActionMenu(null);
+                                handleEditAward(award._id);
+                              }}
+                              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 rounded-t-lg flex items-center gap-2"
+                            >
+                              <Edit2 size={14} />
+                              Edit Award
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteAward(award._id, award.name);
+                              }}
+                              className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 rounded-b-lg flex items-center gap-2"
+                            >
+                              <Trash2 size={14} />
+                              Delete Award
+                            </button>
                           </div>
-                          <p className="text-[10px] text-gray-500 mb-4">
-                            {award.organizationName}
-                          </p>
-                          <div className="flex justify-between items-center text-xs">
-                            <div>
-                              <span className="text-gray-500">Categories</span>
-                              <p className="font-semibold text-gray-900">
-                                {award.categories}
-                              </p>
-                            </div>
-                            <div className="mt-2 sm:mt-0">
-                              <span className="text-gray-500">
-                                Show Results
-                              </span>
-                              <p className="font-semibold text-gray-900 text-end">
-                                {award.settings?.showResults ? 'Yes' : 'No'}
-                              </p>
-                            </div>
-                          </div>
-                          <p className="text-green-600 text-xs mt-3 flex items-center gap-1 mb-2">
-                            <Info size={14} />
-                            {serviceFeePercentage}% service fee later applied for all awards.
-                          </p>
-                        </div>
+                        )}
                       </div>
                     </div>
                   ))}
