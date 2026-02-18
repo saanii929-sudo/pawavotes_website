@@ -1,4 +1,4 @@
-'use client';
+"use client";
 import React, { useState, useEffect } from "react";
 import {
   Plus,
@@ -24,6 +24,9 @@ interface Award {
   categories: number;
   settings?: { showResults: boolean };
   banner?: string;
+  pricing?: {
+    votingCost: number;
+  };
 }
 
 interface Category {
@@ -40,8 +43,8 @@ interface Nominee {
   bio?: string;
   email?: string;
   phone?: string;
-  nominationStatus: 'pending' | 'accepted' | 'rejected';
-  nominationType: 'organizer' | 'self';
+  nominationStatus: "pending" | "accepted" | "rejected";
+  nominationType: "organizer" | "self";
   status: string;
   createdAt: string;
 }
@@ -51,18 +54,23 @@ const AwardNomineesManager = () => {
   const [selectedAward, setSelectedAward] = useState<Award | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
   const [categoryFilterOpen, setCategoryFilterOpen] = useState(false);
-  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("all");
+  const [selectedCategoryFilter, setSelectedCategoryFilter] =
+    useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [showActionMenu, setShowActionMenu] = useState<string | null>(null);
   const [awards, setAwards] = useState<Award[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [nominees, setNominees] = useState<Nominee[]>([]);
   const [loading, setLoading] = useState(true);
+  const [serviceFeePercentage, setServiceFeePercentage] = useState<number>(10);
   const [loadingNominees, setLoadingNominees] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [selectedNominee, setSelectedNominee] = useState<Nominee | null>(null);
 
   useEffect(() => {
     fetchAwards();
+    fetchServiceFee();
   }, []);
 
   useEffect(() => {
@@ -71,6 +79,21 @@ const AwardNomineesManager = () => {
       fetchNominees(selectedAward._id);
     }
   }, [selectedAward, searchQuery, selectedCategoryFilter, statusFilter]);
+
+  const fetchServiceFee = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch("/api/auth/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setServiceFeePercentage(data.data.serviceFeePercentage || 10);
+      }
+    } catch (error) {
+      console.error("Failed to fetch service fee");
+    }
+  };
 
   const fetchAwards = async () => {
     try {
@@ -111,23 +134,23 @@ const AwardNomineesManager = () => {
     try {
       const token = localStorage.getItem("token");
       let url = `/api/nominees?awardId=${awardId}`;
-      
+
       if (selectedCategoryFilter && selectedCategoryFilter !== "all") {
         url += `&categoryId=${selectedCategoryFilter}`;
       }
-      
+
       if (statusFilter) {
         url += `&status=${statusFilter.toLowerCase()}`;
       }
-      
+
       if (searchQuery) {
         url += `&search=${searchQuery}`;
       }
-      
+
       const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      
+
       if (response.ok) {
         const data = await response.json();
         setNominees(data.data);
@@ -146,17 +169,20 @@ const AwardNomineesManager = () => {
 
   const handleUpdateNominationStatus = async (
     nomineeId: string,
-    newStatus: 'pending' | 'accepted' | 'rejected'
+    newStatus: "pending" | "accepted" | "rejected",
   ) => {
-    const action = newStatus === 'accepted' ? 'approve' : 'decline';
-    const loadingToast = toast.loading(`${action === 'approve' ? 'Approving' : 'Declining'} nomination...`);
-    
+    const action = newStatus === "accepted" ? "approve" : "decline";
+    const loadingToast = toast.loading(
+      `${action === "approve" ? "Approving" : "Declining"} nomination...`,
+    );
+
     try {
       const token = localStorage.getItem("token");
-      const endpoint = newStatus === 'accepted' 
-        ? `/api/nominees/${nomineeId}/approve`
-        : `/api/nominees/${nomineeId}/decline`;
-      
+      const endpoint =
+        newStatus === "accepted"
+          ? `/api/nominees/${nomineeId}/approve`
+          : `/api/nominees/${nomineeId}/decline`;
+
       const response = await fetch(endpoint, {
         method: "POST",
         headers: {
@@ -167,34 +193,49 @@ const AwardNomineesManager = () => {
 
       if (response.ok) {
         const data = await response.json();
-        toast.success(data.message || `Nomination ${newStatus} successfully!`, { id: loadingToast });
+        toast.success(data.message || `Nomination ${newStatus} successfully!`, {
+          id: loadingToast,
+        });
         if (selectedAward) {
           fetchNominees(selectedAward._id);
         }
         setShowActionMenu(null);
       } else {
         const data = await response.json();
-        toast.error(data.error || "Failed to update nomination status", { id: loadingToast });
+        toast.error(data.error || "Failed to update nomination status", {
+          id: loadingToast,
+        });
       }
     } catch (error) {
       toast.error("Failed to update nomination status", { id: loadingToast });
     }
   };
 
+  const handleViewDetails = (nominee: Nominee) => {
+    setSelectedNominee(nominee);
+    setShowDetailsModal(true);
+    setShowActionMenu(null);
+  };
+
   const getInitials = (name: string) => {
-    return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'accepted':
-        return 'bg-green-100 text-green-700';
-      case 'pending':
-        return 'bg-orange-100 text-orange-600';
-      case 'rejected':
-        return 'bg-red-100 text-red-700';
+      case "accepted":
+        return "bg-green-100 text-green-700";
+      case "pending":
+        return "bg-orange-100 text-orange-600";
+      case "rejected":
+        return "bg-red-100 text-red-700";
       default:
-        return 'bg-gray-100 text-gray-700';
+        return "bg-gray-100 text-gray-700";
     }
   };
 
@@ -261,7 +302,7 @@ const AwardNomineesManager = () => {
                     <div className="absolute top-0 p-3 sm:p-4 left-0 right-0 flex justify-between items-center">
                       <div className="bg-white/80 py-1 px-2 rounded-full">
                         <p className="text-[9px] sm:text-[10px] text-black font-semibold">
-                          Price (GHS 0.50)
+                          Price (GHS {award.pricing?.votingCost?.toFixed(2) || '0.50'})
                         </p>
                       </div>
                       <div
@@ -311,7 +352,10 @@ const AwardNomineesManager = () => {
                     </div>
                     <p className="text-green-600 text-[10px] sm:text-xs mt-3 flex items-start sm:items-center gap-1">
                       <Info size={12} className="shrink-0 mt-0.5 sm:mt-0" />
-                      <span>10% service fee later applied for all awards.</span>
+                      <span>
+                        {serviceFeePercentage}% service fee later applied for
+                        all awards.
+                      </span>
                     </p>
                   </div>
                 </div>
@@ -372,8 +416,9 @@ const AwardNomineesManager = () => {
                     <span className="text-xs sm:text-sm text-gray-700 truncate">
                       {selectedCategoryFilter === "all"
                         ? "All categories"
-                        : categories.find((c) => c._id === selectedCategoryFilter)?.name ||
-                          "All categories"}
+                        : categories.find(
+                            (c) => c._id === selectedCategoryFilter,
+                          )?.name || "All categories"}
                     </span>
                   </div>
                   <ChevronDown size={16} className="text-gray-500 shrink-0" />
@@ -437,7 +482,9 @@ const AwardNomineesManager = () => {
                         setFilterOpen(false);
                       }}
                       className={`w-full text-left px-4 py-2 text-xs sm:text-sm hover:bg-gray-50 transition-colors ${
-                        !statusFilter ? "bg-green-50 text-green-700" : "text-gray-700"
+                        !statusFilter
+                          ? "bg-green-50 text-green-700"
+                          : "text-gray-700"
                       }`}
                     >
                       All
@@ -496,7 +543,7 @@ const AwardNomineesManager = () => {
                           <p className="text-xs text-gray-500 truncate">
                             {nominee.categoryId.name}
                           </p>
-                          {nominee.nominationType === 'self' && (
+                          {nominee.nominationType === "self" && (
                             <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded inline-block mt-1">
                               Self-Nomination
                             </span>
@@ -507,7 +554,9 @@ const AwardNomineesManager = () => {
                         <button
                           onClick={() =>
                             setShowActionMenu(
-                              showActionMenu === nominee._id ? null : nominee._id
+                              showActionMenu === nominee._id
+                                ? null
+                                : nominee._id,
                             )
                           }
                           className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -515,47 +564,64 @@ const AwardNomineesManager = () => {
                           <MoreVertical size={18} className="text-gray-500" />
                         </button>
 
-                        {showActionMenu === nominee._id && nominee.nominationStatus === 'pending' && (
-                          <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
-                            <button
-                              onClick={() =>
-                                handleUpdateNominationStatus(nominee._id, "accepted")
-                              }
-                              className="w-full text-black px-4 py-2 text-left text-sm hover:bg-gray-50 rounded-t-lg flex items-center gap-2"
-                            >
-                              <Check size={14} className="text-green-600" />
-                              Accept
-                            </button>
-                            <button
-                              onClick={() =>
-                                handleUpdateNominationStatus(nominee._id, "rejected")
-                              }
-                              className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-50 rounded-b-lg flex items-center gap-2"
-                            >
-                              <X size={14} />
-                              Reject
-                            </button>
-                          </div>
-                        )}
+                        {showActionMenu === nominee._id &&
+                          nominee.nominationStatus === "pending" && (
+                            <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                              <button
+                                onClick={() => handleViewDetails(nominee)}
+                                className="w-full text-black px-4 py-2 text-left text-sm hover:bg-gray-50 rounded-t-lg flex items-center gap-2"
+                              >
+                                <Info size={14} className="text-blue-600" />
+                                View Details
+                              </button>
+                              <button
+                                onClick={() =>
+                                  handleUpdateNominationStatus(
+                                    nominee._id,
+                                    "accepted",
+                                  )
+                                }
+                                className="w-full text-black px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                              >
+                                <Check size={14} className="text-green-600" />
+                                Accept
+                              </button>
+                              <button
+                                onClick={() =>
+                                  handleUpdateNominationStatus(
+                                    nominee._id,
+                                    "rejected",
+                                  )
+                                }
+                                className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-50 rounded-b-lg flex items-center gap-2"
+                              >
+                                <X size={14} />
+                                Reject
+                              </button>
+                            </div>
+                          )}
                       </div>
                     </div>
                     <div className="flex items-center justify-between">
                       <span
                         className={`inline-block px-3 py-1 rounded text-xs font-medium ${getStatusColor(
-                          nominee.nominationStatus
+                          nominee.nominationStatus,
                         )}`}
                       >
                         {nominee.nominationStatus.charAt(0).toUpperCase() +
                           nominee.nominationStatus.slice(1)}
                       </span>
                       <span className="text-xs text-gray-500">
-                        {new Date(nominee.createdAt).toLocaleDateString("en-GB", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                        {new Date(nominee.createdAt).toLocaleDateString(
+                          "en-GB",
+                          {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          },
+                        )}
                       </span>
                     </div>
                   </div>
@@ -577,7 +643,7 @@ const AwardNomineesManager = () => {
                             </span>
                           )}
                         </div>
-                        {nominee.nominationType === 'self' && (
+                        {nominee.nominationType === "self" && (
                           <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded inline-block mt-1">
                             Self-Nomination
                           </span>
@@ -585,12 +651,14 @@ const AwardNomineesManager = () => {
                       </div>
                       <div className="flex items-center gap-2 text-sm text-gray-600 flex-1 min-w-0">
                         <div className="w-4 h-4 rounded-full border-2 border-gray-400 shrink-0"></div>
-                        <span className="truncate">{nominee.categoryId.name}</span>
+                        <span className="truncate">
+                          {nominee.categoryId.name}
+                        </span>
                       </div>
                       <div className="flex-1 text-center">
                         <span
                           className={`inline-block px-3 py-1 rounded text-sm font-medium ${getStatusColor(
-                            nominee.nominationStatus
+                            nominee.nominationStatus,
                           )}`}
                         >
                           {nominee.nominationStatus.charAt(0).toUpperCase() +
@@ -599,20 +667,25 @@ const AwardNomineesManager = () => {
                       </div>
                       <div className="flex-1 text-right text-sm text-gray-500 min-w-0">
                         <span className="truncate block">
-                          {new Date(nominee.createdAt).toLocaleDateString("en-GB", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
+                          {new Date(nominee.createdAt).toLocaleDateString(
+                            "en-GB",
+                            {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            },
+                          )}
                         </span>
                       </div>
                       <div className="relative shrink-0">
                         <button
                           onClick={() =>
                             setShowActionMenu(
-                              showActionMenu === nominee._id ? null : nominee._id
+                              showActionMenu === nominee._id
+                                ? null
+                                : nominee._id,
                             )
                           }
                           className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -620,28 +693,42 @@ const AwardNomineesManager = () => {
                           <MoreVertical size={20} className="text-gray-500" />
                         </button>
 
-                        {showActionMenu === nominee._id && nominee.nominationStatus === 'pending' && (
-                          <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
-                            <button
-                              onClick={() =>
-                                handleUpdateNominationStatus(nominee._id, "accepted")
-                              }
-                              className="w-full text-black px-4 py-2 text-left text-sm hover:bg-gray-50 rounded-t-lg flex items-center gap-2"
-                            >
-                              <Check size={14} className="text-green-600" />
-                              Accept
-                            </button>
-                            <button
-                              onClick={() =>
-                                handleUpdateNominationStatus(nominee._id, "rejected")
-                              }
-                              className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-50 rounded-b-lg flex items-center gap-2"
-                            >
-                              <X size={14} />
-                              Reject
-                            </button>
-                          </div>
-                        )}
+                        {showActionMenu === nominee._id &&
+                          nominee.nominationStatus === "pending" && (
+                            <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                              <button
+                                onClick={() => handleViewDetails(nominee)}
+                                className="w-full text-black px-4 py-2 text-left text-sm hover:bg-gray-50 rounded-t-lg flex items-center gap-2"
+                              >
+                                <Info size={14} className="text-blue-600" />
+                                View Details
+                              </button>
+                              <button
+                                onClick={() =>
+                                  handleUpdateNominationStatus(
+                                    nominee._id,
+                                    "accepted",
+                                  )
+                                }
+                                className="w-full text-black px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                              >
+                                <Check size={14} className="text-green-600" />
+                                Accept
+                              </button>
+                              <button
+                                onClick={() =>
+                                  handleUpdateNominationStatus(
+                                    nominee._id,
+                                    "rejected",
+                                  )
+                                }
+                                className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-50 rounded-b-lg flex items-center gap-2"
+                              >
+                                <X size={14} />
+                                Reject
+                              </button>
+                            </div>
+                          )}
                       </div>
                     </div>
                   </div>
@@ -657,6 +744,210 @@ const AwardNomineesManager = () => {
             </div>
           )}
         </div>
+      )}
+      {showDetailsModal && selectedNominee && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
+            onClick={() => setShowDetailsModal(false)}
+          />
+          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[calc(100%-2rem)] sm:w-full max-w-2xl z-50 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-xl shadow-2xl">
+              {/* Modal Header */}
+              <div className="bg-gradient-to-r from-green-600 to-green-700 text-white px-6 py-5 rounded-t-xl">
+                <h3 className="font-bold text-xl mb-1">Nominee Details</h3>
+                <p className="text-sm text-green-50">
+                  Review nomination information before approval
+                </p>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 space-y-6">
+                {/* Nominee Image and Basic Info */}
+                <div className="flex flex-col sm:flex-row gap-6">
+                  <div className="flex-shrink-0">
+                    {selectedNominee.image ? (
+                      <img
+                        src={selectedNominee.image}
+                        alt={selectedNominee.name}
+                        className="w-32 h-32 rounded-lg object-cover border-2 border-gray-200"
+                      />
+                    ) : (
+                      <div className="w-32 h-32 rounded-lg bg-gradient-to-br from-green-100 to-green-200 flex items-center justify-center border-2 border-gray-200">
+                        <span className="text-4xl font-bold text-green-700">
+                          {selectedNominee.name.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 space-y-3">
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 uppercase">
+                        Name
+                      </label>
+                      <p className="text-lg font-semibold text-gray-900">
+                        {selectedNominee.name}
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-medium text-gray-500 uppercase">
+                          Category
+                        </label>
+                        <p className="text-sm text-gray-900">
+                          {selectedNominee.categoryId.name}
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-medium text-gray-500 uppercase">
+                          Status
+                        </label>
+                        <span
+                          className={`inline-block px-3 py-1 rounded text-xs font-medium ${getStatusColor(selectedNominee.nominationStatus)}`}
+                        >
+                          {selectedNominee.nominationStatus
+                            .charAt(0)
+                            .toUpperCase() +
+                            selectedNominee.nominationStatus.slice(1)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Contact Information */}
+                <div className="border-t pt-4">
+                  <h4 className="font-semibold text-gray-900 mb-3">
+                    Contact Information
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {selectedNominee.email && (
+                      <div>
+                        <label className="text-xs font-medium text-gray-500 uppercase">
+                          Email
+                        </label>
+                        <p className="text-sm text-gray-900 break-all">
+                          {selectedNominee.email}
+                        </p>
+                      </div>
+                    )}
+
+                    {selectedNominee.phone && (
+                      <div>
+                        <label className="text-xs font-medium text-gray-500 uppercase">
+                          Phone
+                        </label>
+                        <p className="text-sm text-gray-900">
+                          {selectedNominee.phone}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Bio */}
+                {selectedNominee.bio && (
+                  <div className="border-t pt-4">
+                    <h4 className="font-semibold text-gray-900 mb-3">
+                      Biography
+                    </h4>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                        {selectedNominee.bio}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Additional Info */}
+                <div className="border-t pt-4">
+                  <h4 className="font-semibold text-gray-900 mb-3">
+                    Additional Information
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 uppercase">
+                        Nomination Type
+                      </label>
+                      <p className="text-sm text-gray-900">
+                        {selectedNominee.nominationType === "self" ? (
+                          <span className="text-blue-600 bg-blue-50 px-2 py-1 rounded inline-block">
+                            Self-Nomination
+                          </span>
+                        ) : (
+                          <span className="text-purple-600 bg-purple-50 px-2 py-1 rounded inline-block">
+                            Organizer
+                          </span>
+                        )}
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 uppercase">
+                        Submitted On
+                      </label>
+                      <p className="text-sm text-gray-900">
+                        {new Date(selectedNominee.createdAt).toLocaleDateString(
+                          "en-GB",
+                          {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          },
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="bg-gray-50 px-6 py-4 flex flex-col-reverse sm:flex-row justify-end gap-3 border-t border-gray-200 rounded-b-xl">
+                <button
+                  onClick={() => setShowDetailsModal(false)}
+                  className="w-full sm:w-auto px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors text-sm font-medium"
+                >
+                  Close
+                </button>
+                {selectedNominee.nominationStatus === "pending" && (
+                  <>
+                    <button
+                      onClick={() => {
+                        setShowDetailsModal(false);
+                        handleUpdateNominationStatus(
+                          selectedNominee._id,
+                          "rejected",
+                        );
+                      }}
+                      className="w-full sm:w-auto px-6 py-2.5 border border-red-500 text-red-600 rounded-lg hover:bg-red-50 transition-colors text-sm font-medium flex items-center justify-center gap-2"
+                    >
+                      <X size={16} />
+                      Reject
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowDetailsModal(false);
+                        handleUpdateNominationStatus(
+                          selectedNominee._id,
+                          "accepted",
+                        );
+                      }}
+                      className="w-full sm:w-auto px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium shadow-sm flex items-center justify-center gap-2"
+                    >
+                      <Check size={16} />
+                      Accept
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

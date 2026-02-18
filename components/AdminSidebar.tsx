@@ -1,6 +1,6 @@
 "use client";
 
-import { LayoutGrid, Building2, X, CreditCard, DollarSign } from "lucide-react";
+import { LayoutGrid, Building2, X, CreditCard, DollarSign, Percent } from "lucide-react";
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
@@ -12,6 +12,7 @@ import { useUI } from "@/context/ui-context";
 const menu = [
   { name: "Dashboard", href: "/superadmin", icon: LayoutGrid },
   { name: "Organizations", href: "/superadmin/organizations", icon: Building2 },
+  { name: "Service Fees", href: "/superadmin/service-fees", icon: Percent },
   { name: "Withdrawals", href: "/superadmin/withdrawals", icon: CreditCard },
   {
     name: "Platform Revenue",

@@ -7,11 +7,15 @@ import toast from "react-hot-toast";
 interface Award {
   _id: string;
   name: string;
+  code: string;
   organizationName: string;
   status: string;
   categories: number;
   settings?: { showResults: boolean };
   banner?: string;
+  pricing?: {
+    votingCost: number;
+  };
 }
 
 interface Category {
@@ -44,21 +48,24 @@ const AwardsManagementSystem = () => {
   const [selectedAward, setSelectedAward] = useState<Award | null>(null);
   const [awards, setAwards] = useState<Award[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);const [serviceFeePercentage, setServiceFeePercentage] = useState<number>(10);
   const [loadingNominees, setLoadingNominees] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("all");
   const [editingNomineeId, setEditingNomineeId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ 
     name: "", 
-    categoryId: "", 
+    categoryIds: [] as string[], 
     publish: false, 
     image: "", 
-    bio: "" 
+    bio: "",
+    email: "",
+    phone: ""
   });
 
   useEffect(() => { 
-    fetchAwards(); 
+    fetchAwards();
+    fetchServiceFee(); 
   }, []);
   
   useEffect(() => { 
@@ -67,6 +74,23 @@ const AwardsManagementSystem = () => {
       fetchNominees(selectedAward._id); 
     } 
   }, [selectedAward, searchQuery, selectedCategoryFilter]);
+
+
+  
+  const fetchServiceFee = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch("/api/auth/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setServiceFeePercentage(data.data.serviceFeePercentage || 10);
+      }
+    } catch (error) {
+      console.error("Failed to fetch service fee");
+    }
+  };
 
   const fetchAwards = async () => {
     try {
@@ -127,64 +151,157 @@ const AwardsManagementSystem = () => {
     }
   };
 
+  const groupedNominees = React.useMemo(() => {
+    console.log('Raw nominees count:', nominees.length);
+    
+    const grouped = nominees.reduce((acc: any[], nominee: Nominee) => {
+      const normalizedName = nominee.name.trim().toLowerCase();
+      
+      const existing = acc.find(item => 
+        item.name.trim().toLowerCase() === normalizedName
+      );
+      
+      if (existing) {
+        // Check if this category is already added (avoid duplicates)
+        const categoryExists = existing.categories.some((cat: any) => cat.nomineeId === nominee._id);
+        if (!categoryExists) {
+          existing.categories.push({
+            id: nominee.categoryId._id,
+            name: nominee.categoryId.name,
+            nomineeCode: nominee.nomineeCode,
+            nomineeId: nominee._id,
+            status: nominee.status,
+            nominationStatus: nominee.nominationStatus
+          });
+        }
+      } else {
+        acc.push({
+          name: nominee.name,
+          image: nominee.image,
+          bio: nominee.bio,
+          email: nominee.email,
+          phone: nominee.phone,
+          nominationType: nominee.nominationType,
+          createdAt: nominee.createdAt,
+          categories: [{
+            id: nominee.categoryId._id,
+            name: nominee.categoryId.name,
+            nomineeCode: nominee.nomineeCode,
+            nomineeId: nominee._id,
+            status: nominee.status,
+            nominationStatus: nominee.nominationStatus
+          }]
+        });
+      }
+      return acc;
+    }, []);
+    
+    console.log('Grouped nominees count:', grouped.length);
+    console.log('Grouped nominees:', grouped);
+    
+    return grouped;
+  }, [nominees]);
+
   const handleSelectAward = (award: Award) => {
     setSelectedAward(award);
     setCurrentScreen("nominees");
   };
 
   const handleAddNominee = async () => {
-    if (!formData.name || !formData.categoryId || !selectedAward) return;
+    if (!formData.name || formData.categoryIds.length === 0 || !selectedAward) return;
     
     const isEditing = !!editingNomineeId;
-    const loadingToast = toast.loading(isEditing ? "Updating nominee..." : "Creating nominee...");
+    const loadingToast = toast.loading(
+      isEditing 
+        ? "Updating nominee..." 
+        : `Creating nominee for ${formData.categoryIds.length} ${formData.categoryIds.length === 1 ? 'category' : 'categories'}...`
+    );
     
     try {
       const token = localStorage.getItem("token");
-      const url = isEditing ? `/api/nominees/${editingNomineeId}` : "/api/nominees";
-      const method = isEditing ? "PUT" : "POST";
       
-      const body = isEditing 
-        ? { 
-            name: formData.name, 
-            categoryId: formData.categoryId, 
-            image: formData.image || undefined, 
-            bio: formData.bio || undefined, 
-            status: formData.publish ? "published" : "draft" 
-          }
-        : { 
-            name: formData.name, 
-            awardId: selectedAward._id, 
-            categoryId: formData.categoryId, 
-            image: formData.image || undefined, 
-            bio: formData.bio || undefined, 
-            status: formData.publish ? "published" : "draft" 
-          };
-      
-      const response = await fetch(url, {
-        method,
-        headers: { 
-          "Content-Type": "application/json", 
-          Authorization: `Bearer ${token}` 
-        },
-        body: JSON.stringify(body),
-      });
-      
-      if (response.ok) {
-        toast.success(
-          isEditing ? "Nominee updated successfully!" : "Nominee created successfully!", 
-          { id: loadingToast }
-        );
-        setFormData({ name: "", categoryId: "", publish: false, image: "", bio: "" });
-        setEditingNomineeId(null);
-        setShowAddModal(false);
-        fetchNominees(selectedAward._id);
-        fetchCategories(selectedAward._id);
+      if (isEditing) {
+        // For editing, update single nominee
+        const response = await fetch(`/api/nominees/${editingNomineeId}`, {
+          method: "PUT",
+          headers: { 
+            "Content-Type": "application/json", 
+            Authorization: `Bearer ${token}` 
+          },
+          body: JSON.stringify({
+            name: formData.name,
+            categoryId: formData.categoryIds[0], // When editing, use first category
+            image: formData.image || undefined,
+            bio: formData.bio || undefined,
+            email: formData.email || undefined,
+            phone: formData.phone || undefined,
+            status: formData.publish ? "published" : "draft"
+          }),
+        });
+        
+        if (response.ok) {
+          toast.success("Nominee updated successfully!", { id: loadingToast });
+          setFormData({ name: "", categoryIds: [], publish: false, image: "", bio: "", email: "", phone: "" });
+          setEditingNomineeId(null);
+          setShowAddModal(false);
+          fetchNominees(selectedAward._id);
+          fetchCategories(selectedAward._id);
+        } else {
+          const data = await response.json();
+          toast.error(data.error || "Failed to update nominee", { id: loadingToast });
+        }
       } else {
-        const data = await response.json();
-        toast.error(
-          data.error || (isEditing ? "Failed to update nominee" : "Failed to create nominee"), 
-          { id: loadingToast }
-        );
+        // For creating, create nominees sequentially to avoid race condition
+        let successCount = 0;
+        let failCount = 0;
+        
+        for (const categoryId of formData.categoryIds) {
+          try {
+            const response = await fetch("/api/nominees", {
+              method: "POST",
+              headers: { 
+                "Content-Type": "application/json", 
+                Authorization: `Bearer ${token}` 
+              },
+              body: JSON.stringify({
+                name: formData.name,
+                awardId: selectedAward._id,
+                categoryId,
+                image: formData.image || undefined,
+                bio: formData.bio || undefined,
+                email: formData.email || undefined,
+                phone: formData.phone || undefined,
+                status: formData.publish ? "published" : "draft"
+              }),
+            });
+            
+            if (response.ok) {
+              successCount++;
+            } else {
+              failCount++;
+              console.error('Failed to create nominee for category:', categoryId);
+            }
+          } catch (error) {
+            failCount++;
+            console.error('Error creating nominee for category:', categoryId, error);
+          }
+        }
+        
+        if (successCount > 0) {
+          toast.success(
+            failCount > 0
+              ? `Created ${successCount} nominee(s), ${failCount} failed`
+              : `Nominee created successfully for ${successCount} ${successCount === 1 ? 'category' : 'categories'}!`,
+            { id: loadingToast }
+          );
+          setFormData({ name: "", categoryIds: [], publish: false, image: "", bio: "", email: "", phone: "" });
+          setEditingNomineeId(null);
+          setShowAddModal(false);
+          fetchNominees(selectedAward._id);
+          fetchCategories(selectedAward._id);
+        } else {
+          toast.error(`Failed to create nominees for all categories`, { id: loadingToast });
+        }
       }
     } catch (error) { 
       toast.error(
@@ -197,10 +314,12 @@ const AwardsManagementSystem = () => {
   const handleEditNominee = (nominee: Nominee) => {
     setFormData({
       name: nominee.name,
-      categoryId: nominee.categoryId._id,
+      categoryIds: [nominee.categoryId._id],
       publish: nominee.status === "published",
       image: nominee.image || "",
       bio: nominee.bio || "",
+      email: nominee.email || "",
+      phone: nominee.phone || ""
     });
     setEditingNomineeId(nominee._id);
     setShowAddModal(true);
@@ -314,7 +433,7 @@ const AwardsManagementSystem = () => {
                     <div className="absolute top-0 p-3 sm:p-4 left-0 right-0 flex justify-between items-center">
                       <div className="bg-white/80 py-1 px-2 rounded-full">
                         <p className="text-[9px] sm:text-[10px] text-black font-semibold">
-                          Price (GHS 0.50)
+                          Price (GHS {award.pricing?.votingCost?.toFixed(2) || '0.50'})
                         </p>
                       </div>
                       <div className={`${
@@ -354,7 +473,7 @@ const AwardsManagementSystem = () => {
                     </div>
                     <p className="text-green-600 text-[10px] sm:text-xs mt-3 flex items-start sm:items-center gap-1">
                       <Info size={12} className="shrink-0 mt-0.5 sm:mt-0" />
-                      <span>10% service fee later applied for all awards.</span>
+                      <span>{serviceFeePercentage}% service fee later applied for all awards.</span>
                     </p>
                   </div>
                 </div>
@@ -453,42 +572,39 @@ const AwardsManagementSystem = () => {
               </div>
             </div>
 
-            <div className="divide-y divide-gray-200">
+            <div className="divide-y divide-gray-200 overflow-x-auto">
               {loadingNominees ? (
                 <div className="text-center py-20">
                   <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mb-4"></div>
                   <p className="text-gray-500">Loading nominees...</p>
                 </div>
-              ) : nominees.length === 0 ? (
+              ) : groupedNominees.length === 0 ? (
                 <div className="text-center py-20">
                   <p className="text-gray-500">No nominees found</p>
                 </div>
               ) : (
-                nominees.map((nominee) => (
-                  <div key={nominee._id} className="p-3 sm:p-4 hover:bg-gray-50 transition-colors">
+                groupedNominees.map((nominee, index) => (
+                  <div key={`${nominee.name}-${index}`} className="p-3 sm:p-4 hover:bg-gray-50 transition-colors">
                     {/* Mobile View */}
                     <div className="flex lg:hidden flex-col gap-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-green-100 text-green-600 flex items-center justify-center font-semibold text-sm shrink-0">
-                            {getInitials(nominee.name)}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h3 className="font-semibold text-sm sm:text-base text-gray-900 truncate">
-                                {nominee.name}
-                              </h3>
-                              {nominee.nomineeCode && (
-                                <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded">
-                                  {nominee.nomineeCode}
-                                </span>
-                              )}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-2 flex-1 min-w-0">
+                          {nominee.image ? (
+                            <img src={nominee.image} alt={nominee.name} className="w-10 h-10 rounded-full object-cover shrink-0" />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-green-100 text-green-600 flex items-center justify-center font-semibold text-xs shrink-0">
+                              {getInitials(nominee.name)}
                             </div>
-                            <div className="text-xs text-gray-500 mt-1">
-                              {nominee.status === 'published' ? 'Published' : 'Draft'}
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <h3 className="font-semibold text-sm text-gray-900 break-words">
+                              {nominee.name}
+                            </h3>
+                            <div className="text-xs text-gray-500 mt-0.5">
+                              {nominee.categories.length} {nominee.categories.length === 1 ? 'Category' : 'Categories'}
                             </div>
                             {nominee.nominationType === 'self' && (
-                              <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded inline-block mt-1">
+                              <span className="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded inline-block mt-1">
                                 Self-Nomination
                               </span>
                             )}
@@ -497,41 +613,62 @@ const AwardsManagementSystem = () => {
                         
                         <div className="relative shrink-0">
                           <button 
-                            onClick={() => setShowActionMenu(showActionMenu === nominee._id ? null : nominee._id)} 
-                            className="p-2 hover:bg-gray-100 rounded-lg"
+                            onClick={() => setShowActionMenu(showActionMenu === `${nominee.name}-${index}` ? null : `${nominee.name}-${index}`)} 
+                            className="p-1.5 hover:bg-gray-100 rounded-lg"
                           >
-                            <MoreVertical size={18} className="text-gray-400" />
+                            <MoreVertical size={16} className="text-gray-400" />
                           </button>
                           
-                          {showActionMenu === nominee._id && (
-                            <div className="absolute right-0 mt-2 w-32 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                          {showActionMenu === `${nominee.name}-${index}` && (
+                            <div className={`absolute ${index >= groupedNominees.length - 2 ? 'bottom-full mb-2' : 'top-full mt-2'} right-0 w-32 bg-white rounded-lg shadow-lg border border-gray-200 z-10`}>
                               <button 
-                                onClick={() => handleEditNominee(nominee)} 
-                                className="w-full text-black px-4 py-2 text-left text-sm hover:bg-gray-50 rounded-t-lg flex items-center gap-2"
+                                onClick={() => handleEditNominee({
+                                  _id: nominee.categories[0].nomineeId,
+                                  name: nominee.name,
+                                  categoryId: { _id: nominee.categories[0].id, name: nominee.categories[0].name },
+                                  image: nominee.image,
+                                  bio: nominee.bio,
+                                  email: nominee.email,
+                                  phone: nominee.phone,
+                                  status: nominee.categories[0].status,
+                                  nominationStatus: nominee.categories[0].nominationStatus,
+                                  nominationType: nominee.nominationType,
+                                  createdAt: nominee.createdAt
+                                } as Nominee)} 
+                                className="w-full text-black px-3 py-2 text-left text-xs hover:bg-gray-50 rounded-t-lg flex items-center gap-2"
                               >
-                                <Edit2 size={14} />
+                                <Edit2 size={12} />
                                 Edit
                               </button>
                               <button 
-                                onClick={() => handleDeleteNominee(nominee._id)} 
-                                className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-50 rounded-b-lg flex items-center gap-2"
+                                onClick={() => {
+                                  if (confirm(`Delete all ${nominee.categories.length} nomination(s) for ${nominee.name}?`)) {
+                                    nominee.categories.forEach(cat => handleDeleteNominee(cat.nomineeId));
+                                  }
+                                }} 
+                                className="w-full px-3 py-2 text-left text-xs text-red-600 hover:bg-gray-50 rounded-b-lg flex items-center gap-2"
                               >
-                                <Trash2 size={14} />
-                                Delete
+                                <Trash2 size={12} />
+                                Delete All
                               </button>
                             </div>
                           )}
                         </div>
                       </div>
                       
-                      <div className="flex flex-col gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="w-3 h-3 bg-gray-300 rounded-full shrink-0"></span>
-                          <span className="text-xs text-gray-600 truncate">
-                            {nominee.categoryId.name}
-                          </span>
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">
+                      <div className="flex flex-col gap-1.5">
+                        {nominee.categories.map((cat, catIndex) => (
+                          <div key={catIndex} className="flex items-center justify-between gap-2 bg-gray-50 p-2 rounded">
+                            <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                              <span className="w-1.5 h-1.5 bg-green-500 rounded-full shrink-0"></span>
+                              <span className="text-xs text-gray-700 truncate">{cat.name}</span>
+                            </div>
+                            <span className="text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded shrink-0">
+                              {cat.nomineeCode}
+                            </span>
+                          </div>
+                        ))}
+                        <div className="text-[10px] text-gray-500 mt-1">
                           {new Date(nominee.createdAt).toLocaleDateString('en-GB', { 
                             day: '2-digit', 
                             month: 'short', 
@@ -545,75 +682,86 @@ const AwardsManagementSystem = () => {
 
                     {/* Desktop View */}
                     <div className="hidden lg:flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-full bg-green-100 text-green-600 flex items-center justify-center font-semibold shrink-0">
-                        {getInitials(nominee.name)}
-                      </div>
+                      {nominee.image ? (
+                        <img src={nominee.image} alt={nominee.name} className="w-12 h-12 rounded-full object-cover shrink-0" />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-green-100 text-green-600 flex items-center justify-center font-semibold shrink-0">
+                          {getInitials(nominee.name)}
+                        </div>
+                      )}
                       
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-semibold text-gray-900 truncate">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h3 className="font-semibold text-gray-900">
                             {nominee.name}
                           </h3>
-                          {nominee.nomineeCode && (
-                            <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded">
-                              {nominee.nomineeCode}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap gap-2 mt-1">
-                          <span className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                            <span className="w-4 h-4 bg-gray-300 rounded-full"></span>
-                            {nominee.categoryId.name}
-                          </span>
                           {nominee.nominationType === 'self' && (
                             <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
                               Self-Nomination
                             </span>
                           )}
                         </div>
+                        <div className="flex flex-wrap gap-2">
+                          {nominee.categories.map((cat, catIndex) => (
+                            <div key={catIndex} className="inline-flex items-center gap-2 text-xs bg-gray-100 text-gray-700 px-3 py-1 rounded-full">
+                              <span className="font-medium">{cat.name}</span>
+                              <span className="text-red-600 font-bold">({cat.nomineeCode})</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                       
                       <div className="text-right shrink-0">
-                        <div className="text-sm font-medium text-gray-900">
-                          {nominee.status === 'published' ? 'Published' : 'Draft'}
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">
+                        <div className="text-xs text-gray-500 mb-2">
                           {new Date(nominee.createdAt).toLocaleDateString('en-GB', { 
                             day: '2-digit', 
                             month: 'short', 
-                            year: 'numeric', 
-                            hour: '2-digit', 
-                            minute: '2-digit' 
+                            year: 'numeric' 
                           })}
                         </div>
-                      </div>
-                      
-                      <div className="relative shrink-0">
-                        <button 
-                          onClick={() => setShowActionMenu(showActionMenu === nominee._id ? null : nominee._id)} 
-                          className="p-2 hover:bg-gray-100 rounded"
-                        >
-                          <MoreVertical size={18} className="text-gray-400" />
-                        </button>
-                        
-                        {showActionMenu === nominee._id && (
-                          <div className="absolute right-0 mt-2 w-32 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
-                            <button 
-                              onClick={() => handleEditNominee(nominee)} 
-                              className="w-full text-black px-4 py-2 text-left text-sm hover:bg-gray-50 rounded-t-lg flex items-center gap-2"
-                            >
-                              <Edit2 size={14} />
-                              Edit
-                            </button>
-                            <button 
-                              onClick={() => handleDeleteNominee(nominee._id)} 
-                              className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-50 rounded-b-lg flex items-center gap-2"
-                            >
-                              <Trash2 size={14} />
-                              Delete
-                            </button>
-                          </div>
-                        )}
+                        <div className="relative">
+                          <button 
+                            onClick={() => setShowActionMenu(showActionMenu === `${nominee.name}-${index}` ? null : `${nominee.name}-${index}`)} 
+                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                          >
+                            <MoreVertical size={20} className="text-gray-500" />
+                          </button>
+                          
+                          {showActionMenu === `${nominee.name}-${index}` && (
+                            <div className="absolute right-0 mt-2 w-32 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                              <button 
+                                onClick={() => handleEditNominee({
+                                  _id: nominee.categories[0].nomineeId,
+                                  name: nominee.name,
+                                  categoryId: { _id: nominee.categories[0].id, name: nominee.categories[0].name },
+                                  image: nominee.image,
+                                  bio: nominee.bio,
+                                  email: nominee.email,
+                                  phone: nominee.phone,
+                                  status: nominee.categories[0].status,
+                                  nominationStatus: nominee.categories[0].nominationStatus,
+                                  nominationType: nominee.nominationType,
+                                  createdAt: nominee.createdAt
+                                } as Nominee)} 
+                                className="w-full text-black px-4 py-2 text-left text-sm hover:bg-gray-50 rounded-t-lg flex items-center gap-2"
+                              >
+                                <Edit2 size={14} />
+                                Edit
+                              </button>
+                              <button 
+                                onClick={() => {
+                                  if (confirm(`Delete all ${nominee.categories.length} nomination(s) for ${nominee.name}?`)) {
+                                    nominee.categories.forEach(cat => handleDeleteNominee(cat.nomineeId));
+                                  }
+                                }} 
+                                className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-50 rounded-b-lg flex items-center gap-2"
+                              >
+                                <Trash2 size={14} />
+                                Delete All
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -630,7 +778,7 @@ const AwardsManagementSystem = () => {
           className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" 
           onClick={() => {
             setShowAddModal(false);
-            setFormData({ name: "", categoryId: "", publish: false, image: "", bio: "" });
+            setFormData({ name: "", categoryIds: [], publish: false, image: "", bio: "", email: "", phone: "" });
             setEditingNomineeId(null);
           }}
         >
@@ -694,23 +842,98 @@ const AwardsManagementSystem = () => {
                 />
               </div>
 
-              {/* Category */}
+              {/* Categories */}
               <div className="mb-4">
                 <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
-                  Category <span className="text-red-500">*</span>
+                  {editingNomineeId ? 'Category' : 'Categories'} <span className="text-red-500">*</span>
                 </label>
-                <select 
-                  value={formData.categoryId} 
-                  onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })} 
-                  className="w-full text-sm text-black border border-gray-300 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
-                >
-                  <option value="">Select a category...</option>
-                  {categories.map((category) => (
-                    <option key={category._id} value={category._id}>
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
+                {editingNomineeId ? (
+                  <select 
+                    value={formData.categoryIds[0] || ""} 
+                    onChange={(e) => setFormData({ ...formData, categoryIds: [e.target.value] })} 
+                    className="w-full text-sm text-black border border-gray-300 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
+                  >
+                    <option value="">Select a category...</option>
+                    {categories.map((category) => (
+                      <option key={category._id} value={category._id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="border border-gray-300 rounded-lg p-3 max-h-48 overflow-y-auto">
+                    {categories.length === 0 ? (
+                      <p className="text-sm text-gray-500 text-center py-2">No categories available</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {categories.map((category) => (
+                          <label key={category._id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                            <input
+                              type="checkbox"
+                              checked={formData.categoryIds.includes(category._id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setFormData({ ...formData, categoryIds: [...formData.categoryIds, category._id] });
+                                } else {
+                                  setFormData({ ...formData, categoryIds: formData.categoryIds.filter(id => id !== category._id) });
+                                }
+                              }}
+                              className="rounded text-green-600 shrink-0"
+                            />
+                            <span className="text-sm text-gray-700">{category.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {!editingNomineeId && formData.categoryIds.length > 0 && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    {formData.categoryIds.length} {formData.categoryIds.length === 1 ? 'category' : 'categories'} selected
+                  </p>
+                )}
+              </div>
+
+              {/* Email */}
+              <div className="mb-4">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
+                  Email
+                </label>
+                <input 
+                  type="email" 
+                  placeholder="nominee@example.com" 
+                  value={formData.email} 
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })} 
+                  className="w-full text-sm text-black border border-gray-300 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none" 
+                />
+              </div>
+
+              {/* Phone */}
+              <div className="mb-4">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
+                  Phone
+                </label>
+                <input 
+                  type="tel" 
+                  placeholder="0XX XXX XXXX" 
+                  value={formData.phone} 
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })} 
+                  className="w-full text-sm text-black border border-gray-300 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none" 
+                />
+              </div>
+
+              {/* Bio */}
+              <div className="mb-4">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
+                  Biography
+                </label>
+                <textarea 
+                  placeholder="Tell us about this nominee..." 
+                  value={formData.bio} 
+                  onChange={(e) => setFormData({ ...formData, bio: e.target.value })} 
+                  rows={4}
+                  className="w-full text-sm text-black border border-gray-300 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none resize-none" 
+                />
               </div>
 
               {/* Publish Checkbox */}
@@ -731,7 +954,7 @@ const AwardsManagementSystem = () => {
                 <button 
                   onClick={() => { 
                     setShowAddModal(false); 
-                    setFormData({ name: "", categoryId: "", publish: false, image: "", bio: "" }); 
+                    setFormData({ name: "", categoryIds: [], publish: false, image: "", bio: "", email: "", phone: "" }); 
                     setEditingNomineeId(null);
                   }} 
                   className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
@@ -740,7 +963,7 @@ const AwardsManagementSystem = () => {
                 </button>
                 <button 
                   onClick={handleAddNominee} 
-                  disabled={!formData.name || !formData.categoryId} 
+                  disabled={!formData.name || formData.categoryIds.length === 0} 
                   className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed text-sm"
                 >
                   {editingNomineeId ? 'Update' : 'Add'}

@@ -19,6 +19,7 @@ const AwardPage = () => {
   const [loading, setLoading] = useState(true);
   const [editingAwardId, setEditingAwardId] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string>('organization');
+  const [serviceFeePercentage, setServiceFeePercentage] = useState<number>(10);
 
   // Fetch awards from database
   useEffect(() => {
@@ -46,6 +47,7 @@ const AwardPage = () => {
         
         setFormData(prev => ({ ...prev, organization: orgName }));
         setUserRole(user.role || 'organization');
+        setServiceFeePercentage(user.serviceFeePercentage || 10);
       } else {
         const errorData = await response.json();
         console.error("Failed to fetch user data:", errorData);
@@ -469,7 +471,7 @@ const AwardPage = () => {
                         <div className="absolute top-0 p-4 left-0 right-0 flex justify-between items-center">
                           <div className="bg-[#FFFFFFCC] py-1 px-2 rounded-full text-xs">
                             <p className="text-[10px] text-black font-semibold">
-                              Price (GHS 0.50)
+                              Price (GHS {award.pricing?.votingCost?.toFixed(2) || '0.50'})
                             </p>
                           </div>
                           <div className={`${
@@ -514,7 +516,7 @@ const AwardPage = () => {
                           </div>
                           <p className="text-green-600 text-xs mt-3 flex items-center gap-1 mb-2">
                             <Info size={14} />
-                            10% service fee later applied for all awards.
+                            {serviceFeePercentage}% service fee later applied for all awards.
                           </p>
                         </div>
                       </div>

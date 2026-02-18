@@ -16,6 +16,7 @@ interface PlatformRevenue {
     totalRevenue: number;
     platformFee: number;
     transferredToOrganizer: number;
+    serviceFeePercentage: number;
   }>;
 }
 
@@ -70,7 +71,7 @@ const PlatformRevenuePage = () => {
               Platform Revenue
             </h1>
             <p className="text-black text-sm sm:text-base">
-              Overview of platform fees collected (10% from all awards)
+              Overview of platform fees collected from all awards
             </p>
           </div>
           <div className="flex items-center gap-2 bg-green-600 text-white backdrop-blur-sm rounded-lg px-4 py-2 w-fit">
@@ -109,7 +110,7 @@ const PlatformRevenuePage = () => {
               <Wallet className="text-white w-6 h-6" />
             </div>
             <div className="bg-green-50 rounded-lg px-3 py-1">
-              <span className="text-xs font-semibold text-green-600">10%</span>
+              <span className="text-xs font-semibold text-green-600">Fee</span>
             </div>
           </div>
           <p className="text-sm text-gray-600 mb-2 font-medium">Platform Fees</p>
@@ -129,7 +130,7 @@ const PlatformRevenuePage = () => {
               <Award className="text-white w-6 h-6" />
             </div>
             <div className="bg-purple-50 rounded-lg px-3 py-1">
-              <span className="text-xs font-semibold text-purple-600">90%</span>
+              <span className="text-xs font-semibold text-purple-600">Paid</span>
             </div>
           </div>
           <p className="text-sm text-gray-600 mb-2 font-medium">Transferred to Organizers</p>
@@ -193,7 +194,7 @@ const PlatformRevenuePage = () => {
                       Total Revenue
                     </th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">
-                      Platform Fee (10%)
+                      Platform Fee
                     </th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">
                       Transferred to Organizer
@@ -230,6 +231,7 @@ const PlatformRevenuePage = () => {
                           <span className="font-bold text-green-600">
                             GHS {org.platformFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </span>
+                          <span className="text-xs text-gray-500">({org.serviceFeePercentage}%)</span>
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -276,7 +278,7 @@ const PlatformRevenuePage = () => {
                     <div className="bg-green-50 rounded-lg p-3">
                       <div className="flex items-center gap-2 mb-1">
                         <Wallet className="w-4 h-4 text-green-600" />
-                        <p className="text-xs text-gray-600 font-medium">Platform Fee (10%)</p>
+                        <p className="text-xs text-gray-600 font-medium">Platform Fee ({org.serviceFeePercentage}%)</p>
                       </div>
                       <p className="text-xl font-bold text-green-600">
                         GHS {org.platformFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

@@ -37,11 +37,12 @@ async function getCurrentUser(req: NextRequest) {
           description: organization.description,
           logo: organization.logo,
           status: organization.status,
+          serviceFeePercentage: organization.serviceFeePercentage,
         };
       }
     } else if (user.role === 'org-admin') {
       const orgAdmin = await OrganizationAdmin.findById(user.id)
-        .populate('organizationId', 'name email phone logo')
+        .populate('organizationId', 'name email phone logo serviceFeePercentage')
         .select('-password');
       
       if (orgAdmin) {
@@ -51,6 +52,7 @@ async function getCurrentUser(req: NextRequest) {
           email: orgAdmin.email,
           organizationId: (orgAdmin.organizationId as any)._id,
           organizationName: (orgAdmin.organizationId as any).name,
+          serviceFeePercentage: (orgAdmin.organizationId as any).serviceFeePercentage,
           assignedAwards: orgAdmin.assignedAwards,
         };
       }

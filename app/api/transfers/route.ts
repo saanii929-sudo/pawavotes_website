@@ -91,6 +91,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const {
       awardId,
+      amount: requestedAmount,
       recipientName,
       transferType, // 'bank' or 'mobile_money'
       recipientBank,
@@ -99,9 +100,18 @@ export async function POST(req: NextRequest) {
       momoNetwork,
     } = body;
 
-    if (!awardId || !recipientName || !transferType) {
+    if (!awardId || !recipientName || !transferType || !requestedAmount) {
       return NextResponse.json(
-        { error: 'Award ID, recipient name, and transfer type are required' },
+        { error: 'Award ID, amount, recipient name, and transfer type are required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate requested amount
+    const transferAmount = parseFloat(requestedAmount);
+    if (isNaN(transferAmount) || transferAmount <= 0) {
+      return NextResponse.json(
+        { error: 'Invalid transfer amount' },
         { status: 400 }
       );
     }
@@ -134,6 +144,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Get organization's service fee percentage
+    const Organization = (await import('@/models/Organization')).default;
+    const organization = await Organization.findById(decoded.id);
+    const serviceFeePercentage = organization?.serviceFeePercentage || 10;
+
     // Calculate total revenue for this award
     const votes = await Vote.find({ awardId, paymentStatus: 'completed' });
     const votingRevenue = votes.reduce((sum, v) => sum + (v.amount || 0), 0);
@@ -143,9 +158,9 @@ export async function POST(req: NextRequest) {
 
     const totalRevenue = votingRevenue + nominationRevenue;
 
-    // Calculate 10% platform fee (kept by platform)
-    const platformFee = totalRevenue * 0.1;
-    // Organizer gets 90%
+    // Calculate platform fee based on organization's service fee percentage
+    const platformFee = totalRevenue * (serviceFeePercentage / 100);
+    // Organizer gets the remaining amount
     const organizerShare = totalRevenue - platformFee;
 
     if (organizerShare <= 0) {
@@ -172,15 +187,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Validate requested amount doesn't exceed available amount
+    if (transferAmount > availableAmount) {
+      return NextResponse.json(
+        { error: `Requested amount (GHS ${transferAmount.toFixed(2)}) exceeds available balance (GHS ${availableAmount.toFixed(2)})` },
+        { status: 400 }
+      );
+    }
+
     // Generate reference ID
     const referenceId = `TRF_${Date.now()}_${Math.random().toString(36).substring(7).toUpperCase()}`;
 
-    // Save transfer request (pending approval)
+    // Save transfer request (pending approval) with the requested amount
     const transfer = await Transfer.create({
       referenceId,
       awardId,
       organizationId: decoded.id,
-      amount: availableAmount,
+      amount: transferAmount,
       platformFee,
       totalRevenue,
       currency: 'GHS',
@@ -196,7 +219,8 @@ export async function POST(req: NextRequest) {
 
     console.log('Transfer request created:', {
       referenceId,
-      amount: availableAmount,
+      requestedAmount: transferAmount,
+      availableAmount,
       organizationId: decoded.id,
     });
 
@@ -210,6 +234,7 @@ export async function POST(req: NextRequest) {
         organizerShare,
         alreadyTransferred,
         availableAmount,
+        requestedAmount: transferAmount,
       },
     });
   } catch (error: any) {

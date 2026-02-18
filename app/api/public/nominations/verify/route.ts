@@ -85,12 +85,15 @@ export async function POST(req: NextRequest) {
     // Create nominee
     const nominee = await Nominee.create({
       name: pendingNomination.name,
+      email: pendingNomination.email,
+      phone: pendingNomination.phone || undefined,
       awardId: pendingNomination.awardId,
       categoryId: pendingNomination.categoryId,
       image: pendingNomination.image || undefined,
       bio: pendingNomination.bio || undefined,
       status: 'draft', // Draft status until admin approves
       nominationStatus: 'pending', // Pending approval
+      nominationType: 'self',
       voteCount: 0,
     });
 

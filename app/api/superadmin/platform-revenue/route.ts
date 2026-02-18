@@ -32,6 +32,13 @@ export async function GET(req: NextRequest) {
     // Get all awards
     const awards = await Award.find({}).lean();
 
+    // Get all organizations for service fee lookup
+    const organizations = await Organization.find({}).lean();
+    const orgServiceFees: Record<string, number> = {};
+    organizations.forEach(org => {
+      orgServiceFees[org._id.toString()] = org.serviceFeePercentage || 10;
+    });
+
     // Calculate total revenue across all awards
     let totalRevenue = 0;
     const revenueByOrganization: Record<string, {
@@ -40,6 +47,7 @@ export async function GET(req: NextRequest) {
       totalRevenue: number;
       platformFee: number;
       transferredToOrganizer: number;
+      serviceFeePercentage: number;
     }> = {};
 
     for (const award of awards) {
@@ -55,6 +63,8 @@ export async function GET(req: NextRequest) {
 
       // Group by organization
       const orgId = award.organizationId;
+      const serviceFeePercentage = orgServiceFees[orgId] || 10;
+
       if (!revenueByOrganization[orgId]) {
         revenueByOrganization[orgId] = {
           organizationId: orgId,
@@ -62,11 +72,12 @@ export async function GET(req: NextRequest) {
           totalRevenue: 0,
           platformFee: 0,
           transferredToOrganizer: 0,
+          serviceFeePercentage,
         };
       }
 
       revenueByOrganization[orgId].totalRevenue += awardRevenue;
-      revenueByOrganization[orgId].platformFee += awardRevenue * 0.1;
+      revenueByOrganization[orgId].platformFee += awardRevenue * (serviceFeePercentage / 100);
     }
 
     // Get all successful transfers
@@ -81,8 +92,11 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Calculate platform fees (10% of total revenue)
-    const totalPlatformFees = totalRevenue * 0.1;
+    // Calculate total platform fees (sum of all organization-specific fees)
+    const totalPlatformFees = Object.values(revenueByOrganization).reduce(
+      (sum, org) => sum + org.platformFee,
+      0
+    );
 
     // Get transfer statistics
     const transferCount = allTransfers.length;

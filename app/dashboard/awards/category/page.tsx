@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 
-
 interface Award {
   _id: string;
   name: string;
@@ -35,13 +34,16 @@ const ManageCategoriesApp = () => {
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showActionMenu, setShowActionMenu] = useState<string | null>(null);
   const [newCategory, setNewCategory] = useState({ name: "", publish: false });
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [awards, setAwards] = useState<Award[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingCategories, setLoadingCategories] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [serviceFeePercentage, setServiceFeePercentage] = useState<number>(10);
 
   useEffect(() => {
     fetchAwards();
+    fetchServiceFee();
   }, []);
 
   useEffect(() => {
@@ -49,7 +51,6 @@ const ManageCategoriesApp = () => {
       fetchCategories(selectedAward._id);
     }
   }, [selectedAward]);
-
 
   const fetchAwards = async () => {
     try {
@@ -70,6 +71,21 @@ const ManageCategoriesApp = () => {
     }
   };
 
+  const fetchServiceFee = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch("/api/auth/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setServiceFeePercentage(data.data.serviceFeePercentage || 10);
+      }
+    } catch (error) {
+      console.error("Failed to fetch service fee");
+    }
+  };
+
   const fetchCategories = async (awardId: string) => {
     try {
       const token = localStorage.getItem("token");
@@ -85,7 +101,6 @@ const ManageCategoriesApp = () => {
     }
   };
 
-
   const handleViewCategories = (award: Award) => {
     setSelectedAward(award);
     setCurrentView("categories");
@@ -94,12 +109,18 @@ const ManageCategoriesApp = () => {
   const handleAddCategory = async () => {
     if (!newCategory.name || !selectedAward) return;
 
-    const loadingToast = toast.loading("Creating category...");
+    const loadingToast = toast.loading(
+      editingCategory ? "Updating category..." : "Creating category...",
+    );
 
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch("/api/categories", {
-        method: "POST",
+      const url = editingCategory
+        ? `/api/categories/${editingCategory._id}`
+        : "/api/categories";
+
+      const response = await fetch(url, {
+        method: editingCategory ? "PUT" : "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
@@ -114,18 +135,41 @@ const ManageCategoriesApp = () => {
       const data = await response.json();
 
       if (response.ok) {
-        toast.success("Category created successfully!", { id: loadingToast });
+        toast.success(
+          editingCategory
+            ? "Category updated successfully!"
+            : "Category created successfully!",
+          { id: loadingToast },
+        );
         setNewCategory({ name: "", publish: false });
+        setEditingCategory(null);
         setShowCategoryModal(false);
         fetchCategories(selectedAward._id);
         fetchAwards();
       } else {
-        toast.error(data.error || "Failed to create category", { id: loadingToast });
+        toast.error(
+          data.error ||
+            `Failed to ${editingCategory ? "update" : "create"} category`,
+          { id: loadingToast },
+        );
       }
     } catch (error) {
-      console.error("Failed to create category:", error);
-      toast.error("Failed to create category", { id: loadingToast });
+      console.error(
+        `Failed to ${editingCategory ? "update" : "create"} category:`,
+        error,
+      );
+      toast.error(
+        `Failed to ${editingCategory ? "update" : "create"} category`,
+        { id: loadingToast },
+      );
     }
+  };
+
+  const handleEditCategory = (category: any) => {
+    setEditingCategory(category);
+    setNewCategory({ name: category.name, publish: category.isPublished });
+    setShowCategoryModal(true);
+    setShowActionMenu(null);
   };
 
   const handleDeleteCategory = async (categoryId: Category) => {
@@ -188,7 +232,14 @@ const ManageCategoriesApp = () => {
             <div
               className={`${awards.length === 0 ? "bg-white rounded-xl border border-gray-200" : ""}`}
             >
-              {awards.length === 0 ? (
+              {loading ? (
+                <>
+                  <div className="text-center py-20">
+                    <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mb-4"></div>
+                    <p className="text-gray-500">Loading awards...</p>
+                  </div>
+                </>
+              ) : awards.length === 0 ? (
                 <div className="text-center py-16 sm:py-24 px-4">
                   <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">
                     No award created yet
@@ -219,14 +270,19 @@ const ManageCategoriesApp = () => {
                         <div className="absolute top-0 p-3 sm:p-4 left-0 right-0 flex justify-between items-center">
                           <div className="bg-[#FFFFFFCC] py-1 px-2 rounded-full text-xs">
                             <p className="text-[9px] sm:text-[10px] text-black font-semibold">
-                              Price (GHS 0.50)
+                              Price (GHS{" "}
+                              {award.pricing?.votingCost?.toFixed(2) || "0.50"})
                             </p>
                           </div>
-                          <div className={`${
-                            award.status === 'active' ? 'bg-[#16A34A]' : 
-                            award.status === 'voting' ? 'bg-blue-600' : 
-                            'bg-yellow-600'
-                          } py-1 px-2 rounded-full text-xs`}>
+                          <div
+                            className={`${
+                              award.status === "active"
+                                ? "bg-[#16A34A]"
+                                : award.status === "voting"
+                                  ? "bg-blue-600"
+                                  : "bg-yellow-600"
+                            } py-1 px-2 rounded-full text-xs`}
+                          >
                             <p className="text-[9px] sm:text-[10px] text-white font-semibold uppercase">
                               {award.status}
                             </p>
@@ -248,7 +304,9 @@ const ManageCategoriesApp = () => {
                           </p>
                           <div className="flex justify-between items-center text-xs">
                             <div>
-                              <span className="text-gray-500 text-[10px] sm:text-xs">Categories</span>
+                              <span className="text-gray-500 text-[10px] sm:text-xs">
+                                Categories
+                              </span>
                               <p className="font-semibold text-gray-900 text-xs sm:text-sm">
                                 {award.categories}
                               </p>
@@ -258,13 +316,19 @@ const ManageCategoriesApp = () => {
                                 Show Results
                               </span>
                               <p className="font-semibold text-gray-900 text-end text-xs sm:text-sm">
-                                {award.settings?.showResults ? 'Yes' : 'No'}
+                                {award.settings?.showResults ? "Yes" : "No"}
                               </p>
                             </div>
                           </div>
                           <p className="text-green-600 text-[10px] sm:text-xs mt-2 sm:mt-3 flex items-start sm:items-center gap-1 mb-2">
-                            <Info size={12} className="mt-0.5 sm:mt-0 shrink-0" />
-                            <span>10% service fee later applied for all awards.</span>
+                            <Info
+                              size={12}
+                              className="mt-0.5 sm:mt-0 shrink-0"
+                            />
+                            <span>
+                              {serviceFeePercentage}% service fee later applied
+                              for all awards.
+                            </span>
                           </p>
                         </div>
                       </div>
@@ -337,7 +401,7 @@ const ManageCategoriesApp = () => {
             </div>
 
             {/* Categories List */}
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="bg-white rounded-xl border border-gray-200 overflow-visible">
               {categories.length === 0 && !loadingCategories ? (
                 <div className="text-center py-16 sm:py-24 px-4">
                   <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">
@@ -362,14 +426,17 @@ const ManageCategoriesApp = () => {
                 </div>
               ) : (
                 <div className="divide-y divide-gray-200">
-                  {categories.map((category: any) => (
+                  {categories.map((category: any, index: number) => (
                     <div
                       key={category._id}
                       className="p-3 sm:p-4 hover:bg-gray-50 transition-colors"
                     >
                       <div className="flex items-start sm:items-center gap-3 sm:gap-4">
                         <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-green-100 flex items-center justify-center shrink-0">
-                          <Award size={16} className="sm:w-5 sm:h-5 text-green-600" />
+                          <Award
+                            size={16}
+                            className="sm:w-5 sm:h-5 text-green-600"
+                          />
                         </div>
                         <div className="flex-1 min-w-0">
                           <h3 className="text-sm sm:text-base font-semibold text-gray-900 wrap-break-words">
@@ -377,22 +444,29 @@ const ManageCategoriesApp = () => {
                           </h3>
                           <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-2 sm:mt-1 text-xs sm:text-sm text-gray-500">
                             <span className="inline-flex items-center gap-1">
-                              <span className={`text-[10px] px-2 py-0.5 rounded-full ${
-                                category.isPublished 
-                                  ? 'bg-green-100 text-green-700' 
-                                  : 'bg-yellow-100 text-yellow-700'
-                              }`}>
-                                {category.isPublished ? 'Published' : 'Draft'}
+                              <span
+                                className={`text-[10px] px-2 py-0.5 rounded-full ${
+                                  category.isPublished
+                                    ? "bg-green-100 text-green-700"
+                                    : "bg-yellow-100 text-yellow-700"
+                                }`}
+                              >
+                                {category.isPublished ? "Published" : "Draft"}
                               </span>
                             </span>
                             <span className="text-[10px] sm:text-xs">
-                              {new Date(category.createdAt).toLocaleDateString('en-GB', {
-                                day: '2-digit',
-                                month: 'short',
-                                year: 'numeric',
-                              })}
+                              {new Date(category.createdAt).toLocaleDateString(
+                                "en-GB",
+                                {
+                                  day: "2-digit",
+                                  month: "short",
+                                  year: "numeric",
+                                },
+                              )}
                             </span>
-                            <span className="text-[10px] sm:text-xs">{category.nomineeCount} Entries</span>
+                            <span className="text-[10px] sm:text-xs">
+                              {category.nomineeCount} Entries
+                            </span>
                           </div>
                         </div>
                         <div className="relative shrink-0">
@@ -407,14 +481,16 @@ const ManageCategoriesApp = () => {
                             }}
                             className="p-1 hover:bg-gray-200 rounded"
                           >
-                            <MoreVertical
-                              size={18}
-                              className="text-gray-600"
-                            />
+                            <MoreVertical size={18} className="text-gray-600" />
                           </button>
                           {showActionMenu === category._id && (
-                            <div className="absolute right-0 mt-2 w-32 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
-                              <button className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                            <div
+                              className={`absolute ${index >= categories.length - 2 ? "bottom-full mb-2" : "top-full mt-2"} right-0 w-32 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10`}
+                            >
+                              <button
+                                onClick={() => handleEditCategory(category)}
+                                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                              >
                                 <Edit2 size={14} />
                                 Edit
                               </button>
@@ -462,9 +538,13 @@ const ManageCategoriesApp = () => {
               <div className="bg-white rounded-xl shadow-2xl overflow-hidden">
                 {/* Modal Header */}
                 <div className="bg-green-600 text-white px-4 sm:px-6 py-4 sm:py-5">
-                  <h3 className="font-bold text-base sm:text-lg mb-1">Add New Category</h3>
+                  <h3 className="font-bold text-base sm:text-lg mb-1">
+                    {editingCategory ? "Edit Category" : "Add New Category"}
+                  </h3>
                   <p className="text-xs sm:text-sm text-green-50">
-                    Define a sub-division for one of your award programs.
+                    {editingCategory
+                      ? "Update the category details below."
+                      : "Define a sub-division for one of your award programs."}
                   </p>
                 </div>
 
@@ -514,6 +594,7 @@ const ManageCategoriesApp = () => {
                     onClick={() => {
                       setShowCategoryModal(false);
                       setNewCategory({ name: "", publish: false });
+                      setEditingCategory(null);
                     }}
                     className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-2.5 border border-red-500 text-red-500 rounded-lg hover:bg-red-50 transition-colors text-sm font-medium"
                   >
@@ -524,7 +605,7 @@ const ManageCategoriesApp = () => {
                     disabled={!newCategory.name}
                     className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                   >
-                    Add
+                    {editingCategory ? "Update" : "Add"}
                   </button>
                 </div>
               </div>

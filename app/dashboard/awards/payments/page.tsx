@@ -20,6 +20,9 @@ interface Award {
   categories: number;
   settings?: { showResults: boolean };
   banner?: string;
+  pricing?: {
+    votingCost: number;
+  };
 }
 
 interface Category {
@@ -55,11 +58,12 @@ const PaymentManagementSystem = () => {
   const [awards, setAwards] = useState<Award[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);  const [serviceFeePercentage, setServiceFeePercentage] = useState<number>(10);
   const [loadingPayments, setLoadingPayments] = useState(false);
 
   useEffect(() => {
-    fetchAwards();
+    fetchAwards();    
+    fetchServiceFee();
   }, []);
 
   useEffect(() => {
@@ -68,6 +72,23 @@ const PaymentManagementSystem = () => {
       fetchPayments(selectedAward._id);
     }
   }, [selectedAward]);
+
+
+  
+  const fetchServiceFee = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch("/api/auth/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setServiceFeePercentage(data.data.serviceFeePercentage || 10);
+      }
+    } catch (error) {
+      console.error("Failed to fetch service fee");
+    }
+  };
 
   const fetchAwards = async () => {
     try {
@@ -300,7 +321,7 @@ const PaymentManagementSystem = () => {
                     <div className="absolute top-0 p-3 sm:p-4 left-0 right-0 flex justify-between items-center">
                       <div className="bg-white/80 py-1 px-2 rounded-full">
                         <p className="text-[9px] sm:text-[10px] text-black font-semibold">
-                          Price (GHS 0.50)
+                          Price (GHS {award.pricing?.votingCost?.toFixed(2) || '0.50'})
                         </p>
                       </div>
                       <div
@@ -344,7 +365,7 @@ const PaymentManagementSystem = () => {
                     </div>
                     <p className="text-green-600 text-[10px] sm:text-xs mt-3 flex items-start sm:items-center gap-1">
                       <Info size={12} className="shrink-0 mt-0.5 sm:mt-0" />
-                      <span>10% service fee later applied for all awards.</span>
+                      <span>{serviceFeePercentage}% service fee later applied for all awards.</span>
                     </p>
                   </div>
                 </div>

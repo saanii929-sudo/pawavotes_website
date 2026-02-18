@@ -20,6 +20,9 @@ interface Award {
   categories: number;
   settings?: { showResults: boolean };
   banner?: string;
+  pricing?: {
+    votingCost: number;
+  };
 }
 
 interface Transfer {
@@ -32,8 +35,8 @@ interface Transfer {
   recipientBank?: string;
   recipientAccountNumber?: string;
   recipientPhoneNumber?: string;
-  transferType: 'bank' | 'momo';
-  status: 'successful' | 'pending' | 'failed';
+  transferType: "bank" | "momo";
+  status: "successful" | "pending" | "failed";
   initiatedBy: string;
   notes?: string;
   createdAt: string;
@@ -42,20 +45,27 @@ interface Transfer {
 
 const TransferManagementSystem = () => {
   const [selectedAward, setSelectedAward] = useState<Award | null>(null);
-  const [currentScreen, setCurrentScreen] = useState<"list" | "transfer">("list");
+  const [currentScreen, setCurrentScreen] = useState<"list" | "transfer">(
+    "list",
+  );
   const [showModal, setShowModal] = useState(false);
-  const [paymentMode, setPaymentMode] = useState<"bank" | "mobile_money">("bank");
+  const [paymentMode, setPaymentMode] = useState<"bank" | "mobile_money">(
+    "bank",
+  );
   const [awards, setAwards] = useState<Award[]>([]);
   const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingTransfers, setLoadingTransfers] = useState(false);
   const [processingTransfer, setProcessingTransfer] = useState(false);
+
+  const [serviceFeePercentage, setServiceFeePercentage] = useState<number>(10);
   const [revenueInfo, setRevenueInfo] = useState<{
     totalRevenue: number;
     platformFee: number;
     organizerShare: number;
     alreadyTransferred: number;
     availableAmount: number;
+    serviceFeePercentage: number;
   } | null>(null);
   const [formData, setFormData] = useState({
     recipientName: "",
@@ -63,10 +73,12 @@ const TransferManagementSystem = () => {
     accountNumber: "",
     momoNetwork: "",
     momoNumber: "",
+    amount: "",
   });
 
   useEffect(() => {
     fetchAwards();
+    fetchServiceFee();
   }, []);
 
   useEffect(() => {
@@ -76,22 +88,40 @@ const TransferManagementSystem = () => {
     }
   }, [selectedAward]);
 
+  const fetchServiceFee = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch("/api/auth/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setServiceFeePercentage(data.data.serviceFeePercentage || 10);
+      }
+    } catch (error) {
+      console.error("Failed to fetch service fee");
+    }
+  };
+
   const fetchRevenueInfo = async (awardId: string) => {
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch(`/api/transfers/revenue?awardId=${awardId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      console.log('Fetch revenue response:', response.status);
-      
+      const response = await fetch(
+        `/api/transfers/revenue?awardId=${awardId}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+
+      console.log("Fetch revenue response:", response.status);
+
       if (response.ok) {
         const data = await response.json();
-        console.log('Revenue data:', data);
+        console.log("Revenue data:", data);
         setRevenueInfo(data.data);
       } else {
         const errorData = await response.json();
-        console.error('Fetch revenue error:', errorData);
+        console.error("Fetch revenue error:", errorData);
       }
     } catch (error) {
       console.error("Failed to fetch revenue info:", error);
@@ -124,17 +154,19 @@ const TransferManagementSystem = () => {
       const response = await fetch(`/api/transfers?awardId=${awardId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      
-      console.log('Fetch transfers response:', response.status);
-      
+
+      console.log("Fetch transfers response:", response.status);
+
       if (response.ok) {
         const data = await response.json();
-        console.log('Transfers data:', data);
+        console.log("Transfers data:", data);
         setTransfers(data.data || []);
       } else {
         const errorData = await response.json();
-        console.error('Fetch transfers error:', errorData);
-        toast.error(errorData.error || errorData.message || "Failed to fetch transfers");
+        console.error("Fetch transfers error:", errorData);
+        toast.error(
+          errorData.error || errorData.message || "Failed to fetch transfers",
+        );
       }
     } catch (error) {
       console.error("Failed to fetch transfers:", error);
@@ -150,23 +182,37 @@ const TransferManagementSystem = () => {
   };
 
   const handleSubmit = async () => {
-    if (!formData.recipientName || !selectedAward) {
+    if (!formData.recipientName || !selectedAward || !formData.amount) {
       toast.error("Please fill in all required fields");
       return;
     }
 
-    if (paymentMode === "bank" && (!formData.bankName || !formData.accountNumber)) {
+    const requestedAmount = parseFloat(formData.amount);
+    if (isNaN(requestedAmount) || requestedAmount <= 0) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
+
+    if (!revenueInfo || requestedAmount > revenueInfo.availableAmount) {
+      toast.error(
+        `Amount exceeds available balance (GHS ${revenueInfo?.availableAmount.toFixed(2) || "0.00"})`,
+      );
+      return;
+    }
+
+    if (
+      paymentMode === "bank" &&
+      (!formData.bankName || !formData.accountNumber)
+    ) {
       toast.error("Please fill in bank details");
       return;
     }
 
-    if (paymentMode === "mobile_money" && (!formData.momoNetwork || !formData.momoNumber)) {
+    if (
+      paymentMode === "mobile_money" &&
+      (!formData.momoNetwork || !formData.momoNumber)
+    ) {
       toast.error("Please fill in mobile money details");
-      return;
-    }
-
-    if (!revenueInfo || revenueInfo.availableAmount <= 0) {
-      toast.error("No funds available for transfer");
       return;
     }
 
@@ -177,6 +223,7 @@ const TransferManagementSystem = () => {
       const token = localStorage.getItem("token");
       const body = {
         awardId: selectedAward._id,
+        amount: requestedAmount,
         recipientName: formData.recipientName,
         transferType: paymentMode,
         ...(paymentMode === "bank"
@@ -209,12 +256,16 @@ const TransferManagementSystem = () => {
           accountNumber: "",
           momoNetwork: "",
           momoNumber: "",
+          amount: "",
         });
         setShowModal(false);
         fetchTransfers(selectedAward._id);
         fetchRevenueInfo(selectedAward._id);
       } else {
-        toast.error(data.error || data.message || "Failed to initiate transfer", { id: loadingToast });
+        toast.error(
+          data.error || data.message || "Failed to initiate transfer",
+          { id: loadingToast },
+        );
       }
     } catch (error) {
       toast.error("Failed to initiate transfer", { id: loadingToast });
@@ -223,14 +274,15 @@ const TransferManagementSystem = () => {
     }
   };
 
-  const calculateTotalRevenue = () => {
-    return transfers
-      .filter((t) => t.status === "successful")
-      .reduce((sum, t) => sum + t.amount, 0);
+  const calculateTotalRequestedTransfers = () => {
+    // Sum of all transfers (pending + successful + failed) from database
+    return transfers.reduce((sum, t) => sum + t.amount, 0);
   };
 
-  const calculateTotalTransferred = () => {
-    return transfers.reduce((sum, t) => sum + t.amount, 0);
+  const calculateRemainingBalance = (currentAmount: number) => {
+    // Available amount - (all transfers in DB + current amount being entered)
+    const totalRequested = calculateTotalRequestedTransfers();
+    return (revenueInfo?.availableAmount || 0) - totalRequested - currentAmount;
   };
 
   const getStatusColor = (status: string) => {
@@ -335,7 +387,8 @@ const TransferManagementSystem = () => {
                     <div className="absolute top-0 p-3 sm:p-4 left-0 right-0 flex justify-between items-center">
                       <div className="bg-white/80 py-1 px-2 rounded-full">
                         <p className="text-[9px] sm:text-[10px] text-black font-semibold">
-                          Price (GHS 0.50)
+                          Price (GHS{" "}
+                          {award.pricing?.votingCost?.toFixed(2) || "0.50"})
                         </p>
                       </div>
                       <div
@@ -367,11 +420,17 @@ const TransferManagementSystem = () => {
                     </p>
                     <div className="flex justify-between items-center text-xs">
                       <div>
-                        <span className="text-gray-500 text-[10px] sm:text-xs">Categories</span>
-                        <p className="font-semibold text-gray-900 text-sm">{award.categories}</p>
+                        <span className="text-gray-500 text-[10px] sm:text-xs">
+                          Categories
+                        </span>
+                        <p className="font-semibold text-gray-900 text-sm">
+                          {award.categories}
+                        </p>
                       </div>
                       <div>
-                        <span className="text-gray-500 text-[10px] sm:text-xs">Show Results</span>
+                        <span className="text-gray-500 text-[10px] sm:text-xs">
+                          Show Results
+                        </span>
                         <p className="font-semibold text-gray-900 text-sm text-end">
                           {award.settings?.showResults ? "Yes" : "No"}
                         </p>
@@ -379,7 +438,10 @@ const TransferManagementSystem = () => {
                     </div>
                     <p className="text-green-600 text-[10px] sm:text-xs mt-3 flex items-start sm:items-center gap-1">
                       <Info size={12} className="shrink-0 mt-0.5 sm:mt-0" />
-                      <span>10% service fee later applied for all awards.</span>
+                      <span>
+                        {serviceFeePercentage}% service fee later applied for
+                        all awards.
+                      </span>
                     </p>
                   </div>
                 </div>
@@ -420,7 +482,7 @@ const TransferManagementSystem = () => {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
             <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -432,29 +494,50 @@ const TransferManagementSystem = () => {
                 GHS {(revenueInfo?.totalRevenue || 0).toFixed(2)}
               </p>
             </div>
-
-            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-                  <Info className="text-orange-600" size={20} />
-                </div>
-                <span className="text-gray-600 text-sm">Platform Fee (10%)</span>
-              </div>
-              <p className="text-2xl sm:text-3xl font-bold text-gray-900">
-                GHS {(revenueInfo?.platformFee || 0).toFixed(2)}
-              </p>
-            </div>
-
             <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
                   <CreditCard className="text-green-600" size={20} />
                 </div>
-                <span className="text-gray-600 text-sm">Available for Transfer</span>
+                <span className="text-gray-600 text-sm">Available Balance</span>
               </div>
               <p className="text-2xl sm:text-3xl font-bold text-green-600">
                 GHS {(revenueInfo?.availableAmount || 0).toFixed(2)}
               </p>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border-2 border-green-200">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                  <Smartphone className="text-green-600" size={20} />
+                </div>
+                <span className="text-gray-600 text-sm">
+                  {formData.amount && parseFloat(formData.amount) > 0
+                    ? "Transfer Breakdown"
+                    : "Balance Summary"}
+                </span>
+              </div>
+
+              <>
+                <p className="text-xs text-gray-500 mb-1">Total Requested</p>
+                <p className="text-2xl sm:text-3xl font-bold text-orange-600">
+                  GHS {calculateTotalRequestedTransfers().toFixed(2)}
+                </p>
+                <div className="mt-3 pt-3 border-gray-200">
+                  <div className="border-t border-gray-300 pt-2 mt-2">
+                    <div className="flex justify-between text-xs text-gray-900">
+                      <span className="font-semibold">Remaining Balance:</span>
+                      <span className="font-bold text-green-600">
+                        GHS{" "}
+                        {(
+                          (revenueInfo?.availableAmount || 0) -
+                          calculateTotalRequestedTransfers()
+                        ).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </>
             </div>
           </div>
 
@@ -475,85 +558,183 @@ const TransferManagementSystem = () => {
               </button>
             </div>
           ) : (
-            <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Transaction Ref
-                      </th>
-                      <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Amount
-                      </th>
-                      <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Recipient Details
-                      </th>
-                      <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Initiated By
-                      </th>
-                      <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Timestamp
-                      </th>
-                      <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-100">
-                    {transfers.map((transfer) => (
-                      <tr key={transfer._id} className="hover:bg-gray-50">
-                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${getStatusBgColor(transfer.status)}`}>
-                              <Banknote className={getStatusIconColor(transfer.status)} size={16} />
-                            </div>
-                            <span className="font-medium text-gray-900 text-sm">
-                              {transfer.referenceId}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                          <span className="font-semibold text-gray-900 text-sm">
-                            {transfer.currency} {transfer.amount.toFixed(2)}
-                          </span>
-                        </td>
-                        <td className="px-4 sm:px-6 py-4">
-                          <p className="font-medium text-gray-900 text-sm">{transfer.recipientName}</p>
-                          <p className="text-xs text-gray-500">
-                            {transfer.transferType === "bank"
-                              ? `${transfer.recipientBank} • ${transfer.recipientAccountNumber}`
-                              : `Mobile Money • ${transfer.recipientPhoneNumber}`}
-                          </p>
-                          {transfer.notes && (
-                            <p className="text-xs text-orange-500">{transfer.notes}</p>
-                          )}
-                        </td>
-                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                          <span className="text-gray-900 text-sm">{transfer.initiatedBy}</span>
-                        </td>
-                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                          <span className="text-gray-600 text-xs">
-                            {new Date(transfer.createdAt).toLocaleDateString("en-GB", {
-                              day: "2-digit",
-                              month: "short",
-                              year: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </span>
-                        </td>
-                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                          <span className={`font-medium text-sm ${getStatusColor(transfer.status)}`}>
-                            {transfer.status.charAt(0).toUpperCase() + transfer.status.slice(1)}
-                          </span>
-                        </td>
+            <>
+              {/* Desktop Table View */}
+              <div className="hidden lg:block bg-white rounded-lg shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Transaction Ref
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Amount
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Recipient Details
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Initiated By
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Timestamp
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Status
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-100">
+                      {transfers.map((transfer) => (
+                        <tr key={transfer._id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <div
+                                className={`w-8 h-8 rounded-lg flex items-center justify-center ${getStatusBgColor(transfer.status)}`}
+                              >
+                                <Banknote
+                                  className={getStatusIconColor(transfer.status)}
+                                  size={16}
+                                />
+                              </div>
+                              <span className="font-medium text-gray-900 text-sm">
+                                {transfer.referenceId}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="font-semibold text-gray-900 text-sm">
+                              {transfer.currency} {transfer.amount.toFixed(2)}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="font-medium text-gray-900 text-sm">
+                              {transfer.recipientName}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {transfer.transferType === "bank"
+                                ? `${transfer.recipientBank} • ${transfer.recipientAccountNumber}`
+                                : `Mobile Money • ${transfer.recipientPhoneNumber}`}
+                            </p>
+                            {transfer.notes && (
+                              <p className="text-xs text-orange-500">
+                                {transfer.notes}
+                              </p>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="text-gray-900 text-sm">
+                              {transfer.initiatedBy}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="text-gray-600 text-xs">
+                              {new Date(transfer.createdAt).toLocaleDateString(
+                                "en-GB",
+                                {
+                                  day: "2-digit",
+                                  month: "short",
+                                  year: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                },
+                              )}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span
+                              className={`font-medium text-sm ${getStatusColor(transfer.status)}`}
+                            >
+                              {transfer.status.charAt(0).toUpperCase() +
+                                transfer.status.slice(1)}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
+
+              {/* Mobile Card View */}
+              <div className="lg:hidden space-y-4">
+                {transfers.map((transfer) => (
+                  <div key={transfer._id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={`w-10 h-10 rounded-lg flex items-center justify-center ${getStatusBgColor(transfer.status)}`}
+                        >
+                          <Banknote
+                            className={getStatusIconColor(transfer.status)}
+                            size={18}
+                          />
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900 text-sm">
+                            {transfer.referenceId}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {new Date(transfer.createdAt).toLocaleDateString(
+                              "en-GB",
+                              {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              },
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                      <span
+                        className={`text-xs font-medium px-2 py-1 rounded ${getStatusBgColor(transfer.status)} ${getStatusColor(transfer.status)}`}
+                      >
+                        {transfer.status.charAt(0).toUpperCase() +
+                          transfer.status.slice(1)}
+                      </span>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-gray-500">Amount:</span>
+                        <span className="font-semibold text-gray-900 text-sm">
+                          {transfer.currency} {transfer.amount.toFixed(2)}
+                        </span>
+                      </div>
+
+                      <div className="pt-2 border-t border-gray-100">
+                        <p className="text-xs text-gray-500 mb-1">Recipient:</p>
+                        <p className="font-medium text-gray-900 text-sm">
+                          {transfer.recipientName}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {transfer.transferType === "bank"
+                            ? `${transfer.recipientBank} • ${transfer.recipientAccountNumber}`
+                            : `Mobile Money • ${transfer.recipientPhoneNumber}`}
+                        </p>
+                        {transfer.notes && (
+                          <p className="text-xs text-orange-500 mt-1">
+                            {transfer.notes}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="pt-2 border-t border-gray-100">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-gray-500">Initiated by:</span>
+                          <span className="text-xs text-gray-900">
+                            {transfer.initiatedBy}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </div>
       )}
@@ -571,6 +752,7 @@ const TransferManagementSystem = () => {
                   accountNumber: "",
                   momoNetwork: "",
                   momoNumber: "",
+                  amount: "",
                 });
               }
             }}
@@ -580,14 +762,53 @@ const TransferManagementSystem = () => {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="bg-green-600 text-white px-4 sm:px-6 py-4 rounded-t-lg sticky top-0 z-10">
-                <h2 className="text-lg sm:text-xl font-bold">Request Transfer</h2>
+                <h2 className="text-lg sm:text-xl font-bold">
+                  Request Transfer
+                </h2>
                 <p className="text-xs sm:text-sm text-green-100">
-                  Transfer funds via Paystack (10% platform fee applied)
+                  Transfer funds via Paystack (
+                  {revenueInfo?.serviceFeePercentage || 10}% platform fee
+                  applied)
                 </p>
               </div>
 
               <div className="p-4 sm:p-6 space-y-4 sm:space-y-5">
-                
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <p className="text-xs text-blue-800">
+                    <strong>Available Balance:</strong> GHS{" "}
+                    {(revenueInfo?.availableAmount || 0).toFixed(2)}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Transfer Amount (GHS){" "}
+                    <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max={revenueInfo?.availableAmount || 0}
+                    placeholder="Enter amount to transfer"
+                    value={formData.amount}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        amount: e.target.value,
+                      })
+                    }
+                    className="w-full text-sm text-black px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                  {formData.amount &&
+                    parseFloat(formData.amount) >
+                      (revenueInfo?.availableAmount || 0) && (
+                      <p className="text-xs text-red-600 mt-1">
+                        Amount exceeds available balance
+                      </p>
+                    )}
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Recipient Name{" "}
@@ -600,7 +821,12 @@ const TransferManagementSystem = () => {
                     type="text"
                     placeholder="E.g. Michael Kpelle"
                     value={formData.recipientName}
-                    onChange={(e) => setFormData({ ...formData, recipientName: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        recipientName: e.target.value,
+                      })
+                    }
                     className="w-full text-sm text-black px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                   />
                 </div>
@@ -639,11 +865,17 @@ const TransferManagementSystem = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Mobile Money Network <span className="text-red-500">*</span>
+                        Mobile Money Network{" "}
+                        <span className="text-red-500">*</span>
                       </label>
                       <select
                         value={formData.momoNetwork}
-                        onChange={(e) => setFormData({ ...formData, momoNetwork: e.target.value })}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            momoNetwork: e.target.value,
+                          })
+                        }
                         className="w-full text-sm text-black px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                       >
                         <option value="">Select Network</option>
@@ -654,13 +886,19 @@ const TransferManagementSystem = () => {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Mobile Money Number <span className="text-red-500">*</span>
+                        Mobile Money Number{" "}
+                        <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
                         placeholder="e.g. 0241234567"
                         value={formData.momoNumber}
-                        onChange={(e) => setFormData({ ...formData, momoNumber: e.target.value })}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            momoNumber: e.target.value,
+                          })
+                        }
                         className="w-full text-sm text-black px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                       />
                     </div>
@@ -673,7 +911,9 @@ const TransferManagementSystem = () => {
                       </label>
                       <select
                         value={formData.bankName}
-                        onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
+                        onChange={(e) =>
+                          setFormData({ ...formData, bankName: e.target.value })
+                        }
                         className="w-full text-sm text-black px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                       >
                         <option value="">Select Bank</option>
@@ -692,7 +932,12 @@ const TransferManagementSystem = () => {
                         type="text"
                         placeholder="Enter account number"
                         value={formData.accountNumber}
-                        onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            accountNumber: e.target.value,
+                          })
+                        }
                         className="w-full text-sm text-black px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                       />
                     </div>
@@ -701,8 +946,9 @@ const TransferManagementSystem = () => {
 
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                   <p className="text-xs text-yellow-800">
-                    <strong>Note:</strong> The transfer will be processed through Paystack. 
-                    Ensure the recipient details are correct as transfers cannot be reversed.
+                    <strong>Note:</strong> The transfer will be processed
+                    through Paystack. Ensure the recipient details are correct
+                    as transfers cannot be reversed.
                   </p>
                 </div>
               </div>
@@ -717,6 +963,7 @@ const TransferManagementSystem = () => {
                       accountNumber: "",
                       momoNetwork: "",
                       momoNumber: "",
+                      amount: "",
                     });
                   }}
                   className="px-4 sm:px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
@@ -726,7 +973,13 @@ const TransferManagementSystem = () => {
                 </button>
                 <button
                   onClick={handleSubmit}
-                  disabled={processingTransfer || !revenueInfo || revenueInfo.availableAmount <= 0}
+                  disabled={
+                    processingTransfer ||
+                    !formData.amount ||
+                    parseFloat(formData.amount) <= 0 ||
+                    parseFloat(formData.amount) >
+                      (revenueInfo?.availableAmount || 0)
+                  }
                   className="px-4 sm:px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm disabled:bg-gray-400 disabled:cursor-not-allowed"
                 >
                   {processingTransfer ? "Processing..." : "Request Transfer"}

@@ -25,22 +25,28 @@ async function generateNomineeCode(awardId: string): Promise<string> {
     console.log(`Generated code ${newCode} for award ${award.name}`);
   }
 
-  const lastNominee = await Nominee.findOne({
+  // Get all nominees with codes for this award
+  const nominees = await Nominee.find({
     awardId,
     nomineeCode: { $exists: true, $ne: null },
-  })
-    .sort({ nomineeCode: -1 })
-    .select('nomineeCode');
+  }).select('nomineeCode');
 
-  let nextNumber = 1;
+  let maxNumber = 0;
 
-  if (lastNominee && lastNominee.nomineeCode) {
-    const match = lastNominee.nomineeCode.match(/\d+$/);
-    if (match) {
-      nextNumber = parseInt(match[0]) + 1;
+  // Extract all numbers and find the maximum
+  nominees.forEach(nominee => {
+    if (nominee.nomineeCode) {
+      const match = nominee.nomineeCode.match(/\d+$/);
+      if (match) {
+        const num = parseInt(match[0]);
+        if (num > maxNumber) {
+          maxNumber = num;
+        }
+      }
     }
-  }
+  });
 
+  const nextNumber = maxNumber + 1;
   const formattedNumber = nextNumber.toString().padStart(3, '0');
   return `${award.code}${formattedNumber}`;
 }
@@ -121,7 +127,7 @@ async function createNominee(req: NextRequest) {
     const user = (req as any).user;
     const body = await req.json();
     
-    const { name, awardId, categoryId, image, bio, status } = body;
+    const { name, awardId, categoryId, image, bio, email, phone, status } = body;
 
     if (!name || !awardId || !categoryId) {
       return NextResponse.json(
@@ -146,6 +152,8 @@ async function createNominee(req: NextRequest) {
       categoryId,
       image: image || undefined,
       bio: bio || undefined,
+      email: email || undefined,
+      phone: phone || undefined,
       status: status || 'draft',
       nominationStatus: 'accepted',
       nominationType: 'organizer',
@@ -161,6 +169,7 @@ async function createNominee(req: NextRequest) {
       data: nominee,
     }, { status: 201 });
   } catch (error: any) {
+    console.error('Create nominee error:', error);
     return NextResponse.json(
       { error: 'Failed to create nominee', details: error.message },
       { status: 500 }

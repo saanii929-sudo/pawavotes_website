@@ -30,6 +30,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Verify the award belongs to this organization (if not superadmin)
+    let serviceFeePercentage = 10; // Default
     if (decoded.role === 'organization') {
       const Award = (await import('@/models/Award')).default;
       const award = await Award.findOne({
@@ -43,6 +44,20 @@ export async function GET(req: NextRequest) {
           { status: 404 }
         );
       }
+
+      // Get organization's service fee percentage
+      const Organization = (await import('@/models/Organization')).default;
+      const organization = await Organization.findById(decoded.id);
+      serviceFeePercentage = organization?.serviceFeePercentage || 10;
+    } else {
+      // For superadmin, get the organization from the award
+      const Award = (await import('@/models/Award')).default;
+      const award = await Award.findById(awardId);
+      if (award) {
+        const Organization = (await import('@/models/Organization')).default;
+        const organization = await Organization.findById(award.organizationId);
+        serviceFeePercentage = organization?.serviceFeePercentage || 10;
+      }
     }
 
     // Calculate total revenue for this award
@@ -54,9 +69,9 @@ export async function GET(req: NextRequest) {
 
     const totalRevenue = votingRevenue + nominationRevenue;
 
-    // Calculate 10% platform fee (kept by platform)
-    const platformFee = totalRevenue * 0.1;
-    // Organizer gets 90%
+    // Calculate platform fee based on organization's service fee percentage
+    const platformFee = totalRevenue * (serviceFeePercentage / 100);
+    // Organizer gets the remaining amount
     const organizerShare = totalRevenue - platformFee;
 
     // Check already transferred amount by this organization
@@ -78,6 +93,7 @@ export async function GET(req: NextRequest) {
         organizerShare,
         alreadyTransferred,
         availableAmount,
+        serviceFeePercentage,
       },
     });
   } catch (error: any) {

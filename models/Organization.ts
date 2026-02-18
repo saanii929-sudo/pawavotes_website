@@ -12,6 +12,7 @@ export interface IOrganization extends Document {
   eventType: 'awards' | 'election';
   status: 'active' | 'inactive' | 'suspended';
   subscriptionPlan?: string;
+  serviceFeePercentage: number;
   createdBy: string;
   resetPasswordToken?: string;
   resetPasswordExpiry?: Date;
@@ -76,6 +77,12 @@ const OrganizationSchema: Schema = new Schema(
     subscriptionPlan: {
       type: String,
       default: 'free',
+    },
+    serviceFeePercentage: {
+      type: Number,
+      default: 10,
+      min: 0,
+      max: 100,
     },
     createdBy: {
       type: String,

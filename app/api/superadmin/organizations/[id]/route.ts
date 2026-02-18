@@ -46,10 +46,22 @@ async function updateOrganization(
 
     const { id } = await params;
     const body = await req.json();
-    const { password, ...updateData } = body;
+    const { password, serviceFeePercentage, ...updateData } = body;
 
     if (password) {
       updateData.password = await hashPassword(password);
+    }
+
+    // Validate service fee percentage if provided
+    if (serviceFeePercentage !== undefined) {
+      const fee = Number(serviceFeePercentage);
+      if (isNaN(fee) || fee < 0 || fee > 100) {
+        return NextResponse.json(
+          { error: 'Service fee percentage must be between 0 and 100' },
+          { status: 400 }
+        );
+      }
+      updateData.serviceFeePercentage = fee;
     }
 
     const organization = await Organization.findByIdAndUpdate(
