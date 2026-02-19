@@ -16,9 +16,32 @@ function generateToken(): string {
   return token;
 }
 
-// Generate 6-digit password
+// Generate 8-character password with uppercase, lowercase, and numbers
+// Excludes confusing characters: l, L, I, i, O, o, 0, 1
 function generatePassword(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  const uppercase = 'ABCDEFGHJKMNPQRSTUVWXYZ'; // Excluded: I, L, O
+  const lowercase = 'abcdefghjkmnpqrstuvwxyz'; // Excluded: i, l, o
+  const numbers = '23456789'; // Excluded: 0, 1
+  const allChars = uppercase + lowercase + numbers;
+  
+  let password = '';
+  
+  // Ensure at least one uppercase letter
+  password += uppercase.charAt(Math.floor(Math.random() * uppercase.length));
+  
+  // Ensure at least one lowercase letter
+  password += lowercase.charAt(Math.floor(Math.random() * lowercase.length));
+  
+  // Ensure at least one number
+  password += numbers.charAt(Math.floor(Math.random() * numbers.length));
+  
+  // Fill remaining 5 characters randomly
+  for (let i = 0; i < 5; i++) {
+    password += allChars.charAt(Math.floor(Math.random() * allChars.length));
+  }
+  
+  // Shuffle the password to randomize position of guaranteed characters
+  return password.split('').sort(() => Math.random() - 0.5).join('');
 }
 
 // Check if token is unique
@@ -140,7 +163,10 @@ export async function POST(req: NextRequest) {
       voterId,
       token: voterToken,
       password: hashedPassword,
-      metadata: metadata || {},
+      metadata: {
+        ...(metadata || {}),
+        plainPassword: password, // Store plain password for resending
+      },
       status: 'active',
       hasVoted: false,
     });
@@ -148,7 +174,7 @@ export async function POST(req: NextRequest) {
     // Send credentials via email if email provided
     if (email) {
       try {
-        await sendVoterCredentials(email, name, voterToken, password, election.title);
+        await sendVoterCredentials(email, name, voterToken, password, election.title, election.startDate, election.endDate);
       } catch (emailError) {
         console.error('Failed to send email:', emailError);
         // Don't fail the request if email fails
@@ -169,6 +195,28 @@ export async function POST(req: NextRequest) {
     }, { status: 201 });
   } catch (error: any) {
     console.error('Add voter error:', error);
+    
+    // Handle duplicate key errors
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern || {})[0];
+      if (field === 'email') {
+        return NextResponse.json(
+          { error: 'This email address is already registered for this election' },
+          { status: 400 }
+        );
+      } else if (field === 'phone') {
+        return NextResponse.json(
+          { error: 'This phone number is already registered for this election' },
+          { status: 400 }
+        );
+      } else if (field === 'token') {
+        return NextResponse.json(
+          { error: 'Token conflict. Please try again.' },
+          { status: 400 }
+        );
+      }
+    }
+    
     return NextResponse.json(
       { error: 'Failed to add voter', details: error.message },
       { status: 500 }
@@ -182,11 +230,29 @@ async function sendVoterCredentials(
   name: string,
   token: string,
   password: string,
-  electionTitle: string
+  electionTitle: string,
+  startDate: Date,
+  endDate: Date
 ): Promise<boolean> {
   // Get the base URL from environment or use default
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
   const loginUrl = `${baseUrl}/election/login`;
+
+  // Format dates
+  const formatDate = (date: Date) => {
+    return new Date(date).toLocaleString('en-GB', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  const startDateFormatted = formatDate(startDate);
+  const endDateFormatted = formatDate(endDate);
 
   const html = `
     <!DOCTYPE html>
@@ -195,17 +261,18 @@ async function sendVoterCredentials(
       <style>
         body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
         .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: linear-gradient(135deg, #9333ea 0%, #7e22ce 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+        .header { background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
         .content { background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
-        .credentials-box { background: white; border: 2px solid #9333ea; padding: 20px; margin: 20px 0; border-radius: 8px; }
+        .credentials-box { background: white; border: 2px solid #16a34a; padding: 20px; margin: 20px 0; border-radius: 8px; }
         .credential-item { margin: 15px 0; }
         .credential-label { font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; }
-        .credential-value { font-size: 24px; font-weight: bold; color: #9333ea; font-family: monospace; letter-spacing: 2px; }
-        .button { display: inline-block; background: #9333ea; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: bold; font-size: 16px; }
-        .button:hover { background: #7e22ce; }
+        .credential-value { font-size: 24px; font-weight: bold; color: #16a34a; font-family: monospace; letter-spacing: 2px; }
+        .button { display: inline-block; background: #16a34a; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: bold; font-size: 16px; }
+        .button:hover { background: #15803d; }
         .footer { text-align: center; margin-top: 30px; color: #6b7280; font-size: 14px; }
         .warning { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; }
         .info-box { background: #e0e7ff; border-left: 4px solid #6366f1; padding: 15px; margin: 20px 0; }
+        .date-box { background: #dcfce7; border-left: 4px solid #16a34a; padding: 15px; margin: 20px 0; }
       </style>
     </head>
     <body>
@@ -216,6 +283,14 @@ async function sendVoterCredentials(
         <div class="content">
           <h2>Hello ${name},</h2>
           <p>You have been registered as a voter for <strong>${electionTitle}</strong>.</p>
+          
+          <div class="date-box">
+            <p style="margin: 0; font-size: 14px;"><strong>📅 Election Period:</strong></p>
+            <p style="margin: 5px 0 0 0; font-size: 14px;">
+              <strong>Start:</strong> ${startDateFormatted}<br>
+              <strong>End:</strong> ${endDateFormatted}
+            </p>
+          </div>
           
           <div class="credentials-box">
             <p style="text-align: center; margin-bottom: 20px; color: #6b7280;">Your Login Credentials</p>
@@ -271,6 +346,10 @@ async function sendVoterCredentials(
     Hello ${name},
     
     You have been registered as a voter for ${electionTitle}.
+    
+    ELECTION PERIOD:
+    Start: ${startDateFormatted}
+    End: ${endDateFormatted}
     
     Your Login Credentials:
     Token: ${token}

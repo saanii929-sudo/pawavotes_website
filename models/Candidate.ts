@@ -8,7 +8,7 @@ export interface ICandidate extends Document {
   image?: string;
   bio?: string;
   manifesto?: string;
-  order: number;
+  ballotNumber: number;
   voteCount: number;
   createdAt: Date;
   updatedAt: Date;
@@ -47,9 +47,9 @@ const CandidateSchema: Schema = new Schema(
       type: String,
       trim: true,
     },
-    order: {
+    ballotNumber: {
       type: Number,
-      default: 0,
+      required: [true, 'Ballot number is required'],
     },
     voteCount: {
       type: Number,

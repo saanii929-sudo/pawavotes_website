@@ -23,7 +23,7 @@ export async function PUT(
 
     const { id } = await params;
     const body = await req.json();
-    const { name, image, bio, manifesto, order, categoryId } = body;
+    const { name, image, bio, manifesto, ballotNumber, categoryId } = body;
 
     // Verify candidate belongs to organization
     const candidate = await Candidate.findOne({
@@ -44,7 +44,7 @@ export async function PUT(
     if (image !== undefined) updateData.image = image;
     if (bio !== undefined) updateData.bio = bio;
     if (manifesto !== undefined) updateData.manifesto = manifesto;
-    if (order !== undefined) updateData.order = order;
+    if (ballotNumber !== undefined) updateData.ballotNumber = ballotNumber;
     if (categoryId) updateData.categoryId = categoryId;
 
     const updatedCandidate = await Candidate.findByIdAndUpdate(

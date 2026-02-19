@@ -557,45 +557,6 @@ const AwardPage = () => {
                           </div>
                         </div>
                       </div>
-                      
-                      {/* Action Menu Button */}
-                      <div className="absolute top-2 right-2 z-10">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowActionMenu(showActionMenu === award._id ? null : award._id);
-                          }}
-                          className="p-2 bg-white/90 hover:bg-white rounded-lg shadow-md transition-colors"
-                        >
-                          <MoreVertical size={18} className="text-gray-700" />
-                        </button>
-                        
-                        {showActionMenu === award._id && (
-                          <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setShowActionMenu(null);
-                                handleEditAward(award._id);
-                              }}
-                              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 rounded-t-lg flex items-center gap-2"
-                            >
-                              <Edit2 size={14} />
-                              Edit Award
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteAward(award._id, award.name);
-                              }}
-                              className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 rounded-b-lg flex items-center gap-2"
-                            >
-                              <Trash2 size={14} />
-                              Delete Award
-                            </button>
-                          </div>
-                        )}
-                      </div>
                     </div>
                   ))}
                 </div>

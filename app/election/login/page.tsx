@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, FormEvent } from 'react';
+import { useState, FormEvent, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { Vote, Lock, Key, Mail} from 'lucide-react';
+import { Vote, Lock, Key, Mail, Eye, EyeOff} from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import { motion } from 'framer-motion';
 
@@ -22,7 +22,41 @@ export default function VoterLoginPage() {
   const router = useRouter();
   const [token, setToken] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Check if voter is already authenticated
+  useEffect(() => {
+    const voterToken = localStorage.getItem('voterToken');
+    const voterData = localStorage.getItem('voterData');
+    const tokenTimestamp = localStorage.getItem('voterTokenTimestamp');
+    
+    if (voterToken && voterData && tokenTimestamp) {
+      try {
+        const data = JSON.parse(voterData);
+        const timestamp = parseInt(tokenTimestamp);
+        const now = Date.now();
+        const sixHours = 6 * 60 * 60 * 1000; // 6 hours in milliseconds
+        
+        // Check if token is expired (older than 6 hours)
+        if (now - timestamp > sixHours) {
+          // Token expired, clear storage
+          localStorage.removeItem('voterToken');
+          localStorage.removeItem('voterData');
+          localStorage.removeItem('voterTokenTimestamp');
+          toast.error('Session expired. Please login again.');
+        } else if (!data.hasVoted) {
+          // Token still valid and hasn't voted, redirect
+          router.push(`/election?token=${voterToken}`);
+        }
+      } catch (error) {
+        // Invalid data, clear storage
+        localStorage.removeItem('voterToken');
+        localStorage.removeItem('voterData');
+        localStorage.removeItem('voterTokenTimestamp');
+      }
+    }
+  }, [router]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -50,6 +84,7 @@ export default function VoterLoginPage() {
         // Store voter data
         localStorage.setItem('voterToken', token.trim().toUpperCase());
         localStorage.setItem('voterData', JSON.stringify(data.data));
+        localStorage.setItem('voterTokenTimestamp', Date.now().toString());
 
         // Redirect to election page with token
         setTimeout(() => {
@@ -172,15 +207,22 @@ export default function VoterLoginPage() {
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
                   <input
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     required
                     placeholder="Enter your 6-digit password"
                     value={password}
                     minLength={6}
                     disabled={loading}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 py-3 pl-11 pr-4 text-sm focus:border-green-600 focus:outline-none focus:ring-2 focus:ring-green-600/20"
+                    className="w-full rounded-lg border border-gray-300 py-3 pl-11 pr-11 text-sm focus:border-green-600 focus:outline-none focus:ring-2 focus:ring-green-600/20"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
                 </div>
               </div>
 

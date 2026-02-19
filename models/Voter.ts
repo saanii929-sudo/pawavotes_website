@@ -43,10 +43,16 @@ const VoterSchema: Schema = new Schema(
       type: String,
       trim: true,
       lowercase: true,
+      sparse: true,
+      unique: true,
+      index: true,
     },
     phone: {
       type: String,
       trim: true,
+      sparse: true,
+      unique: true,
+      index: true,
     },
     voterId: {
       type: String,

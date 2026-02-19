@@ -25,6 +25,7 @@ import {
   Target,
   MessageCircle,
   UserCheck,
+  Headphones,
 } from "lucide-react";
 
 import { useState, useEffect } from "react";
@@ -49,6 +50,7 @@ const menu = [
   },
   { name: "Voters", href: "/election-dashboard/voters", icon: Users },
   { name: "Results", href: "/election-dashboard/results", icon: BarChart3 },
+  { name: "Help Desk", href: "/election-dashboard/helpdesk", icon: Headphones },
 ];
 
 export default function Sidebar1() {

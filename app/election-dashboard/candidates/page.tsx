@@ -10,7 +10,7 @@ interface Candidate {
   image?: string;
   bio?: string;
   manifesto?: string;
-  order: number;
+  ballotNumber: number;
   voteCount: number;
   categoryId: {
     _id: string;
@@ -44,7 +44,7 @@ export default function CandidatesPage() {
     image: '',
     bio: '',
     manifesto: '',
-    order: 0,
+    ballotNumber: 1,
   });
 
   useEffect(() => {
@@ -165,7 +165,7 @@ export default function CandidatesPage() {
       image: candidate.image || '',
       bio: candidate.bio || '',
       manifesto: candidate.manifesto || '',
-      order: candidate.order,
+      ballotNumber: candidate.ballotNumber,
     });
     setImagePreview(candidate.image || '');
     setShowModal(true);
@@ -244,7 +244,7 @@ export default function CandidatesPage() {
       image: '',
       bio: '',
       manifesto: '',
-      order: 0,
+      ballotNumber: 1,
     });
     setImagePreview('');
   };
@@ -335,8 +335,13 @@ export default function CandidatesPage() {
                         {positionCandidates.map((candidate) => (
                           <div
                             key={candidate._id}
-                            className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition"
+                            className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition relative"
                           >
+                            {/* Ballot Number Badge */}
+                            <div className="absolute top-3 left-3 z-10 w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center border-2 border-green-600">
+                              <span className="text-lg font-bold text-green-600">{candidate.ballotNumber}</span>
+                            </div>
+
                             {candidate.image ? (
                               <img
                                 src={candidate.image}
@@ -502,15 +507,16 @@ export default function CandidatesPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Display Order</label>
+                <label className="block text-sm font-medium mb-1">Ballot Number *</label>
                 <input
                   type="number"
-                  min="0"
-                  value={formData.order}
-                  onChange={(e) => setFormData({ ...formData, order: parseInt(e.target.value) })}
+                  min="1"
+                  required
+                  value={formData.ballotNumber || 1}
+                  onChange={(e) => setFormData({ ...formData, ballotNumber: parseInt(e.target.value) || 1 })}
                   className="w-full text-black border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
                 />
-                <p className="text-xs text-gray-500 mt-1">Lower numbers appear first</p>
+                <p className="text-xs text-gray-500 mt-1">Candidates will be displayed in ballot number order</p>
               </div>
 
               <div className="flex gap-3 justify-end pt-4">

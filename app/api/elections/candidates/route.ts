@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
 
     const candidates = await Candidate.find(query)
       .populate('categoryId', 'name')
-      .sort({ order: 1, createdAt: 1 });
+      .sort({ ballotNumber: 1, createdAt: 1 });
 
     return NextResponse.json({
       success: true,
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { electionId, categoryId, name, image, bio, manifesto, order } = body;
+    const { electionId, categoryId, name, image, bio, manifesto, ballotNumber } = body;
 
     if (!electionId || !categoryId || !name) {
       return NextResponse.json(
@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
       image,
       bio,
       manifesto,
-      order: order || 0,
+      ballotNumber: ballotNumber || 1,
       voteCount: 0,
     });
 

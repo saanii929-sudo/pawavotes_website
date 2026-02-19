@@ -31,6 +31,7 @@ interface Candidate {
     _id: string;
     name: string;
   };
+  ballotNumber?: number;
 }
 
 function VotingPageContent() {
@@ -187,7 +188,9 @@ function VotingPageContent() {
   };
 
   const getCandidatesByCategory = (categoryId: string) => {
-    return candidates.filter((c) => c.categoryId._id === categoryId);
+    return candidates
+      .filter((c) => c.categoryId._id === categoryId)
+      .sort((a, b) => (a.ballotNumber || 0) - (b.ballotNumber || 0));
   };
 
   const getSelectedCandidate = (categoryId: string) => {
@@ -211,32 +214,32 @@ function VotingPageContent() {
       <Toaster position="top-center" />
 
       <div className="min-h-screen bg-gray-50">
-        <header className="bg-white sticky top-0 z-40">
-          <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-            <div className="flex items-center justify-between">
+        <header className="bg-white sticky top-0 z-40 shadow-sm">
+          <div className="max-w-8xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-4">
+            <div className="flex items-center justify-between gap-2">
               <button
                 onClick={() => router.back()}
-                className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+                className="flex items-center gap-1 sm:gap-2 text-gray-600 hover:text-gray-900 flex-shrink-0"
               >
-                <ArrowLeft size={20} />
-                <span>Back</span>
+                <ArrowLeft size={18} className="sm:w-5 sm:h-5" />
+                <span className="text-sm sm:text-base">Back</span>
               </button>
-              <div className="flex items-center gap-3">
-                <Vote className="text-green-600" size={24} />
-                <div>
-                  <h1 className="text-lg font-bold text-gray-900">
+              <div className="flex items-center gap-2 sm:gap-3 flex-1 justify-center min-w-0">
+                <Vote className="text-green-600 flex-shrink-0" size={20} />
+                <div className="min-w-0">
+                  <h1 className="text-sm sm:text-lg font-bold text-gray-900 truncate">
                     Cast Your Vote
                   </h1>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-gray-500 truncate hidden sm:block">
                     {voterData?.election?.title}
                   </p>
                 </div>
               </div>
-              <div className="text-right">
-                <p className="text-sm font-medium text-gray-900">
+              <div className="text-right flex-shrink-0 min-w-0">
+                <p className="text-xs sm:text-sm font-medium text-gray-900 truncate max-w-[100px] sm:max-w-none">
                   {voterData?.name}
                 </p>
-                <p className="text-xs text-gray-500 font-mono">{token}</p>
+                <p className="text-xs text-gray-500 font-mono hidden sm:block">{token}</p>
               </div>
             </div>
           </div>
@@ -287,24 +290,6 @@ function VotingPageContent() {
                         <h2 className="text-2xl font-bold">{category.name}</h2>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 mt-4">
-                      {selectedCandidate && (
-                        <div className="flex items-center gap-2 bg-white/20 px-4 py-2 rounded-full">
-                          <CheckCircle size={18} />
-                          <span className="text-sm font-medium">
-                            Candidate Selected
-                          </span>
-                        </div>
-                      )}
-                      {isSkipped && (
-                        <div className="flex items-center gap-2 bg-white/20 px-4 py-2 rounded-full">
-                          <XCircle size={18} />
-                          <span className="text-sm font-medium">
-                            Candidate Skipped
-                          </span>
-                        </div>
-                      )}
-                    </div>
                   </div>
                   <div className="p-6">
                     {categoryCandidates.length === 0 ? (
@@ -319,7 +304,7 @@ function VotingPageContent() {
                       </div>
                     ) : categoryCandidates.length === 1 ? (
                       <div className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                           {categoryCandidates.map((candidate) => {
                             const isSelected =
                               selectedVotes[category._id] === candidate._id;
@@ -333,66 +318,95 @@ function VotingPageContent() {
                                       candidate._id,
                                     )
                                   }
-                                  className={`text-left p-5 rounded-xl border-2 transition ${
+                                  className={`group text-left p-6 rounded-2xl border-2 transition-all duration-200 relative overflow-hidden ${
                                     isSelected
-                                      ? "border-green-600 bg-green-50"
-                                      : "border-gray-200 hover:border-green-300 hover:bg-gray-50"
+                                      ? "border-green-600 bg-gradient-to-br from-green-50 to-green-100 shadow-lg scale-[1.02]"
+                                      : "border-gray-200 hover:border-green-400 hover:bg-gray-50 hover:shadow-md"
                                   }`}
                                 >
-                                  <div className="flex items-start gap-3 mb-3">
+                                  <div className={`absolute top-4 right-4 w-12 h-12 rounded-full shadow-lg flex items-center justify-center border-2 transition-all ${
+                                    isSelected 
+                                      ? "bg-green-600 border-green-700" 
+                                      : "bg-white border-green-600"
+                                  }`}>
+                                    <span className={`text-base font-bold ${
+                                      isSelected ? "text-white" : "text-green-600"
+                                    }`}>{candidate.ballotNumber}</span>
+                                  </div>
+
+                                  <div className="flex flex-col items-center text-center gap-4 mb-4">
                                     {candidate.image ? (
                                       <img
                                         src={candidate.image}
                                         alt={candidate.name}
-                                        className="w-16 h-16 rounded-full object-cover"
+                                        className={`w-24 h-24 rounded-full object-cover border-4 transition-all ${
+                                          isSelected 
+                                            ? "border-green-600 shadow-xl" 
+                                            : "border-gray-200 group-hover:border-green-400"
+                                        }`}
                                       />
                                     ) : (
-                                      <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                                      <div className={`w-24 h-24 rounded-full flex items-center justify-center border-4 transition-all ${
+                                        isSelected 
+                                          ? "bg-green-600 border-green-700 shadow-xl" 
+                                          : "bg-green-100 border-gray-200 group-hover:border-green-400"
+                                      }`}>
                                         <Users
-                                          className="text-green-600"
-                                          size={28}
+                                          className={isSelected ? "text-white" : "text-green-600"}
+                                          size={36}
                                         />
                                       </div>
                                     )}
                                     <div className="flex-1 min-w-0">
-                                      <h4 className="font-bold text-gray-900 mb-1">
+                                      <h4 className={`font-bold text-lg mb-2 ${
+                                        isSelected ? "text-green-900" : "text-gray-900"
+                                      }`}>
                                         {candidate.name}
                                       </h4>
                                       {showLiveResults && (
-                                        <div className="flex items-center gap-1 text-sm text-green-600">
+                                        <div className="flex items-center justify-center gap-2 text-sm text-green-600 bg-white px-3 py-1 rounded-full">
                                           <TrendingUp size={14} />
-                                          <span className="font-medium">
+                                          <span className="font-semibold">
                                             {candidate.voteCount} votes
                                           </span>
                                         </div>
                                       )}
                                     </div>
-                                    {isSelected && (
-                                      <CheckCircle
-                                        className="text-green-600 shrink-0"
-                                        size={24}
-                                      />
-                                    )}
                                   </div>
+                                  
+                                  {isSelected && (
+                                    <div className="flex items-center justify-center gap-2 bg-green-600 text-white py-2 rounded-lg font-semibold">
+                                      <CheckCircle size={20} />
+                                      <span>Selected</span>
+                                    </div>
+                                  )}
                                 </button>
 
                                 <button
-                                  onClick={() =>handleSkipCandidate(category._id)}
-                                  className={`text-left p-5 rounded-xl border-2 transition ${
+                                  onClick={() => handleSkipCandidate(category._id)}
+                                  className={`group text-left p-6 rounded-2xl border-2 transition-all duration-200 flex items-center justify-center ${
                                     isSkipped
-                                      ? "border-green-600 bg-green-50"
-                                      : "border-gray-200 hover:border-green-300 hover:bg-gray-50"
+                                      ? "border-green-600 shadow-lg scale-[1.02]"
+                                      : "border-gray-200 hover:border-green-600 hover:bg-gray-50 hover:shadow-md"
                                   }`}
                                 >
-                                  <div className="flex items-start gap-3 mb-3">
-                                    <div className="flex-1 min-w-0">
-                                      <h4 className={`${isSkipped ? "text-green-600" : "text-gray-300"} font-bold text-6xl text-center `}>NO</h4>
+                                  <div className="flex flex-col items-center gap-4">
+                                    <div className={`w-30 h-30 rounded-full flex items-center justify-center border-4 transition-all ${
+                                      isSkipped 
+                                        ? " border-green-600 shadow-xl" 
+                                        : "bg-gray-100 border-gray-300 group-hover:border-green-600"
+                                    }`}>
+                                    <h4 className={`font-bold text-6xl ${
+                                      isSkipped ? "text-green-900" : "text-gray-400"
+                                    }`}>
+                                      NO
+                                    </h4>
                                     </div>
                                     {isSkipped && (
-                                      <CheckCircle
-                                        className="text-green-600 shrink-0"
-                                        size={24}
-                                      />
+                                      <div className="flex items-center justify-center gap-2 bg-green-500 text-white py-2 px-4 rounded-lg font-semibold">
+                                        <CheckCircle size={20} />
+                                        <span>Skipped</span>
+                                      </div>
                                     )}
                                   </div>
                                 </button>
@@ -403,7 +417,7 @@ function VotingPageContent() {
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                           {categoryCandidates.map((candidate) => {
                             const isSelected =
                               selectedVotes[category._id] === candidate._id;
@@ -417,47 +431,69 @@ function VotingPageContent() {
                                     candidate._id,
                                   )
                                 }
-                                className={`text-left p-5 rounded-xl border-2 transition ${
+                                className={`group text-left p-6 rounded-2xl border-2 transition-all duration-200 relative overflow-hidden ${
                                   isSelected
-                                    ? "border-green-600 bg-green-50"
-                                    : "border-gray-200 hover:border-green-300 hover:bg-gray-50"
+                                    ? "border-green-600 bg-gradient-to-br from-green-50 to-green-100 shadow-lg scale-[1.02]"
+                                    : "border-gray-200 hover:border-green-400 hover:bg-gray-50 hover:shadow-md"
                                 }`}
                               >
-                                <div className="flex items-start gap-3 mb-3">
+                                {/* Ballot Number Badge */}
+                                <div className={`absolute top-4 right-4 w-12 h-12 rounded-full shadow-lg flex items-center justify-center border-2 transition-all ${
+                                  isSelected 
+                                    ? "bg-green-600 border-green-700" 
+                                    : "bg-white border-green-600"
+                                }`}>
+                                  <span className={`text-base font-bold ${
+                                    isSelected ? "text-white" : "text-green-600"
+                                  }`}>{candidate.ballotNumber}</span>
+                                </div>
+
+                                <div className="flex flex-col items-center text-center gap-4 mb-4">
                                   {candidate.image ? (
                                     <img
                                       src={candidate.image}
                                       alt={candidate.name}
-                                      className="w-16 h-16 rounded-full object-cover"
+                                      className={`w-24 h-24 rounded-full object-cover border-4 transition-all ${
+                                        isSelected 
+                                          ? "border-green-600 shadow-xl" 
+                                          : "border-gray-200 group-hover:border-green-400"
+                                      }`}
                                     />
                                   ) : (
-                                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                                    <div className={`w-24 h-24 rounded-full flex items-center justify-center border-4 transition-all ${
+                                      isSelected 
+                                        ? "bg-green-600 border-green-700 shadow-xl" 
+                                        : "bg-green-100 border-gray-200 group-hover:border-green-400"
+                                    }`}>
                                       <Users
-                                        className="text-green-600"
-                                        size={28}
+                                        className={isSelected ? "text-white" : "text-green-600"}
+                                        size={36}
                                       />
                                     </div>
                                   )}
                                   <div className="flex-1 min-w-0">
-                                    <h4 className="font-bold text-gray-900 mb-1">
+                                    <h4 className={`font-bold text-lg mb-2 ${
+                                      isSelected ? "text-green-900" : "text-gray-900"
+                                    }`}>
                                       {candidate.name}
                                     </h4>
                                     {showLiveResults && (
-                                      <div className="flex items-center gap-1 text-sm text-green-600">
+                                      <div className="flex items-center justify-center gap-2 text-sm text-green-600 bg-white px-3 py-1 rounded-full">
                                         <TrendingUp size={14} />
-                                        <span className="font-medium">
+                                        <span className="font-semibold">
                                           {candidate.voteCount} votes
                                         </span>
                                       </div>
                                     )}
                                   </div>
-                                  {isSelected && (
-                                    <CheckCircle
-                                      className="text-green-600 shrink-0"
-                                      size={24}
-                                    />
-                                  )}
                                 </div>
+                                
+                                {isSelected && (
+                                  <div className="flex items-center justify-center gap-2 bg-green-600 text-white py-2 rounded-lg font-semibold">
+                                    <CheckCircle size={20} />
+                                    <span>Selected</span>
+                                  </div>
+                                )}
                               </button>
                             );
                           })}
@@ -465,36 +501,34 @@ function VotingPageContent() {
                       </div>
                     )}
                   </div>
-                  <div className="border-t border-gray-200 p-6 bg-gray-50 rounded-b-xl">
-                    <div className="flex items-center justify-between">
+                  <div className="border-t border-gray-200 p-4 sm:p-6 bg-gray-50 rounded-b-xl">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                       <button
                         onClick={handlePreviousStep}
                         disabled={currentStep === 0}
-                        className="flex items-center gap-2 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center justify-center gap-2 px-4 sm:px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-white transition disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
                       >
                         <ChevronLeft size={20} />
-                        Previous
+                        <span>Previous</span>
                       </button>
 
-                      <div className="flex flex-col items-end gap-2">
-                        <button
-                          onClick={handleNextStep}
-                          disabled={!canProceed()}
-                          className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {currentStep === categories.length - 1 ? (
-                            <>
-                              <Vote size={20} />
-                              Review & Submit
-                            </>
-                          ) : (
-                            <>
-                              Next
-                              <ChevronRight size={20} />
-                            </>
-                          )}
-                        </button>
-                      </div>
+                      <button
+                        onClick={handleNextStep}
+                        disabled={!canProceed()}
+                        className="flex items-center justify-center gap-2 px-4 sm:px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+                      >
+                        {currentStep === categories.length - 1 ? (
+                          <>
+                            <Vote size={20} />
+                            <span>Review & Submit</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>Next</span>
+                            <ChevronRight size={20} />
+                          </>
+                        )}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -518,18 +552,18 @@ function VotingPageContent() {
               </p>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={() => setShowConfirm(false)}
                 disabled={submitting}
-                className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg hover:bg-gray-50 transition disabled:opacity-50 font-semibold"
+                className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg hover:bg-gray-50 transition disabled:opacity-50 font-semibold text-sm sm:text-base"
               >
                 Go Back
               </button>
               <button
                 onClick={confirmSubmit}
                 disabled={submitting}
-                className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50 font-semibold"
+                className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50 font-semibold text-sm sm:text-base"
               >
                 {submitting ? "Submitting..." : "Confirm & Submit"}
               </button>

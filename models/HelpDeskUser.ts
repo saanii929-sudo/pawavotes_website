@@ -1,29 +1,26 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
-export interface IAdmin extends Document {
+export interface IHelpDeskUser extends Document {
   username: string;
   email: string;
   password: string;
-  role: 'superadmin' | 'admin' | 'helpdesk';
+  assignedElections: mongoose.Types.ObjectId[];
+  organizationId: mongoose.Types.ObjectId;
   status: 'active' | 'inactive';
-  resetPasswordToken?: string;
-  resetPasswordExpiry?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
 
-const AdminSchema: Schema = new Schema(
+const HelpDeskUserSchema: Schema = new Schema(
   {
     username: {
       type: String,
       required: [true, 'Username is required'],
-      unique: true,
       trim: true,
     },
     email: {
       type: String,
       required: [true, 'Email is required'],
-      unique: true,
       lowercase: true,
       trim: true,
     },
@@ -32,21 +29,19 @@ const AdminSchema: Schema = new Schema(
       required: [true, 'Password is required'],
       minlength: 6,
     },
-    role: {
-      type: String,
-      enum: ['superadmin', 'admin', 'helpdesk'],
-      default: 'admin',
+    assignedElections: [{
+      type: Schema.Types.ObjectId,
+      ref: 'Election',
+    }],
+    organizationId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Organization',
+      required: true,
     },
     status: {
       type: String,
       enum: ['active', 'inactive'],
       default: 'active',
-    },
-    resetPasswordToken: {
-      type: String,
-    },
-    resetPasswordExpiry: {
-      type: Date,
     },
   },
   {
@@ -54,7 +49,7 @@ const AdminSchema: Schema = new Schema(
   }
 );
 
-const Admin: Model<IAdmin> =
-  mongoose.models.Admin || mongoose.model<IAdmin>('Admin', AdminSchema);
+const HelpDeskUser: Model<IHelpDeskUser> =
+  mongoose.models.HelpDeskUser || mongoose.model<IHelpDeskUser>('HelpDeskUser', HelpDeskUserSchema);
 
-export default Admin;
+export default HelpDeskUser;

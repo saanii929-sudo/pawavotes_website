@@ -2,10 +2,10 @@
 
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { Mail, Lock } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, useEffect } from "react";
 
 const fadeIn = {
   hidden: { opacity: 0 },
@@ -21,7 +21,44 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Check if user is already authenticated
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const userData = localStorage.getItem('user');
+    const tokenTimestamp = localStorage.getItem('tokenTimestamp');
+    
+    if (token && userData && tokenTimestamp) {
+      try {
+        const user = JSON.parse(userData);
+        const timestamp = parseInt(tokenTimestamp);
+        const now = Date.now();
+        const sixHours = 6 * 60 * 60 * 1000; // 6 hours in milliseconds
+        
+        // Check if token is expired (older than 6 hours)
+        if (now - timestamp > sixHours) {
+          // Token expired, clear storage
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          localStorage.removeItem('tokenTimestamp');
+          toast.error('Session expired. Please login again.');
+        } else {
+          // Token still valid, redirect to dashboard
+          const redirectPath = user.eventType === 'election' 
+            ? '/election-dashboard' 
+            : '/dashboard';
+          router.push(redirectPath);
+        }
+      } catch (error) {
+        // Invalid data, clear storage
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        localStorage.removeItem('tokenTimestamp');
+      }
+    }
+  }, [router]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -69,6 +106,7 @@ export default function LoginPage() {
 
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
+        localStorage.setItem("tokenTimestamp", Date.now().toString());
 
         // Redirect based on eventType
         const redirectPath = data.user.eventType === 'election' 
@@ -196,13 +234,20 @@ export default function LoginPage() {
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
                   <input
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     required
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 py-3 pl-11 pr-4 text-sm focus:border-green-600 focus:outline-none focus:ring-2 focus:ring-green-600/20"
+                    className="w-full rounded-lg border border-gray-300 py-3 pl-11 pr-11 text-sm focus:border-green-600 focus:outline-none focus:ring-2 focus:ring-green-600/20"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
                 </div>
               </div>
 

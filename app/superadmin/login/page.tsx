@@ -1,15 +1,50 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
 import Image from "next/image";
+import { Eye, EyeOff } from "lucide-react";
 
 export default function SuperAdminLogin() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Check if superadmin is already authenticated
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const userData = localStorage.getItem('user');
+    const tokenTimestamp = localStorage.getItem('tokenTimestamp');
+    
+    if (token && userData && tokenTimestamp) {
+      try {
+        const user = JSON.parse(userData);
+        const timestamp = parseInt(tokenTimestamp);
+        const now = Date.now();
+        const sixHours = 6 * 60 * 60 * 1000; // 6 hours in milliseconds
+        
+        // Check if token is expired (older than 6 hours)
+        if (now - timestamp > sixHours) {
+          // Token expired, clear storage
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          localStorage.removeItem('tokenTimestamp');
+          toast.error('Session expired. Please login again.');
+        } else if (user.role === 'superadmin') {
+          // Token still valid, redirect
+          router.push('/superadmin');
+        }
+      } catch (error) {
+        // Invalid data, clear storage
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        localStorage.removeItem('tokenTimestamp');
+      }
+    }
+  }, [router]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -41,6 +76,7 @@ export default function SuperAdminLogin() {
 
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
+        localStorage.setItem("tokenTimestamp", Date.now().toString());
 
         setTimeout(() => {
           router.push("/superadmin");
@@ -177,23 +213,44 @@ export default function SuperAdminLogin() {
                 >
                   Password
                 </label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  placeholder="••••••••"
-                  style={{
-                    width: "100%",
-                    padding: "10px 12px",
-                    border: "1px solid #d1d5db",
-                    borderRadius: "6px",
-                    fontSize: "14px",
-                    boxSizing: "border-box",
-                    color: "#111827",
-                    backgroundColor: "#ffffff",
-                  }}
-                />
+                <div style={{ position: "relative" }}>
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    placeholder="••••••••"
+                    style={{
+                      width: "100%",
+                      padding: "10px 40px 10px 12px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "6px",
+                      fontSize: "14px",
+                      boxSizing: "border-box",
+                      color: "#111827",
+                      backgroundColor: "#ffffff",
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={{
+                      position: "absolute",
+                      right: "12px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      color: "#9ca3af",
+                      padding: "0",
+                      display: "flex",
+                      alignItems: "center",
+                    }}
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
               </div>
 
               <button

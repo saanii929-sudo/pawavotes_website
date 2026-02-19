@@ -10,6 +10,8 @@ import {
   FileText,
   Edit,
   Trash2,
+  Send,
+  Mail,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -40,6 +42,8 @@ export default function VotersPage() {
   const [editingVoter, setEditingVoter] = useState<Voter | null>(null);
   const [search, setSearch] = useState("");
   const [uploadResults, setUploadResults] = useState<any>(null);
+  const [resendingCredentials, setResendingCredentials] = useState<string | null>(null);
+  const [uploadingBulk, setUploadingBulk] = useState(false);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -114,20 +118,25 @@ export default function VotersPage() {
         : "/api/elections/voters";
       const method = editingVoter ? "PUT" : "POST";
 
+      const payload: any = {
+        electionId: selectedElection,
+        name: formData.name,
+        email: formData.email || undefined,
+        phone: formData.phone || undefined,
+        voterId: formData.voterId || undefined,
+        metadata: {
+          department: formData.department,
+          class: formData.class,
+        },
+      };
+
       const response = await fetch(url, {
         method,
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          electionId: selectedElection,
-          ...formData,
-          metadata: {
-            department: formData.department,
-            class: formData.class,
-          },
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (response.ok) {
@@ -168,8 +177,8 @@ export default function VotersPage() {
       email: voter.email || "",
       phone: voter.phone || "",
       voterId: voter.voterId || "",
-      department: "",
-      class: "",
+      department: (voter as any).metadata?.department || "",
+      class: (voter as any).metadata?.class || "",
     });
     setShowAddModal(true);
   };
@@ -205,9 +214,46 @@ export default function VotersPage() {
     }
   };
 
+  const handleResendCredentials = async (voterId: string, voterName: string, voterEmail?: string) => {
+    if (!voterEmail) {
+      toast.error("Voter does not have an email address");
+      return;
+    }
+
+    if (!confirm(`Resend voting credentials to ${voterName} (${voterEmail})?`)) {
+      return;
+    }
+
+    setResendingCredentials(voterId);
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`/api/elections/voters/${voterId}/resend`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        toast.success("Credentials resent successfully!");
+      } else {
+        const data = await response.json();
+        toast.error(data.error || "Failed to resend credentials");
+      }
+    } catch (error) {
+      console.error("Resend credentials error:", error);
+      toast.error("Failed to resend credentials");
+    } finally {
+      setResendingCredentials(null);
+    }
+  };
+
   const handleBulkUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    setUploadingBulk(true);
+    setUploadResults(null);
 
     const reader = new FileReader();
     reader.onload = async (event) => {
@@ -217,6 +263,7 @@ export default function VotersPage() {
 
         if (lines.length < 2) {
           toast.error("CSV file must have at least a header and one data row");
+          setUploadingBulk(false);
           return;
         }
 
@@ -253,11 +300,21 @@ export default function VotersPage() {
 
         if (response.ok) {
           const data = await response.json();
-          setUploadResults(data.data);
-          toast.success(
-            `Successfully uploaded ${data.data.successful} voters!`,
-          );
+          
+          let message = `Successfully uploaded ${data.data.successful} voters!`;
+          if (data.data.emailsSent !== undefined) {
+            message += ` Emails sent: ${data.data.emailsSent}`;
+            if (data.data.emailsFailed > 0) {
+              message += ` (${data.data.emailsFailed} failed)`;
+            }
+          }
+          
+          toast.success(message);
           fetchVoters();
+          
+          // Close modal after successful upload
+          setShowBulkModal(false);
+          setUploadResults(null);
         } else {
           const data = await response.json();
           toast.error(data.error || "Failed to upload voters");
@@ -265,6 +322,8 @@ export default function VotersPage() {
       } catch (error) {
         console.error("CSV parse error:", error);
         toast.error("Failed to parse CSV file");
+      } finally {
+        setUploadingBulk(false);
       }
     };
 
@@ -422,6 +481,24 @@ export default function VotersPage() {
                       </p>
                     </div>
                     <div className="flex items-center gap-2 ml-2">
+                      <button
+                        onClick={() => handleResendCredentials(voter._id, voter.name, voter.email)}
+                        className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={voter.hasVoted || !voter.email || resendingCredentials === voter._id}
+                        title={
+                          voter.hasVoted
+                            ? "Cannot resend to voter who has voted"
+                            : !voter.email
+                            ? "No email address"
+                            : "Resend credentials"
+                        }
+                      >
+                        {resendingCredentials === voter._id ? (
+                          <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                        ) : (
+                          <Send size={16} />
+                        )}
+                      </button>
                       <button
                         onClick={() => handleEdit(voter)}
                         className="p-2 text-green-600 hover:bg-green-100 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
@@ -592,6 +669,24 @@ export default function VotersPage() {
                         </td>
                         <td className="py-4 px-6">
                           <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleResendCredentials(voter._id, voter.name, voter.email)}
+                              className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                              disabled={voter.hasVoted || !voter.email || resendingCredentials === voter._id}
+                              title={
+                                voter.hasVoted
+                                  ? "Cannot resend to voter who has voted"
+                                  : !voter.email
+                                  ? "No email address"
+                                  : "Resend credentials"
+                              }
+                            >
+                              {resendingCredentials === voter._id ? (
+                                <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                              ) : (
+                                <Send size={18} />
+                              )}
+                            </button>
                             <button
                               onClick={() => handleEdit(voter)}
                               className="p-2 text-green-600 hover:bg-green-100 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
@@ -770,51 +865,47 @@ export default function VotersPage() {
               </div>
 
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                <Upload className="mx-auto text-gray-400 mb-4" size={48} />
-                <p className="text-gray-600 mb-4">
-                  Click to upload or drag and drop
-                </p>
-                <input
-                  type="file"
-                  accept=".csv"
-                  onChange={handleBulkUpload}
-                  className="hidden"
-                  id="csv-upload"
-                />
-                <label
-                  htmlFor="csv-upload"
-                  className="inline-block px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer"
-                >
-                  Choose CSV File
-                </label>
+                {uploadingBulk ? (
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="w-16 h-16 border-4 border-green-200 border-t-green-600 rounded-full animate-spin"></div>
+                    <div>
+                      <p className="text-gray-900 font-medium mb-1">Uploading voters...</p>
+                      <p className="text-sm text-gray-500">Please wait while we process your CSV file and send emails</p>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <Upload className="mx-auto text-gray-400 mb-4" size={48} />
+                    <p className="text-gray-600 mb-4">
+                      Click to upload or drag and drop
+                    </p>
+                    <input
+                      type="file"
+                      accept=".csv"
+                      onChange={handleBulkUpload}
+                      className="hidden"
+                      id="csv-upload"
+                      disabled={uploadingBulk}
+                    />
+                    <label
+                      htmlFor="csv-upload"
+                      className="inline-block px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Choose CSV File
+                    </label>
+                  </>
+                )}
               </div>
-
-              {uploadResults && (
-                <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-                  <p className="text-green-800 font-medium mb-2">
-                    Upload Complete!
-                  </p>
-                  <p className="text-sm text-green-700 mb-4">
-                    Successfully uploaded {uploadResults.successful} out of{" "}
-                    {uploadResults.total} voters
-                  </p>
-                  <button
-                    onClick={downloadCredentials}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                  >
-                    <Download size={18} />
-                    Download Credentials
-                  </button>
-                </div>
-              )}
 
               <div className="flex gap-3 justify-end pt-6">
                 <button
                   onClick={() => {
                     setShowBulkModal(false);
                     setUploadResults(null);
+                    setUploadingBulk(false);
                   }}
-                  className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                  disabled={uploadingBulk}
+                  className="px-4 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Close
                 </button>
