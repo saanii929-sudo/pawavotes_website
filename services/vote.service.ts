@@ -116,9 +116,9 @@ export class VoteService {
 
     const vote = new Vote({
       ...data,
-      numberOfVotes: data.voteCount || data.numberOfVotes || 1,
+      numberOfVotes: data.voteCount || 1,
       status: 'successful',
-      amount: (data.voteCount || data.numberOfVotes || 1) * 0.5, // Default price
+      amount: data.voteCount * 0.5, // Default price
     });
 
     return await vote.save();

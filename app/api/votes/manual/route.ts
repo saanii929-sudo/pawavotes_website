@@ -69,20 +69,19 @@ export async function POST(req: NextRequest) {
     // Generate reference ID
     const referenceId = `MANUAL_${Date.now()}_${Math.random().toString(36).substring(7).toUpperCase()}`;
 
-    // Create vote with stage validation using VoteService
-    const vote = await voteService.createVote({
+    // Create vote directly (manual votes bypass normal validation)
+    const vote = await Vote.create({
       awardId,
       categoryId,
       nomineeId,
-      stageId, // Will be auto-assigned if not provided
+      stageId: stageId || undefined,
       voterEmail: decoded.email || 'manual@system.local',
       voterPhone: 'N/A',
       numberOfVotes,
-      voteCount: numberOfVotes,
       paymentReference: referenceId,
-      transactionReference: referenceId,
       paymentMethod: 'manual',
       paymentStatus: 'completed',
+      amount: 0, // Manual votes are free
     });
 
     // Update nominee vote count

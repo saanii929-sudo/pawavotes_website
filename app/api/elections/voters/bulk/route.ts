@@ -244,7 +244,7 @@ export async function POST(req: NextRequest) {
     }
 
     const existingTokens = new Set<string>();
-    const votersToCreate = [];
+    const votersToCreate: any[] = [];
     const results: {
       success: Array<{
         row: number;
@@ -252,6 +252,7 @@ export async function POST(req: NextRequest) {
         token: string;
         password: string;
         email?: string;
+        phone?: string;
       }>;
       failed: Array<{
         row: number;

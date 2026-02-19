@@ -7,7 +7,7 @@ import nodemailer from 'nodemailer';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
-const transporter = nodemailer.createTransporter({
+const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: parseInt(process.env.SMTP_PORT || '587'),
   secure: false,
@@ -31,7 +31,7 @@ function formatDate(date: Date): string {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
@@ -48,7 +48,9 @@ export async function POST(
 
     await dbConnect();
 
-    const voter = await Voter.findById(params.id).populate('electionId');
+    const { id } = await params;
+
+    const voter = await Voter.findById(id).populate('electionId');
 
     if (!voter) {
       return NextResponse.json({ error: 'Voter not found' }, { status: 404 });

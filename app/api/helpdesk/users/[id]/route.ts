@@ -7,7 +7,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
@@ -36,8 +36,10 @@ export async function PUT(
 
     await dbConnect();
 
+    const { id } = await params;
+
     const helpdeskUser = await HelpDeskUser.findOne({
-      _id: params.id,
+      _id: id,
       organizationId,
     });
 
@@ -70,7 +72,7 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
@@ -90,8 +92,10 @@ export async function DELETE(
 
     await dbConnect();
 
+    const { id } = await params;
+
     const helpdeskUser = await HelpDeskUser.findOne({
-      _id: params.id,
+      _id: id,
       organizationId,
     });
 
@@ -102,7 +106,7 @@ export async function DELETE(
       );
     }
 
-    await HelpDeskUser.deleteOne({ _id: params.id });
+    await HelpDeskUser.deleteOne({ _id: id });
 
     return NextResponse.json({
       success: true,

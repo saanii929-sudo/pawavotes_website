@@ -29,12 +29,11 @@ export async function GET(
     );
 
     // Generate CSV
-    const headers = ['Rank', 'Nominee Name', 'Vote Count', 'Qualified', 'Last Vote At'];
+    const headers = ['Rank', 'Nominee Name', 'Vote Count', 'Last Vote At'];
     const rows = results.map((entry) => [
       entry.rank,
       entry.nomineeName,
       entry.voteCount,
-      entry.qualified ? 'Yes' : 'No',
       entry.lastVoteAt ? new Date(entry.lastVoteAt).toISOString() : 'N/A',
     ]);
 

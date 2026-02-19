@@ -100,27 +100,32 @@ export class StageService {
     const stageStart = this.combineDateAndTime(new Date(data.startDate), data.startTime);
     const stageEnd = this.combineDateAndTime(new Date(data.endDate), data.endTime);
     
-    const awardVotingStart = this.combineDateAndTime(
-      new Date(award.votingStartDate),
-      award.votingStartTime
-    );
-    const awardVotingEnd = this.combineDateAndTime(
-      new Date(award.votingEndDate),
-      award.votingEndTime
-    );
-
-    if (stageStart < awardVotingStart) {
-      throw new AppError(
-        400,
-        `Stage start time (${data.startDate} ${data.startTime}) cannot be before award voting start time (${award.votingStartDate.toISOString().split('T')[0]} ${award.votingStartTime})`
+    if (award.votingStartDate && award.votingStartTime) {
+      const awardVotingStart = this.combineDateAndTime(
+        new Date(award.votingStartDate),
+        award.votingStartTime
       );
+      
+      if (stageStart < awardVotingStart) {
+        throw new AppError(
+          400,
+          `Stage start time (${data.startDate} ${data.startTime}) cannot be before award voting start time (${award.votingStartDate.toISOString().split('T')[0]} ${award.votingStartTime})`
+        );
+      }
     }
-
-    if (stageEnd > awardVotingEnd) {
-      throw new AppError(
-        400,
-        `Stage end time (${data.endDate} ${data.endTime}) cannot be after award voting end time (${award.votingEndDate.toISOString().split('T')[0]} ${award.votingEndTime})`
+    
+    if (award.votingEndDate && award.votingEndTime) {
+      const awardVotingEnd = this.combineDateAndTime(
+        new Date(award.votingEndDate),
+        award.votingEndTime
       );
+
+      if (stageEnd > awardVotingEnd) {
+        throw new AppError(
+          400,
+          `Stage end time (${data.endDate} ${data.endTime}) cannot be after award voting end time (${award.votingEndDate.toISOString().split('T')[0]} ${award.votingEndTime})`
+        );
+      }
     }
 
     // Validate no overlap with other stages
@@ -183,27 +188,32 @@ export class StageService {
       const stageStart = this.combineDateAndTime(newStartDate, newStartTime);
       const stageEnd = this.combineDateAndTime(newEndDate, newEndTime);
       
-      const awardVotingStart = this.combineDateAndTime(
-        new Date(award.votingStartDate),
-        award.votingStartTime
-      );
-      const awardVotingEnd = this.combineDateAndTime(
-        new Date(award.votingEndDate),
-        award.votingEndTime
-      );
-
-      if (stageStart < awardVotingStart) {
-        throw new AppError(
-          400,
-          `Stage start time cannot be before award voting start time (${award.votingStartDate.toISOString().split('T')[0]} ${award.votingStartTime})`
+      if (award.votingStartDate && award.votingStartTime) {
+        const awardVotingStart = this.combineDateAndTime(
+          new Date(award.votingStartDate),
+          award.votingStartTime
         );
+
+        if (stageStart < awardVotingStart) {
+          throw new AppError(
+            400,
+            `Stage start time cannot be before award voting start time (${award.votingStartDate.toISOString().split('T')[0]} ${award.votingStartTime})`
+          );
+        }
       }
 
-      if (stageEnd > awardVotingEnd) {
-        throw new AppError(
-          400,
-          `Stage end time cannot be after award voting end time (${award.votingEndDate.toISOString().split('T')[0]} ${award.votingEndTime})`
+      if (award.votingEndDate && award.votingEndTime) {
+        const awardVotingEnd = this.combineDateAndTime(
+          new Date(award.votingEndDate),
+          award.votingEndTime
         );
+
+        if (stageEnd > awardVotingEnd) {
+          throw new AppError(
+            400,
+            `Stage end time cannot be after award voting end time (${award.votingEndDate.toISOString().split('T')[0]} ${award.votingEndTime})`
+          );
+        }
       }
 
       // Validate no overlap with other stages

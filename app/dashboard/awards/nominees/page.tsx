@@ -643,7 +643,7 @@ const AwardsManagementSystem = () => {
                               <button 
                                 onClick={() => {
                                   if (confirm(`Delete all ${nominee.categories.length} nomination(s) for ${nominee.name}?`)) {
-                                    nominee.categories.forEach(cat => handleDeleteNominee(cat.nomineeId));
+                                    nominee.categories.forEach((cat: any) => handleDeleteNominee(cat.nomineeId));
                                   }
                                 }} 
                                 className="w-full px-3 py-2 text-left text-xs text-red-600 hover:bg-gray-50 rounded-b-lg flex items-center gap-2"
@@ -657,7 +657,7 @@ const AwardsManagementSystem = () => {
                       </div>
                       
                       <div className="flex flex-col gap-1.5">
-                        {nominee.categories.map((cat, catIndex) => (
+                        {nominee.categories.map((cat: any, catIndex: number) => (
                           <div key={catIndex} className="flex items-center justify-between gap-2 bg-gray-50 p-2 rounded">
                             <div className="flex items-center gap-1.5 flex-1 min-w-0">
                               <span className="w-1.5 h-1.5 bg-green-500 rounded-full shrink-0"></span>
@@ -702,7 +702,7 @@ const AwardsManagementSystem = () => {
                           )}
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          {nominee.categories.map((cat, catIndex) => (
+                          {nominee.categories.map((cat: any, catIndex: number) => (
                             <div key={catIndex} className="inline-flex items-center gap-2 text-xs bg-gray-100 text-gray-700 px-3 py-1 rounded-full">
                               <span className="font-medium">{cat.name}</span>
                               <span className="text-red-600 font-bold">({cat.nomineeCode})</span>
@@ -751,7 +751,7 @@ const AwardsManagementSystem = () => {
                               <button 
                                 onClick={() => {
                                   if (confirm(`Delete all ${nominee.categories.length} nomination(s) for ${nominee.name}?`)) {
-                                    nominee.categories.forEach(cat => handleDeleteNominee(cat.nomineeId));
+                                    nominee.categories.forEach((cat: any) => handleDeleteNominee(cat.nomineeId));
                                   }
                                 }} 
                                 className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-50 rounded-b-lg flex items-center gap-2"

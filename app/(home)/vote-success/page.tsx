@@ -1,11 +1,11 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle, Heart, Home, ArrowLeft } from "lucide-react";
 import PublicNav from "@/components/PublicNav";
 import Image from "next/image";
 
-const VoteSuccessPage = () => {
+const VoteSuccessContent = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [countdown, setCountdown] = useState(10);
@@ -123,6 +123,21 @@ const VoteSuccessPage = () => {
         </div>
       </div>
     </div>
+  );
+};
+
+const VoteSuccessPage = () => {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-green-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    }>
+      <VoteSuccessContent />
+    </Suspense>
   );
 };
 

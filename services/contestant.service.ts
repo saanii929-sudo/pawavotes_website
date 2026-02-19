@@ -95,17 +95,22 @@ export class ContestantService {
       .sort({ addedAt: 1 });
 
     // Transform the data to include names
-    return contestants.map((contestant) => ({
-      _id: contestant._id,
-      nomineeId: contestant.nomineeId?._id || contestant.nomineeId,
-      nomineeName: contestant.nomineeId?.name || 'Unknown',
-      nomineeImage: contestant.nomineeId?.image,
-      categoryId: contestant.categoryId?._id || contestant.categoryId,
-      categoryName: contestant.categoryId?.name || 'Unknown',
-      addedBy: contestant.addedBy,
-      addedAt: contestant.addedAt,
-      sourceStageId: contestant.sourceStageId,
-    }));
+    return contestants.map((contestant) => {
+      const nomineeId = contestant.nomineeId as any;
+      const categoryId = contestant.categoryId as any;
+      
+      return {
+        _id: contestant._id,
+        nomineeId: nomineeId?._id || nomineeId,
+        nomineeName: nomineeId?.name || 'Unknown',
+        nomineeImage: nomineeId?.image,
+        categoryId: categoryId?._id || categoryId,
+        categoryName: categoryId?.name || 'Unknown',
+        addedBy: contestant.addedBy,
+        addedAt: contestant.addedAt,
+        sourceStageId: contestant.sourceStageId,
+      };
+    });
   }
 
   /**

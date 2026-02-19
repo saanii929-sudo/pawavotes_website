@@ -57,6 +57,7 @@ export const createVoteSchema = z.object({
   nomineeId: z.string().min(1, 'Nominee ID is required'),
   categoryId: z.string().min(1, 'Category ID is required'),
   awardId: z.string().min(1, 'Award ID is required'),
+  stageId: z.string().optional(),
   voteCount: z.number().min(1, 'Vote count must be at least 1'),
   type: z.enum(['normal', 'bulk']).default('normal'),
   amount: z.number().min(0, 'Amount must be non-negative'),
