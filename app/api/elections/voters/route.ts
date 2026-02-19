@@ -5,6 +5,7 @@ import Election from '@/models/Election';
 import { verifyToken } from '@/lib/auth';
 import { hashPassword } from '@/lib/auth';
 import { sendEmail } from '@/lib/email';
+import { sendVoterCredentialsSms } from '@/services/sms.service';
 
 // Generate unique 8-character alphanumeric token
 function generateToken(): string {
@@ -177,7 +178,15 @@ export async function POST(req: NextRequest) {
         await sendVoterCredentials(email, name, voterToken, password, election.title, election.startDate, election.endDate);
       } catch (emailError) {
         console.error('Failed to send email:', emailError);
-        // Don't fail the request if email fails
+      }
+    }
+
+    // Send credentials via SMS if phone provided
+    if (phone) {
+      try {
+        await sendVoterCredentialsSms(phone, name, voterToken, password, election.title, election.startDate, election.endDate);
+      } catch (smsError) {
+        console.error('Failed to send SMS:', smsError);
       }
     }
 

@@ -1,14 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Building2, Users, CheckCircle, XCircle, TrendingUp, Activity, Award, Calendar } from "lucide-react";
+import { Building2, Users, CheckCircle, XCircle, TrendingUp, Activity, Award, Calendar, MessageSquare } from "lucide-react";
 
 export default function SuperAdminDashboard() {
   const [stats, setStats] = useState<any>(null);
+  const [smsBalance, setSmsBalance] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [smsLoading, setSmsLoading] = useState(true);
 
   useEffect(() => {
     fetchStats();
+    fetchSmsBalance();
   }, []);
 
   const fetchStats = async () => {
@@ -28,6 +31,26 @@ export default function SuperAdminDashboard() {
       console.error("Failed to fetch stats:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSmsBalance = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch("/api/superadmin/sms-balance", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setSmsBalance(data.data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch SMS balance:", error);
+    } finally {
+      setSmsLoading(false);
     }
   };
 
@@ -141,6 +164,36 @@ export default function SuperAdminDashboard() {
             <span>System admins</span>
           </div>
         </div>
+      </div>
+
+      {/* SMS Balance Card */}
+      <div className="bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 p-6 border-l-4 border-purple-500">
+        <div className="flex items-start justify-between mb-4">
+          <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+            <MessageSquare className="text-white" size={24} />
+          </div>
+          <div className="bg-purple-50 rounded-lg px-3 py-1">
+            <span className="text-xs font-semibold text-purple-600">SMS</span>
+          </div>
+        </div>
+        <p className="text-sm text-gray-600 mb-2 font-medium">SMS Balance</p>
+        {smsLoading ? (
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 border-3 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+            <span className="text-sm text-gray-500">Loading...</span>
+          </div>
+        ) : smsBalance ? (
+          <>
+            <p className="text-3xl sm:text-4xl font-bold text-gray-900 mb-1">
+              {smsBalance.currency} {Number(smsBalance.balance || 0).toFixed(2)}
+            </p>
+            <div className="flex items-center gap-1 text-xs text-gray-500">
+              <span>~{smsBalance.smsCount?.toLocaleString() || 0} SMS credits</span>
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-red-500">Failed to load SMS balance</p>
+        )}
       </div>
 
       {/* Recent Organizations */}

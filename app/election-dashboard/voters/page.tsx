@@ -214,13 +214,17 @@ export default function VotersPage() {
     }
   };
 
-  const handleResendCredentials = async (voterId: string, voterName: string, voterEmail?: string) => {
-    if (!voterEmail) {
-      toast.error("Voter does not have an email address");
+  const handleResendCredentials = async (voterId: string, voterName: string, voterEmail?: string, voterPhone?: string) => {
+    if (!voterEmail && !voterPhone) {
+      toast.error("Voter does not have an email address or phone number");
       return;
     }
 
-    if (!confirm(`Resend voting credentials to ${voterName} (${voterEmail})?`)) {
+    const contactInfo = [];
+    if (voterEmail) contactInfo.push(voterEmail);
+    if (voterPhone) contactInfo.push(voterPhone);
+
+    if (!confirm(`Resend voting credentials to ${voterName} (${contactInfo.join(', ')})?`)) {
       return;
     }
 
@@ -235,7 +239,13 @@ export default function VotersPage() {
       });
 
       if (response.ok) {
-        toast.success("Credentials resent successfully!");
+        const data = await response.json();
+        const methods = [];
+        if (data.data?.emailSent) methods.push('email');
+        if (data.data?.smsSent) methods.push('SMS');
+        
+        const methodText = methods.length > 0 ? ` via ${methods.join(' and ')}` : '';
+        toast.success(`Credentials resent successfully${methodText}!`);
       } else {
         const data = await response.json();
         toast.error(data.error || "Failed to resend credentials");
@@ -302,11 +312,18 @@ export default function VotersPage() {
           const data = await response.json();
           
           let message = `Successfully uploaded ${data.data.successful} voters!`;
+          const notifications = [];
+          
           if (data.data.emailsSent !== undefined) {
-            message += ` Emails sent: ${data.data.emailsSent}`;
-            if (data.data.emailsFailed > 0) {
-              message += ` (${data.data.emailsFailed} failed)`;
-            }
+            notifications.push(`Emails: ${data.data.emailsSent} sent${data.data.emailsFailed > 0 ? ` (${data.data.emailsFailed} failed)` : ''}`);
+          }
+          
+          if (data.data.smsSent !== undefined) {
+            notifications.push(`SMS: ${data.data.smsSent} sent${data.data.smsFailed > 0 ? ` (${data.data.smsFailed} failed)` : ''}`);
+          }
+          
+          if (notifications.length > 0) {
+            message += ` | ${notifications.join(' | ')}`;
           }
           
           toast.success(message);
@@ -479,17 +496,22 @@ export default function VotersPage() {
                           <span className="text-gray-400 italic">No email</span>
                         )}
                       </p>
+                      {voter.phone && (
+                        <p className="text-sm text-gray-600 truncate mt-0.5">
+                          {voter.phone}
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 ml-2">
                       <button
-                        onClick={() => handleResendCredentials(voter._id, voter.name, voter.email)}
+                        onClick={() => handleResendCredentials(voter._id, voter.name, voter.email, voter.phone)}
                         className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-                        disabled={voter.hasVoted || !voter.email || resendingCredentials === voter._id}
+                        disabled={voter.hasVoted || (!voter.email && !voter.phone) || resendingCredentials === voter._id}
                         title={
                           voter.hasVoted
                             ? "Cannot resend to voter who has voted"
-                            : !voter.email
-                            ? "No email address"
+                            : (!voter.email && !voter.phone)
+                            ? "No email or phone number"
                             : "Resend credentials"
                         }
                       >
@@ -580,6 +602,9 @@ export default function VotersPage() {
                       Email
                     </th>
                     <th className="text-left py-4 px-6 text-sm font-semibold text-black">
+                      Phone
+                    </th>
+                    <th className="text-left py-4 px-6 text-sm font-semibold text-black">
                       Token
                     </th>
                     <th className="text-left py-4 px-6 text-sm font-semibold text-black">
@@ -597,7 +622,7 @@ export default function VotersPage() {
                   {loading ? (
                     <tr>
                       <td
-                        colSpan={6}
+                        colSpan={7}
                         className="text-center py-12 text-gray-500"
                       >
                         <div className="flex flex-col items-center gap-2">
@@ -609,7 +634,7 @@ export default function VotersPage() {
                   ) : filteredVoters.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={6}
+                        colSpan={7}
                         className="text-center py-12 text-gray-500"
                       >
                         <div className="flex flex-col items-center gap-2">
@@ -634,6 +659,15 @@ export default function VotersPage() {
                             {voter.email || (
                               <span className="text-gray-400 italic">
                                 No email
+                              </span>
+                            )}
+                          </span>
+                        </td>
+                        <td className="py-4 px-6">
+                          <span className="text-sm text-gray-600">
+                            {voter.phone || (
+                              <span className="text-gray-400 italic">
+                                No phone
                               </span>
                             )}
                           </span>
@@ -670,14 +704,14 @@ export default function VotersPage() {
                         <td className="py-4 px-6">
                           <div className="flex items-center gap-2">
                             <button
-                              onClick={() => handleResendCredentials(voter._id, voter.name, voter.email)}
+                              onClick={() => handleResendCredentials(voter._id, voter.name, voter.email, voter.phone)}
                               className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-                              disabled={voter.hasVoted || !voter.email || resendingCredentials === voter._id}
+                              disabled={voter.hasVoted || (!voter.email && !voter.phone) || resendingCredentials === voter._id}
                               title={
                                 voter.hasVoted
                                   ? "Cannot resend to voter who has voted"
-                                  : !voter.email
-                                  ? "No email address"
+                                  : (!voter.email && !voter.phone)
+                                  ? "No email or phone number"
                                   : "Resend credentials"
                               }
                             >

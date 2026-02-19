@@ -5,6 +5,7 @@ import Election from '@/models/Election';
 import { verifyToken } from '@/lib/auth';
 import { hashPassword } from '@/lib/auth';
 import { sendEmail } from '@/lib/email';
+import { sendVoterCredentialsSms } from '@/services/sms.service';
 
 // Generate unique 8-character alphanumeric token
 function generateToken(): string {
@@ -308,6 +309,7 @@ export async function POST(req: NextRequest) {
           token: voterToken,
           password: password, // Plain password for download
           email: voterData.email,
+          phone: voterData.phone,
         });
       } catch (error: any) {
         results.failed.push({
@@ -355,14 +357,17 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Send emails to all successfully created voters who have email addresses
+    // Send emails and SMS to all successfully created voters
     let emailsSent = 0;
     let emailsFailed = 0;
+    let smsSent = 0;
+    let smsFailed = 0;
     
     if (results.success.length > 0) {
-      console.log(`Sending emails to ${results.success.length} voters...`);
+      console.log(`Sending notifications to ${results.success.length} voters...`);
       
       for (const voter of results.success) {
+        // Send email if available
         if (voter.email) {
           try {
             const emailSent = await sendVoterCredentials(
@@ -385,20 +390,47 @@ export async function POST(req: NextRequest) {
             emailsFailed++;
           }
         }
+
+        // Send SMS if available
+        if (voter.phone) {
+          try {
+            const smsSentSuccess = await sendVoterCredentialsSms(
+              voter.phone,
+              voter.name,
+              voter.token,
+              voter.password,
+              election.title,
+              election.startDate,
+              election.endDate
+            );
+            
+            if (smsSentSuccess) {
+              smsSent++;
+            } else {
+              smsFailed++;
+            }
+          } catch (smsError) {
+            console.error(`Failed to send SMS to ${voter.phone}:`, smsError);
+            smsFailed++;
+          }
+        }
       }
       
       console.log(`Emails sent: ${emailsSent}, failed: ${emailsFailed}`);
+      console.log(`SMS sent: ${smsSent}, failed: ${smsFailed}`);
     }
 
     return NextResponse.json({
       success: true,
-      message: `Successfully added ${results.success.length} voters. Emails sent: ${emailsSent}${emailsFailed > 0 ? `, failed: ${emailsFailed}` : ''}`,
+      message: `Successfully added ${results.success.length} voters. Emails: ${emailsSent} sent${emailsFailed > 0 ? `, ${emailsFailed} failed` : ''}. SMS: ${smsSent} sent${smsFailed > 0 ? `, ${smsFailed} failed` : ''}`,
       data: {
         total: voters.length,
         successful: results.success.length,
         failed: results.failed.length,
         emailsSent,
         emailsFailed,
+        smsSent,
+        smsFailed,
         voters: results.success,
         errors: results.failed,
       },

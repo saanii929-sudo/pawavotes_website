@@ -4,6 +4,7 @@ import Voter from '@/models/Voter';
 import Election from '@/models/Election';
 import { verifyToken } from '@/lib/auth';
 import { sendEmail } from '@/lib/email';
+import { sendVoterCredentialsSms } from '@/services/sms.service';
 
 // Send voter credentials via email
 async function sendVoterCredentials(
@@ -186,10 +187,10 @@ async function resendCredentials(
       );
     }
 
-    // Check if voter has email
-    if (!voter.email) {
+    // Check if voter has email or phone
+    if (!voter.email && !voter.phone) {
       return NextResponse.json(
-        { error: 'Voter does not have an email address' },
+        { error: 'Voter does not have an email address or phone number' },
         { status: 400 }
       );
     }
@@ -213,26 +214,87 @@ async function resendCredentials(
       );
     }
 
-    // Send credentials via email
-    try {
-      await sendVoterCredentials(
-        voter.email,
-        voter.name,
-        voter.token,
-        plainPassword,
-        election.title,
-        election.startDate,
-        election.endDate
-      );
+    // Send credentials via email and/or SMS
+    let emailSent = false;
+    let smsSent = false;
+    let errors: string[] = [];
 
-      return NextResponse.json({
-        success: true,
-        message: 'Credentials resent successfully',
-      });
-    } catch (emailError) {
-      console.error('Failed to send email:', emailError);
+    try {
+      // Send email if available
+      if (voter.email) {
+        try {
+          await sendVoterCredentials(
+            voter.email,
+            voter.name,
+            voter.token,
+            plainPassword,
+            election.title,
+            election.startDate,
+            election.endDate
+          );
+          emailSent = true;
+        } catch (emailError) {
+          console.error('Failed to send email:', emailError);
+          errors.push('Email failed to send');
+        }
+      }
+
+      // Send SMS if available
+      if (voter.phone) {
+        try {
+          const smsResult = await sendVoterCredentialsSms(
+            voter.phone,
+            voter.name,
+            voter.token,
+            plainPassword,
+            election.title,
+            election.startDate,
+            election.endDate
+          );
+          if (smsResult) {
+            smsSent = true;
+          } else {
+            errors.push('SMS failed to send');
+          }
+        } catch (smsError) {
+          console.error('Failed to send SMS:', smsError);
+          errors.push('SMS failed to send');
+        }
+      }
+
+      // Check if at least one method succeeded
+      if (emailSent || smsSent) {
+        let message = 'Credentials resent successfully';
+        if (emailSent && smsSent) {
+          message += ' via email and SMS';
+        } else if (emailSent) {
+          message += ' via email';
+        } else if (smsSent) {
+          message += ' via SMS';
+        }
+
+        if (errors.length > 0) {
+          message += ` (${errors.join(', ')})`;
+        }
+
+        return NextResponse.json({
+          success: true,
+          message,
+          data: {
+            emailSent,
+            smsSent,
+          },
+        });
+      } else {
+        return NextResponse.json(
+          { error: 'Failed to send credentials via any method. ' + errors.join(', ') },
+          { status: 500 }
+        );
+      }
+    } catch (error) {
+      console.error('Failed to resend credentials:', error);
       return NextResponse.json(
-        { error: 'Failed to send email. Please check the email address.' },
+        { error: 'Failed to resend credentials' },
         { status: 500 }
       );
     }
