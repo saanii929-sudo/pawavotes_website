@@ -11,10 +11,18 @@ export async function POST(req: NextRequest) {
     await connectDB();
 
     const body = await req.json();
-    const { sessionId, phoneNumber, text, networkCode } = body;
+    // Arkesel USSD format
+    const { sessionID, userID, newSession, msisdn, userData, network } = body;
+    
+    // Map Arkesel fields to our internal format
+    const sessionId = sessionID;
+    const phoneNumber = msisdn;
+    const text = userData || '';
+    
     let session = await UssdSession.findOne({ sessionId });
     
-    if (!session) {
+    // Check if this is a new session
+    if (!session || newSession === true) {
       session = await UssdSession.create({
         sessionId,
         phoneNumber,
@@ -26,15 +34,29 @@ export async function POST(req: NextRequest) {
     } else {
       session.lastActivity = new Date();
     }
+    
     const userInput = text.split('*').pop() || '';
     const response = await handleUssdFlow(session, userInput, phoneNumber);
     await session.save();
 
-    return NextResponse.json(response);
+    // Convert response to Arkesel format
+    const arkeselResponse = {
+      sessionID: sessionId,
+      userID: userID || 'CP9VG7Y5TN_dNri2', // Arkesel USERID
+      msisdn: phoneNumber,
+      message: response.message,
+      continueSession: response.continueSession,
+    };
+
+    return NextResponse.json(arkeselResponse);
   } catch (error: any) {
     console.error('USSD error:', error);
     return NextResponse.json({
-      response: 'END An error occurred. Please try again later.',
+      sessionID: '',
+      userID: 'CP9VG7Y5TN_dNri2',
+      msisdn: '',
+      message: 'An error occurred. Please try again later.',
+      continueSession: false,
     });
   }
 }
@@ -68,7 +90,7 @@ async function handleUssdFlow(session: any, userInput: string, phoneNumber: stri
       return await handleConfirmation(session, userInput, phoneNumber);
 
     default:
-      return { response: 'END Invalid session. Please try again.' };
+      return { message: 'Invalid session. Please try again.', continueSession: false };
   }
 }
 
@@ -78,7 +100,7 @@ async function showWelcome(session: any) {
     .limit(10)
     .lean();
   if (awards.length === 0) {
-    return { response: 'END No active awards available at the moment.' };
+    return { message: 'No active awards available at the moment.', continueSession: false };
   }
   const now = new Date();
   const activeAwards = awards.filter(award => {
@@ -89,10 +111,10 @@ async function showWelcome(session: any) {
   });
 
   if (activeAwards.length === 0) {
-    return { response: 'END No awards are currently open for voting.' };
+    return { message: 'No awards are currently open for voting.', continueSession: false };
   }
 
-  let menu = 'CON Welcome to PawaVotes!\nSelect an award to vote:\n\n';
+  let menu = 'Welcome to PawaVotes!\nSelect an award to vote:\n\n';
   activeAwards.forEach((award, index) => {
     menu += `${index + 1}. ${award.name}\n`;
   });
@@ -100,7 +122,7 @@ async function showWelcome(session: any) {
   session.currentStep = 'select_award';
   session.data.awards = activeAwards;
 
-  return { response: menu };
+  return { message: menu, continueSession: true };
 }
 
 async function handleAwardSelection(session: any, userInput: string) {
@@ -108,7 +130,7 @@ async function handleAwardSelection(session: any, userInput: string) {
   const awards = session.data.awards;
 
   if (isNaN(selectedIndex) || selectedIndex < 0 || selectedIndex >= awards.length) {
-    return { response: 'END Invalid selection. Please try again.' };
+    return { message: 'Invalid selection. Please try again.', continueSession: false };
   }
 
   const selectedAward = awards[selectedIndex];
@@ -123,10 +145,10 @@ async function handleAwardSelection(session: any, userInput: string) {
     .lean();
 
   if (categories.length === 0) {
-    return { response: 'END No categories available for this award.' };
+    return { message: 'No categories available for this award.', continueSession: false };
   }
 
-  let menu = `CON ${selectedAward.name}\nSelect a category:\n\n`;
+  let menu = `${selectedAward.name}\nSelect a category:\n\n`;
   categories.forEach((category, index) => {
     menu += `${index + 1}. ${category.name}\n`;
   });
@@ -134,7 +156,7 @@ async function handleAwardSelection(session: any, userInput: string) {
   session.currentStep = 'select_category';
   session.data.categories = categories;
 
-  return { response: menu };
+  return { message: menu, continueSession: true };
 }
 
 async function handleCategorySelection(session: any, userInput: string) {
@@ -142,7 +164,7 @@ async function handleCategorySelection(session: any, userInput: string) {
   const categories = session.data.categories;
 
   if (isNaN(selectedIndex) || selectedIndex < 0 || selectedIndex >= categories.length) {
-    return { response: 'END Invalid selection. Please try again.' };
+    return { message: 'Invalid selection. Please try again.', continueSession: false };
   }
 
   const selectedCategory = categories[selectedIndex];
@@ -153,7 +175,8 @@ async function handleCategorySelection(session: any, userInput: string) {
   session.currentStep = 'nominee_method';
 
   return {
-    response: `CON ${selectedCategory.name}\n\nHow would you like to vote?\n\n1. Enter Nominee Code\n2. Browse Nominees`,
+    message: `${selectedCategory.name}\n\nHow would you like to vote?\n\n1. Enter Nominee Code\n2. Browse Nominees`,
+    continueSession: true,
   };
 }
 
@@ -162,7 +185,8 @@ async function handleNomineeMethod(session: any, userInput: string) {
     // User wants to enter nominee code
     session.currentStep = 'enter_nominee_code';
     return {
-      response: `CON Enter the Nominee Code\n(e.g., GMA001):`,
+      message: `Enter the Nominee Code\n(e.g., GMA001):`,
+      continueSession: true,
     };
   } else if (userInput === '2') {
     // User wants to browse nominees
@@ -176,10 +200,10 @@ async function handleNomineeMethod(session: any, userInput: string) {
       .lean();
 
     if (nominees.length === 0) {
-      return { response: 'END No nominees available for this category.' };
+      return { message: 'No nominees available for this category.', continueSession: false };
     }
 
-    let menu = `CON ${session.data.categoryName}\nSelect a nominee:\n\n`;
+    let menu = `${session.data.categoryName}\nSelect a nominee:\n\n`;
     nominees.forEach((nominee, index) => {
       const code = nominee.nomineeCode ? ` (${nominee.nomineeCode})` : '';
       menu += `${index + 1}. ${nominee.name}${code}\n`;
@@ -188,9 +212,9 @@ async function handleNomineeMethod(session: any, userInput: string) {
     session.currentStep = 'select_nominee';
     session.data.nominees = nominees;
 
-    return { response: menu };
+    return { message: menu, continueSession: true };
   } else {
-    return { response: 'END Invalid selection. Please try again.' };
+    return { message: 'Invalid selection. Please try again.', continueSession: false };
   }
 }
 
@@ -209,7 +233,8 @@ async function handleNomineeCodeEntry(session: any, userInput: string) {
 
   if (!nominee) {
     return {
-      response: `END Nominee code "${nomineeCode}" not found in this category. Please check the code and try again.`,
+      message: `Nominee code "${nomineeCode}" not found in this category. Please check the code and try again.`,
+      continueSession: false,
     };
   }
 
@@ -225,7 +250,8 @@ async function handleNomineeCodeEntry(session: any, userInput: string) {
   session.currentStep = 'enter_votes';
 
   return {
-    response: `CON Voting for:\n${nominee.name} (${nomineeCode})\n\nGHS ${pricePerVote} per vote\n\nEnter number of votes (1-100):`,
+    message: `Voting for:\n${nominee.name} (${nomineeCode})\n\nGHS ${pricePerVote} per vote\n\nEnter number of votes (1-100):`,
+    continueSession: true,
   };
 }
 
@@ -234,7 +260,7 @@ async function handleNomineeSelection(session: any, userInput: string) {
   const nominees = session.data.nominees;
 
   if (isNaN(selectedIndex) || selectedIndex < 0 || selectedIndex >= nominees.length) {
-    return { response: 'END Invalid selection. Please try again.' };
+    return { message: 'Invalid selection. Please try again.', continueSession: false };
   }
 
   const selectedNominee = nominees[selectedIndex];
@@ -249,14 +275,15 @@ async function handleNomineeSelection(session: any, userInput: string) {
 
   const codeDisplay = selectedNominee.nomineeCode ? ` (${selectedNominee.nomineeCode})` : '';
   return {
-    response: `CON Voting for:\n${selectedNominee.name}${codeDisplay}\n\nGHS ${pricePerVote} per vote\n\nEnter number of votes (1-100):`,
+    message: `Voting for:\n${selectedNominee.name}${codeDisplay}\n\nGHS ${pricePerVote} per vote\n\nEnter number of votes (1-100):`,
+    continueSession: true,
   };
 }
 
 async function handleVoteQuantity(session: any, userInput: string) {
   const numberOfVotes = parseInt(userInput);
   if (isNaN(numberOfVotes) || numberOfVotes < 1 || numberOfVotes > 100) {
-    return { response: 'END Invalid number. Please enter between 1 and 100.' };
+    return { message: 'Invalid number. Please enter between 1 and 100.', continueSession: false };
   }
   const award = await Award.findById(session.data.awardId).select('pricing').lean();
   const pricePerVote = award?.pricing?.votingCost || 0.5;
@@ -268,17 +295,18 @@ async function handleVoteQuantity(session: any, userInput: string) {
 
   const codeDisplay = session.data.nomineeCode ? ` (${session.data.nomineeCode})` : '';
   return {
-    response: `CON Confirm your vote:\n\nNominee: ${session.data.nomineeName}${codeDisplay}\nVotes: ${numberOfVotes}\nAmount: GHS ${amount.toFixed(2)}\n\n1. Confirm & Pay\n2. Cancel`,
+    message: `Confirm your vote:\n\nNominee: ${session.data.nomineeName}${codeDisplay}\nVotes: ${numberOfVotes}\nAmount: GHS ${amount.toFixed(2)}\n\n1. Confirm & Pay\n2. Cancel`,
+    continueSession: true,
   };
 }
 
 async function handleConfirmation(session: any, userInput: string, phoneNumber: string) {
   if (userInput === '2') {
     session.isActive = false;
-    return { response: 'END Vote cancelled.' };
+    return { message: 'Vote cancelled.', continueSession: false };
   }
   if (userInput !== '1') {
-    return { response: 'END Invalid selection.' };
+    return { message: 'Invalid selection.', continueSession: false };
   }
   try {
     const paymentReference = `USSD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -306,17 +334,20 @@ async function handleConfirmation(session: any, userInput: string, phoneNumber: 
     if (paystackResponse.success) {
       session.isActive = false;
       return {
-        response: `END Vote submitted!\n\nApprove the payment prompt on your phone (${phoneNumber}) to complete.\n\nYou will receive SMS confirmation from Paystack.`,
+        message: `Vote submitted!\n\nApprove the payment prompt on your phone (${phoneNumber}) to complete.\n\nYou will receive SMS confirmation from Paystack.`,
+        continueSession: false,
       };
     } else {
       await Vote.findByIdAndUpdate(vote._id, { paymentStatus: 'failed' });
       return {
-        response: 'END Payment initiation failed. Please try again later.',
+        message: 'Payment initiation failed. Please try again later.',
+        continueSession: false,
       };
     }
   } catch (error: any) {
     return {
-      response: 'END An error occurred. Please try again.',
+      message: 'An error occurred. Please try again.',
+      continueSession: false,
     };
   }
 }

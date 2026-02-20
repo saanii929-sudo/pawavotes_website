@@ -1,7 +1,7 @@
 # USSD Voting Integration Guide
 
 ## Overview
-This guide explains how to set up USSD voting with NALO USSD (Ghana) and Paystack payment integration.
+This guide explains how to set up USSD voting with Arkesel USSD (Ghana) and Paystack payment integration.
 
 ## Features
 - Vote via USSD shortcode (e.g., *920*123#)
@@ -15,14 +15,13 @@ This guide explains how to set up USSD voting with NALO USSD (Ghana) and Paystac
 
 ### Flow
 1. User dials USSD code (e.g., *920*123#)
-2. NALO USSD sends webhook to your server
+2. Arkesel USSD sends webhook to your server
 3. Server responds with menu options
 4. User navigates through:
    - Select Award
    - Select Category
-   - Select Nominee
+   - Select Nominee (by code or browse)
    - Enter number of votes
-   - Enter email
    - Confirm payment
 5. Paystack initiates mobile money charge
 6. User approves payment on phone
@@ -39,7 +38,7 @@ Tracks user sessions with:
 - Auto-expires after 5 minutes
 
 #### 2. USSD Webhook (`app/api/ussd/vote/route.ts`)
-Handles NALO USSD requests:
+Handles Arkesel USSD requests:
 - Manages session state
 - Generates dynamic menus
 - Validates user input
@@ -50,10 +49,10 @@ Uses Paystack Mobile Money API to charge users directly from their mobile money 
 
 ## Setup Instructions
 
-### 1. NALO USSD Configuration
+### 1. Arkesel USSD Configuration
 
-1. **Register with NALO Solutions**
-   - Visit: https://nalosolutions.com
+1. **Register with Arkesel**
+   - Visit: https://sms.arkesel.com
    - Sign up for USSD service
    - Request a shortcode (e.g., *920*123#)
 
@@ -62,24 +61,30 @@ Uses Paystack Mobile Money API to charge users directly from their mobile money 
    - Method: POST
    - Content-Type: application/json
 
-3. **NALO Request Format**
+3. **Arkesel Request Format**
    ```json
    {
-     "sessionId": "unique-session-id",
-     "phoneNumber": "233241234567",
-     "text": "1*2*3",
-     "networkCode": "MTN"
+     "sessionID": "unique-session-id",
+     "userID": "CP9VG7Y5TN_dNri2",
+     "newSession": true,
+     "msisdn": "233241234567",
+     "userData": "1*2*3",
+     "network": "MTN"
    }
    ```
 
 4. **Response Format**
-   - `CON` prefix = Continue (show menu)
-   - `END` prefix = End session (final message)
+   - `continueSession: true` = Continue (show menu)
+   - `continueSession: false` = End session (final message)
    
    Example:
    ```json
    {
-     "response": "CON Welcome to PawaVotes!\n1. Award 1\n2. Award 2"
+     "sessionID": "unique-session-id",
+     "userID": "CP9VG7Y5TN_dNri2",
+     "msisdn": "233241234567",
+     "message": "Welcome to PawaVotes!\n1. Award 1\n2. Award 2",
+     "continueSession": true
    }
    ```
 
@@ -109,9 +114,12 @@ Add to `.env.local`:
 PAYSTACK_SECRET_KEY=sk_test_xxx
 NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=pk_test_xxx
 
-# NALO USSD (optional - for webhook verification)
-NALO_API_KEY=your_nalo_api_key
-NALO_WEBHOOK_SECRET=your_webhook_secret
+# Arkesel USSD
+ARKESEL_USSD_USER_ID=CP9VG7Y5TN_dNri2
+ARKESEL_USSD_ENDPOINT=https://sms.arkesel.com/ussd-endpoint-url
+
+# Arkesel SMS (for balance checking)
+ARKESEL_API_KEY=ZEFGc0FndExNUnRvTklFTVByQmI
 ```
 
 ### 4. Webhook Security (Optional)
@@ -119,20 +127,18 @@ NALO_WEBHOOK_SECRET=your_webhook_secret
 Add webhook verification to `app/api/ussd/vote/route.ts`:
 
 ```typescript
-// Verify NALO webhook signature
-const signature = req.headers.get('x-nalo-signature');
-const webhookSecret = process.env.NALO_WEBHOOK_SECRET;
+// Verify Arkesel webhook by checking userID
+const { userID } = body;
+const expectedUserID = process.env.ARKESEL_USSD_USER_ID;
 
-if (signature && webhookSecret) {
-  const crypto = require('crypto');
-  const hash = crypto
-    .createHmac('sha256', webhookSecret)
-    .update(JSON.stringify(body))
-    .digest('hex');
-  
-  if (hash !== signature) {
-    return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
-  }
+if (userID !== expectedUserID) {
+  return NextResponse.json({
+    sessionID: '',
+    userID: expectedUserID,
+    msisdn: '',
+    message: 'Unauthorized request',
+    continueSession: false,
+  }, { status: 401 });
 }
 ```
 
@@ -160,18 +166,24 @@ Select a category:
 
 User enters: 2
 
-Step 3 - Nominee:
+Step 3 - Nominee Method:
 CON Best Song
-Select a nominee:
 
-1. John Doe - "Amazing"
-2. Jane Smith - "Wonderful"
-3. Bob Johnson - "Fantastic"
+How would you like to vote?
+
+1. Enter Nominee Code
+2. Browse Nominees
 
 User enters: 1
 
-Step 4 - Vote Quantity:
-CON Voting for: John Doe - "Amazing"
+Step 4 - Nominee Code:
+CON Enter the Nominee Code
+(e.g., GMA001):
+
+User enters: GMA001
+
+Step 5 - Vote Quantity:
+CON Voting for: John Doe - "Amazing" (GMA001)
 
 GHS 0.50 per vote
 
@@ -179,10 +191,10 @@ Enter number of votes (1-100):
 
 User enters: 10
 
-Step 5 - Confirmation:
+Step 6 - Confirmation:
 CON Confirm your vote:
 
-Nominee: John Doe - "Amazing"
+Nominee: John Doe - "Amazing" (GMA001)
 Votes: 10
 Amount: GHS 5.00
 
@@ -191,7 +203,7 @@ Amount: GHS 5.00
 
 User enters: 1
 
-Step 6 - Payment:
+Step 7 - Payment:
 END Vote submitted!
 
 Approve the payment prompt on your phone (233241234567) to complete.
@@ -213,7 +225,7 @@ npm run dev
 # In another terminal, expose your local server
 ngrok http 3000
 
-# Use the ngrok URL for NALO webhook
+# Use the ngrok URL for Arkesel webhook
 # Example: https://abc123.ngrok.io/api/ussd/vote
 ```
 
@@ -225,10 +237,12 @@ You can simulate USSD requests using curl:
 curl -X POST http://localhost:3000/api/ussd/vote \
   -H "Content-Type: application/json" \
   -d '{
-    "sessionId": "test-session-123",
-    "phoneNumber": "233241234567",
-    "text": "",
-    "networkCode": "MTN"
+    "sessionID": "test-session-123",
+    "userID": "CP9VG7Y5TN_dNri2",
+    "newSession": true,
+    "msisdn": "233241234567",
+    "userData": "",
+    "network": "MTN"
   }'
 ```
 
@@ -290,16 +304,16 @@ UssdSessionSchema.index({ lastActivity: 1 }, { expireAfterSeconds: 600 }); // 10
 **Possible causes**:
 - Webhook URL not configured correctly
 - Server not accessible (firewall/ngrok)
-- Response format incorrect (must start with CON or END)
+- Response format incorrect (must include continueSession boolean)
 
-**Solution**: Check NALO dashboard webhook logs and verify server is accessible.
+**Solution**: Check Arkesel dashboard webhook logs and verify server is accessible.
 
 ## Production Checklist
 
-- [ ] Register production USSD shortcode with NALO
+- [ ] Register production USSD shortcode with Arkesel
 - [ ] Complete Paystack KYC verification
 - [ ] Switch to live Paystack keys
-- [ ] Set up webhook signature verification
+- [ ] Set up webhook userID verification
 - [ ] Configure production webhook URL (HTTPS required)
 - [ ] Test with real mobile money accounts
 - [ ] Set up monitoring and alerts
@@ -309,18 +323,18 @@ UssdSessionSchema.index({ lastActivity: 1 }, { expireAfterSeconds: 600 }); // 10
 
 ## Support
 
-- **NALO USSD**: support@nalosolutions.com
+- **Arkesel USSD**: support@arkesel.com
 - **Paystack**: support@paystack.com
 - **Documentation**: 
-  - NALO: https://docs.nalosolutions.com
+  - Arkesel: https://developers.arkesel.com
   - Paystack: https://paystack.com/docs/payments/mobile-money
 
 ## Cost Considerations
 
-### NALO USSD Pricing
-- Setup fee: Contact NALO
+### Arkesel USSD Pricing
+- Setup fee: Contact Arkesel
 - Per-session fee: ~GHS 0.02 - 0.05
-- Monthly maintenance: Contact NALO
+- Monthly maintenance: Contact Arkesel
 
 ### Paystack Fees
 - Mobile Money: 1.95% + GHS 0.00 (capped at GHS 10)
@@ -328,9 +342,13 @@ UssdSessionSchema.index({ lastActivity: 1 }, { expireAfterSeconds: 600 }); // 10
 
 ## Next Steps
 
-1. Contact NALO to register for USSD service
+1. Contact Arkesel to register for USSD service
 2. Test the integration locally with ngrok
 3. Deploy to production server (HTTPS required)
-4. Configure NALO webhook with production URL
+4. Configure Arkesel webhook with production URL
 5. Test with real mobile money transactions
 6. Launch and monitor
+
+## Migration from Nalo to Arkesel
+
+If you're migrating from Nalo USSD, see `ARKESEL_USSD_INTEGRATION.md` for detailed comparison and migration guide.
