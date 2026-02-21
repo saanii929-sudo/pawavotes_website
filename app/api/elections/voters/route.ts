@@ -7,7 +7,44 @@ import { hashPassword } from '@/lib/auth';
 import { sendEmail } from '@/lib/email';
 import { sendVoterCredentialsSms } from '@/services/sms.service';
 
-// Generate unique 8-character alphanumeric token
+function scientificToDecimal(num: string): string {
+  const numStr = String(num).trim();
+  
+  if (!numStr.includes('E') && !numStr.includes('e')) {
+    return numStr;
+  }
+  
+  const [base, exponent] = numStr.split(/[eE]/);
+  const exp = parseInt(exponent, 10);
+  
+  if (exp === 0) {
+    return base;
+  }
+  
+  const [intPart, decPart = ''] = base.split('.');
+  const digits = intPart + decPart;
+  
+  if (exp > 0) {
+    const totalDigits = digits.length;
+    const zerosToAdd = exp - decPart.length;
+    
+    if (zerosToAdd >= 0) {
+      return digits + '0'.repeat(zerosToAdd);
+    } else {
+      const newDecimalPos = intPart.length + exp;
+      return digits.slice(0, newDecimalPos) + '.' + digits.slice(newDecimalPos);
+    }
+  } else {
+    const zerosToAdd = Math.abs(exp) - intPart.length;
+    if (zerosToAdd >= 0) {
+      return '0.' + '0'.repeat(zerosToAdd) + digits;
+    } else {
+      const newDecimalPos = intPart.length + exp;
+      return digits.slice(0, newDecimalPos) + '.' + digits.slice(newDecimalPos);
+    }
+  }
+}
+
 function generateToken(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let token = '';
@@ -17,35 +54,25 @@ function generateToken(): string {
   return token;
 }
 
-// Generate 8-character password with uppercase, lowercase, and numbers
-// Excludes confusing characters: l, L, I, i, O, o, 0, 1
 function generatePassword(): string {
-  const uppercase = 'ABCDEFGHJKMNPQRSTUVWXYZ'; // Excluded: I, L, O
-  const lowercase = 'abcdefghjkmnpqrstuvwxyz'; // Excluded: i, l, o
+  const uppercase = 'ABCDEFGHJKMNPQRSTUVWXYZ';
+  const lowercase = 'abcdefghjkmnpqrstuvwxyz';
   const numbers = '23456789'; // Excluded: 0, 1
   const allChars = uppercase + lowercase + numbers;
   
   let password = '';
-  
-  // Ensure at least one uppercase letter
   password += uppercase.charAt(Math.floor(Math.random() * uppercase.length));
   
-  // Ensure at least one lowercase letter
   password += lowercase.charAt(Math.floor(Math.random() * lowercase.length));
   
-  // Ensure at least one number
   password += numbers.charAt(Math.floor(Math.random() * numbers.length));
   
-  // Fill remaining 5 characters randomly
   for (let i = 0; i < 5; i++) {
     password += allChars.charAt(Math.floor(Math.random() * allChars.length));
   }
   
-  // Shuffle the password to randomize position of guaranteed characters
   return password.split('').sort(() => Math.random() - 0.5).join('');
 }
-
-// Check if token is unique
 async function generateUniqueToken(): Promise<string> {
   let token = generateToken();
   let exists = await Voter.findOne({ token });
@@ -58,7 +85,6 @@ async function generateUniqueToken(): Promise<string> {
   return token;
 }
 
-// GET all voters for an election
 export async function GET(req: NextRequest) {
   try {
     await connectDB();
@@ -83,7 +109,6 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Verify election belongs to organization
     const election = await Election.findOne({
       _id: electionId,
       organizationId: decoded.id,
@@ -111,7 +136,6 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST add single voter
 export async function POST(req: NextRequest) {
   try {
     await connectDB();
@@ -127,7 +151,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { electionId, name, email, phone, voterId, metadata } = body;
+    const { electionId, name, email, phone, voterId, metadata, deliveryMethod = 'both' } = body;
 
     if (!electionId || !name) {
       return NextResponse.json(
@@ -136,7 +160,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verify election belongs to organization
     const election = await Election.findOne({
       _id: electionId,
       organizationId: decoded.id,
@@ -149,18 +172,38 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Generate unique token and password
+    const now = new Date();
+    const endDate = new Date(election.endDate);
+    if (now > endDate) {
+      return NextResponse.json(
+        { error: 'Cannot add voters. This election has already ended.' },
+        { status: 400 }
+      );
+    }
+
+    let phoneNumber = null;
+    if (phone) {
+      let phoneStr = String(phone).trim();
+      
+      if (phoneStr.includes('E') || phoneStr.includes('e')) {
+        phoneStr = scientificToDecimal(phoneStr);
+      }
+      
+      if (phoneStr.includes('.')) {
+        phoneStr = phoneStr.split('.')[0];
+      }
+      
+      phoneNumber = phoneStr;
+    }
     const voterToken = await generateUniqueToken();
     const password = generatePassword();
     const hashedPassword = await hashPassword(password);
-
-    // Create voter
     const voter = await Voter.create({
       electionId,
       organizationId: decoded.id,
       name,
       email,
-      phone,
+      phone: phoneNumber || undefined,
       voterId,
       token: voterToken,
       password: hashedPassword,
@@ -172,8 +215,8 @@ export async function POST(req: NextRequest) {
       hasVoted: false,
     });
 
-    // Send credentials via email if email provided
-    if (email) {
+    // Send credentials based on delivery method
+    if (email && (deliveryMethod === 'email' || deliveryMethod === 'both')) {
       try {
         await sendVoterCredentials(email, name, voterToken, password, election.title, election.startDate, election.endDate);
       } catch (emailError) {
@@ -181,16 +224,14 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Send credentials via SMS if phone provided
-    if (phone) {
+    if (phoneNumber && (deliveryMethod === 'sms' || deliveryMethod === 'both')) {
       try {
-        await sendVoterCredentialsSms(phone, name, voterToken, password, election.title, election.startDate, election.endDate);
+        await sendVoterCredentialsSms(phoneNumber, name, voterToken, password, election.title, election.startDate, election.endDate);
       } catch (smsError) {
         console.error('Failed to send SMS:', smsError);
       }
     }
 
-    // Return voter data with plain password (only shown once)
     const voterData: any = voter.toObject();
     delete voterData.password;
 
@@ -199,13 +240,11 @@ export async function POST(req: NextRequest) {
       message: 'Voter added successfully',
       data: {
         ...voterData,
-        plainPassword: password, // Only returned on creation
+        plainPassword: password, 
       },
     }, { status: 201 });
   } catch (error: any) {
-    console.error('Add voter error:', error);
     
-    // Handle duplicate key errors
     if (error.code === 11000) {
       const field = Object.keys(error.keyPattern || {})[0];
       if (field === 'email') {
@@ -233,7 +272,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Send voter credentials via email
 async function sendVoterCredentials(
   email: string,
   name: string,
@@ -243,11 +281,9 @@ async function sendVoterCredentials(
   startDate: Date,
   endDate: Date
 ): Promise<boolean> {
-  // Get the base URL from environment or use default
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
   const loginUrl = `${baseUrl}/election/login`;
 
-  // Format dates
   const formatDate = (date: Date) => {
     return new Date(date).toLocaleString('en-GB', {
       weekday: 'long',

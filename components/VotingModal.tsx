@@ -62,7 +62,6 @@ const VotingModal = ({
       setIsProcessing(false);
       setSelectedPackage(null);
     } else {
-      // Fetch bulk packages when modal opens
       fetchBulkPackages();
     }
   }, [isOpen]);

@@ -11,13 +11,76 @@ interface SmsResponse {
   error?: string;
 }
 
+// Convert scientific notation to full number string without losing precision
+function scientificToDecimal(num: string): string {
+  const numStr = String(num).trim();
+  
+  // Check if it's in scientific notation
+  if (!numStr.includes('E') && !numStr.includes('e')) {
+    return numStr;
+  }
+  
+  // Parse the scientific notation manually to avoid precision loss
+  const [base, exponent] = numStr.split(/[eE]/);
+  const exp = parseInt(exponent, 10);
+  
+  if (exp === 0) {
+    return base;
+  }
+  
+  // Remove decimal point from base
+  const [intPart, decPart = ''] = base.split('.');
+  const digits = intPart + decPart;
+  
+  // For positive exponents, we're moving decimal point to the right
+  if (exp > 0) {
+    const totalDigits = digits.length;
+    const zerosToAdd = exp - decPart.length;
+    
+    if (zerosToAdd >= 0) {
+      // Need to add zeros at the end
+      return digits + '0'.repeat(zerosToAdd);
+    } else {
+      // Decimal point moves within existing digits
+      const newDecimalPos = intPart.length + exp;
+      return digits.slice(0, newDecimalPos) + '.' + digits.slice(newDecimalPos);
+    }
+  } else {
+    // For negative exponents, we're moving decimal point to the left
+    const zerosToAdd = Math.abs(exp) - intPart.length;
+    if (zerosToAdd >= 0) {
+      return '0.' + '0'.repeat(zerosToAdd) + digits;
+    } else {
+      const newDecimalPos = intPart.length + exp;
+      return digits.slice(0, newDecimalPos) + '.' + digits.slice(newDecimalPos);
+    }
+  }
+}
+
 export async function sendSms({
   to,
   message,
   senderId = "PAWAVOTES",
 }: SendSmsParams): Promise<SmsResponse> {
   try {
-    console.log("Attempting to send SMS to:", to);
+    // Convert to string and handle scientific notation
+    let phoneStr = String(to).trim();
+    
+    console.log("Original phone input:", phoneStr);
+    
+    // Handle scientific notation (e.g., 2.33553E+11)
+    if (phoneStr.includes('E') || phoneStr.includes('e')) {
+      phoneStr = scientificToDecimal(phoneStr);
+      console.log("Converted from scientific notation to:", phoneStr);
+    }
+    
+    // Remove any decimal points (in case of conversion artifacts)
+    if (phoneStr.includes('.')) {
+      phoneStr = phoneStr.split('.')[0];
+      console.log("Removed decimal point:", phoneStr);
+    }
+    
+    console.log("Attempting to send SMS to:", phoneStr);
 
     const apiKey = process.env.ARKESEL_API_KEY;
 
@@ -35,8 +98,11 @@ export async function sendSms({
       messageLength: message.length,
     });
 
-    const cleanPhone = to.replace(/[\s\-\(\)]/g, "");
+    // Clean phone number
+    const cleanPhone = phoneStr.replace(/[\s\-\(\)]/g, "");
     let phoneNumber = cleanPhone;
+    
+    // Format to international format
     if (!phoneNumber.startsWith("+")) {
       if (phoneNumber.startsWith("0")) {
         phoneNumber = "+233" + phoneNumber.substring(1);
@@ -48,28 +114,38 @@ export async function sendSms({
     }
     const apiUrl = `https://sms.arkesel.com/sms/api?action=send-sms&api_key=${apiKey}&to=${encodeURIComponent(phoneNumber)}&from=${encodeURIComponent(senderId)}&sms=${encodeURIComponent(message)}`;
 
+    console.log("Sending SMS to formatted number:", phoneNumber);
+    
     const response = await fetch(apiUrl, {
       method: "GET",
     });
+    
     if (!response.ok) {
       const errorText = await response.text();
+      console.error("SMS API error response:", errorText);
       throw new Error(
         `SMS API returned status ${response.status}: ${errorText}`,
       );
     }
+    
     const data = await response.json();
+    console.log("SMS API response:", data);
+    
     if (data.code === "ok" || data.status === "success") {
+      console.log("SMS sent successfully to:", phoneNumber);
       return {
         success: true,
         message: "SMS sent successfully",
       };
     } else {
+      console.error("SMS API returned error:", data);
       return {
         success: false,
         error: data.message || "Failed to send SMS",
       };
     }
   } catch (error: any) {
+    console.error("SMS sending exception:", error);
     return {
       success: false,
       error: error.message || "Failed to send SMS",

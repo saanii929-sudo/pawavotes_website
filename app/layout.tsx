@@ -17,7 +17,10 @@ export const metadata: Metadata = {
   title: "Pawavotes",
   description: "A simple and transparent voting experience",
   icons: {
-    icon: "/images/logo.png",
+    icon: [
+      { url: "/images/logo.png", sizes: "any" },
+      { url: "/images/logo.png", type: "image/png" },
+    ],
     shortcut: "/images/logo.png",
     apple: "/images/logo.png",
   },

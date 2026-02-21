@@ -47,7 +47,7 @@ export default function HeroSection() {
         animate="visible"
         className="absolute top-0 z-20 flex w-full items-center justify-between px-4 py-5 sm:px-6 md:px-16"
       >
-        <Image src="/images/logo.png" alt="Pawavotes" width={80} height={80} />
+        <Image src="/images/logo.png" alt="Pawavotes" width={120} height={120} />
 
         {/* Desktop Nav */}
         <ul className="hidden items-center gap-16 text-lg text-white md:flex">
@@ -131,7 +131,7 @@ export default function HeroSection() {
               {/* FIXED: Added onClick handler to mobile button */}
               <button
                 onClick={handleRedirectToContact}
-                className="mt-10 w-[200px] rounded bg-green-600 py-3 font-semibold"
+                className="mt-10 w-50 rounded bg-green-600 py-3 font-semibold"
               >
                 Contact Us
               </button>

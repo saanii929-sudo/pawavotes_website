@@ -30,11 +30,15 @@ interface Voter {
 interface Election {
   _id: string;
   title: string;
+  startDate: string;
+  endDate: string;
 }
 
 export default function VotersPage() {
   const [elections, setElections] = useState<Election[]>([]);
   const [selectedElection, setSelectedElection] = useState("");
+  const [selectedElectionData, setSelectedElectionData] =
+    useState<Election | null>(null);
   const [voters, setVoters] = useState<Voter[]>([]);
   const [loading, setLoading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -42,8 +46,17 @@ export default function VotersPage() {
   const [editingVoter, setEditingVoter] = useState<Voter | null>(null);
   const [search, setSearch] = useState("");
   const [uploadResults, setUploadResults] = useState<any>(null);
-  const [resendingCredentials, setResendingCredentials] = useState<string | null>(null);
+  const [resendingCredentials, setResendingCredentials] = useState<
+    string | null
+  >(null);
   const [uploadingBulk, setUploadingBulk] = useState(false);
+  const [addingVoter, setAddingVoter] = useState(false);
+  const [deliveryMethod, setDeliveryMethod] = useState<
+    "email" | "sms" | "both"
+  >("both");
+  const [bulkDeliveryMethod, setBulkDeliveryMethod] = useState<
+    "email" | "sms" | "both"
+  >("both");
 
   const [formData, setFormData] = useState({
     name: "",
@@ -61,8 +74,10 @@ export default function VotersPage() {
   useEffect(() => {
     if (selectedElection) {
       fetchVoters();
+      const election = elections.find((e) => e._id === selectedElection);
+      setSelectedElectionData(election || null);
     }
-  }, [selectedElection]);
+  }, [selectedElection, elections]);
 
   const fetchElections = async () => {
     try {
@@ -107,9 +122,23 @@ export default function VotersPage() {
       setLoading(false);
     }
   };
+  const isElectionEnded = () => {
+    if (!selectedElectionData) return false;
+    const endDate = new Date(selectedElectionData.endDate);
+    const now = new Date();
+    return now > endDate;
+  };
 
   const handleAddVoter = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Check if election has ended
+    if (isElectionEnded()) {
+      toast.error("Cannot add voters. This election has already ended.");
+      return;
+    }
+
+    setAddingVoter(true);
 
     try {
       const token = localStorage.getItem("token");
@@ -124,6 +153,7 @@ export default function VotersPage() {
         email: formData.email || undefined,
         phone: formData.phone || undefined,
         voterId: formData.voterId || undefined,
+        deliveryMethod: deliveryMethod, // Add delivery method
         metadata: {
           department: formData.department,
           class: formData.class,
@@ -147,7 +177,6 @@ export default function VotersPage() {
             : "Voter added successfully!",
         );
 
-        // Show credentials only for new voters
         if (!editingVoter && data.data.plainPassword) {
           alert(
             `Voter Credentials:\nToken: ${data.data.token}\nPassword: ${data.data.plainPassword}\n\nPlease save these credentials!`,
@@ -167,6 +196,8 @@ export default function VotersPage() {
     } catch (error) {
       console.error("Submit voter error:", error);
       toast.error(`Failed to ${editingVoter ? "update" : "add"} voter`);
+    } finally {
+      setAddingVoter(false);
     }
   };
 
@@ -214,7 +245,12 @@ export default function VotersPage() {
     }
   };
 
-  const handleResendCredentials = async (voterId: string, voterName: string, voterEmail?: string, voterPhone?: string) => {
+  const handleResendCredentials = async (
+    voterId: string,
+    voterName: string,
+    voterEmail?: string,
+    voterPhone?: string,
+  ) => {
     if (!voterEmail && !voterPhone) {
       toast.error("Voter does not have an email address or phone number");
       return;
@@ -224,7 +260,11 @@ export default function VotersPage() {
     if (voterEmail) contactInfo.push(voterEmail);
     if (voterPhone) contactInfo.push(voterPhone);
 
-    if (!confirm(`Resend voting credentials to ${voterName} (${contactInfo.join(', ')})?`)) {
+    if (
+      !confirm(
+        `Resend voting credentials to ${voterName} (${contactInfo.join(", ")})?`,
+      )
+    ) {
       return;
     }
 
@@ -241,10 +281,11 @@ export default function VotersPage() {
       if (response.ok) {
         const data = await response.json();
         const methods = [];
-        if (data.data?.emailSent) methods.push('email');
-        if (data.data?.smsSent) methods.push('SMS');
-        
-        const methodText = methods.length > 0 ? ` via ${methods.join(' and ')}` : '';
+        if (data.data?.emailSent) methods.push("email");
+        if (data.data?.smsSent) methods.push("SMS");
+
+        const methodText =
+          methods.length > 0 ? ` via ${methods.join(" and ")}` : "";
         toast.success(`Credentials resent successfully${methodText}!`);
       } else {
         const data = await response.json();
@@ -262,6 +303,12 @@ export default function VotersPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (isElectionEnded()) {
+      toast.error("Cannot upload voters. This election has already ended.");
+      e.target.value = "";
+      return;
+    }
+
     setUploadingBulk(true);
     setUploadResults(null);
 
@@ -277,7 +324,6 @@ export default function VotersPage() {
           return;
         }
 
-        // Parse CSV
         const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
         const voters = [];
 
@@ -294,7 +340,6 @@ export default function VotersPage() {
           voters.push(voter);
         }
 
-        // Upload voters
         const token = localStorage.getItem("token");
         const response = await fetch("/api/elections/voters/bulk", {
           method: "POST",
@@ -305,31 +350,45 @@ export default function VotersPage() {
           body: JSON.stringify({
             electionId: selectedElection,
             voters,
+            deliveryMethod: bulkDeliveryMethod, // Add delivery method
           }),
         });
 
         if (response.ok) {
           const data = await response.json();
-          
+          let hasPhonePrecisionLoss = false;
+          if (data.data.voters) {
+            hasPhonePrecisionLoss = data.data.voters.some((v: any) => {
+              if (v.phone) {
+                const trailingZeros = v.phone.match(/0{4,}$/);
+                return trailingZeros !== null;
+              }
+              return false;
+            });
+          }
+
           let message = `Successfully uploaded ${data.data.successful} voters!`;
           const notifications = [];
-          
+
           if (data.data.emailsSent !== undefined) {
-            notifications.push(`Emails: ${data.data.emailsSent} sent${data.data.emailsFailed > 0 ? ` (${data.data.emailsFailed} failed)` : ''}`);
+            notifications.push(
+              `Emails: ${data.data.emailsSent} sent${data.data.emailsFailed > 0 ? ` (${data.data.emailsFailed} failed)` : ""}`,
+            );
           }
-          
+
           if (data.data.smsSent !== undefined) {
-            notifications.push(`SMS: ${data.data.smsSent} sent${data.data.smsFailed > 0 ? ` (${data.data.smsFailed} failed)` : ''}`);
+            notifications.push(
+              `SMS: ${data.data.smsSent} sent${data.data.smsFailed > 0 ? ` (${data.data.smsFailed} failed)` : ""}`,
+            );
           }
-          
+
           if (notifications.length > 0) {
-            message += ` | ${notifications.join(' | ')}`;
+            message += ` | ${notifications.join(" | ")}`;
           }
-          
+
           toast.success(message);
+
           fetchVoters();
-          
-          // Close modal after successful upload
           setShowBulkModal(false);
           setUploadResults(null);
         } else {
@@ -367,13 +426,16 @@ export default function VotersPage() {
   };
 
   const downloadTemplate = () => {
-    const csv =
-      "name,email,phone,voterId,department,class\nJohn Doe,john@example.com,+233244123456,STU001,Computer Science,Year 3";
-    const blob = new Blob([csv], { type: "text/csv" });
+    const csv = `name,email,phone,voterId,department,class
+"John Doe","john@example.com","233552732025","STU001","Computer Science","2023"
+"Jane Smith","jane@example.com","233244123456","STU002","Engineering","2024"
+"Bob Johnson","bob@example.com","0553732025","STU003","Business","2023"`;
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "voters-template.csv";
+    a.download = "voters-upload-template.csv";
     a.click();
     window.URL.revokeObjectURL(url);
   };
@@ -426,15 +488,41 @@ export default function VotersPage() {
             {/* Actions */}
             <div className="flex flex-wrap gap-3">
               <button
-                onClick={() => setShowAddModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                onClick={() => {
+                  if (isElectionEnded()) {
+                    toast.error(
+                      "Cannot add voters. This election has already ended.",
+                    );
+                    return;
+                  }
+                  setShowAddModal(true);
+                }}
+                disabled={isElectionEnded()}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${
+                  isElectionEnded()
+                    ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                    : "bg-green-600 text-white hover:bg-green-700"
+                }`}
               >
                 <Plus size={18} />
                 Add Voter
               </button>
               <button
-                onClick={() => setShowBulkModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                onClick={() => {
+                  if (isElectionEnded()) {
+                    toast.error(
+                      "Cannot upload voters. This election has already ended.",
+                    );
+                    return;
+                  }
+                  setShowBulkModal(true);
+                }}
+                disabled={isElectionEnded()}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${
+                  isElectionEnded()
+                    ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                    : "bg-blue-600 text-white hover:bg-blue-700"
+                }`}
               >
                 <Upload size={18} />
                 Bulk Upload
@@ -504,15 +592,26 @@ export default function VotersPage() {
                     </div>
                     <div className="flex items-center gap-2 ml-2">
                       <button
-                        onClick={() => handleResendCredentials(voter._id, voter.name, voter.email, voter.phone)}
+                        onClick={() =>
+                          handleResendCredentials(
+                            voter._id,
+                            voter.name,
+                            voter.email,
+                            voter.phone,
+                          )
+                        }
                         className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-                        disabled={voter.hasVoted || (!voter.email && !voter.phone) || resendingCredentials === voter._id}
+                        disabled={
+                          voter.hasVoted ||
+                          (!voter.email && !voter.phone) ||
+                          resendingCredentials === voter._id
+                        }
                         title={
                           voter.hasVoted
                             ? "Cannot resend to voter who has voted"
-                            : (!voter.email && !voter.phone)
-                            ? "No email or phone number"
-                            : "Resend credentials"
+                            : !voter.email && !voter.phone
+                              ? "No email or phone number"
+                              : "Resend credentials"
                         }
                       >
                         {resendingCredentials === voter._id ? (
@@ -704,15 +803,26 @@ export default function VotersPage() {
                         <td className="py-4 px-6">
                           <div className="flex items-center gap-2">
                             <button
-                              onClick={() => handleResendCredentials(voter._id, voter.name, voter.email, voter.phone)}
+                              onClick={() =>
+                                handleResendCredentials(
+                                  voter._id,
+                                  voter.name,
+                                  voter.email,
+                                  voter.phone,
+                                )
+                              }
                               className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-                              disabled={voter.hasVoted || (!voter.email && !voter.phone) || resendingCredentials === voter._id}
+                              disabled={
+                                voter.hasVoted ||
+                                (!voter.email && !voter.phone) ||
+                                resendingCredentials === voter._id
+                              }
                               title={
                                 voter.hasVoted
                                   ? "Cannot resend to voter who has voted"
-                                  : (!voter.email && !voter.phone)
-                                  ? "No email or phone number"
-                                  : "Resend credentials"
+                                  : !voter.email && !voter.phone
+                                    ? "No email or phone number"
+                                    : "Resend credentials"
                               }
                             >
                               {resendingCredentials === voter._id ? (
@@ -761,10 +871,12 @@ export default function VotersPage() {
       {showAddModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <h2 className="text-2xl font-bold mb-6">
+            <div className="flex justify-between bg-green-600 items-center p-4 border-b border-gray-200 rounded-t-lg">
+              <h2 className="text-2xl font-bold text-white">
                 {editingVoter ? "Edit Voter" : "Add Voter"}
               </h2>
+            </div>
+            <div className="p-6">
               <form onSubmit={handleAddVoter} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -847,6 +959,71 @@ export default function VotersPage() {
                     />
                   </div>
                 </div>
+
+                {/* Delivery Method Selection */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Send Credentials Via <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="deliveryMethod"
+                        value="email"
+                        checked={deliveryMethod === "email"}
+                        onChange={(e) =>
+                          setDeliveryMethod(
+                            e.target.value as "email" | "sms" | "both",
+                          )
+                        }
+                        className="w-4 h-4 text-green-600"
+                      />
+                      <span className="text-sm text-gray-700">Email Only</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="deliveryMethod"
+                        value="sms"
+                        checked={deliveryMethod === "sms"}
+                        onChange={(e) =>
+                          setDeliveryMethod(
+                            e.target.value as "email" | "sms" | "both",
+                          )
+                        }
+                        className="w-4 h-4 text-green-600"
+                      />
+                      <span className="text-sm text-gray-700">SMS Only</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="deliveryMethod"
+                        value="both"
+                        checked={deliveryMethod === "both"}
+                        onChange={(e) =>
+                          setDeliveryMethod(
+                            e.target.value as "email" | "sms" | "both",
+                          )
+                        }
+                        className="w-4 h-4 text-green-600"
+                      />
+                      <span className="text-sm text-gray-700">
+                        Both Email & SMS
+                      </span>
+                    </label>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {deliveryMethod === "email" &&
+                      "Credentials will be sent via email only. Email is required."}
+                    {deliveryMethod === "sms" &&
+                      "Credentials will be sent via SMS only. Phone number is required."}
+                    {deliveryMethod === "both" &&
+                      "Credentials will be sent via both email and SMS if available."}
+                  </p>
+                </div>
+
                 <div className="flex gap-3 justify-end pt-4">
                   <button
                     type="button"
@@ -855,15 +1032,26 @@ export default function VotersPage() {
                       setEditingVoter(null);
                       resetForm();
                     }}
-                    className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                    disabled={addingVoter}
+                    className="px-4 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                    disabled={addingVoter}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
-                    {editingVoter ? "Update Voter" : "Add Voter"}
+                    {addingVoter && (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    )}
+                    {addingVoter
+                      ? editingVoter
+                        ? "Updating..."
+                        : "Adding..."
+                      : editingVoter
+                      ? "Update Voter"
+                      : "Add Voter"}
                   </button>
                 </div>
               </form>
@@ -876,26 +1064,87 @@ export default function VotersPage() {
       {showBulkModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-2xl w-full">
+            <div className="bg-green-600 text-white px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between rounded-t-lg">
+              <h3 className="text-lg font-semibold">Bulk Upload Voters</h3>
+            </div>
             <div className="p-6">
-              <h2 className="text-2xl font-bold mb-6">Bulk Upload Voters</h2>
-
               <div className="mb-6">
                 <p className="text-sm text-gray-600 mb-4">
                   Upload a CSV file with voter information. The file should have
                   the following columns:
                 </p>
-                <div className="bg-gray-50 p-4 rounded-lg mb-4">
-                  <code className="text-sm">
-                    name, email, phone, voterId, department, class
-                  </code>
-                </div>
+
                 <button
                   onClick={downloadTemplate}
-                  className="text-sm text-green-600 hover:text-green-700 flex items-center gap-2"
+                  className="text-sm text-green-600 hover:text-green-700 flex items-center gap-2 font-medium"
                 >
                   <Download size={16} />
-                  Download CSV Template
+                  Download CSV Template (with instructions)
                 </button>
+              </div>
+
+              {/* Delivery Method Selection for Bulk Upload */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Send Credentials Via <span className="text-red-500">*</span>
+                </label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="bulkDeliveryMethod"
+                      value="email"
+                      checked={bulkDeliveryMethod === "email"}
+                      onChange={(e) =>
+                        setBulkDeliveryMethod(
+                          e.target.value as "email" | "sms" | "both",
+                        )
+                      }
+                      className="w-4 h-4 text-green-600"
+                    />
+                    <span className="text-sm text-gray-700">Email Only</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="bulkDeliveryMethod"
+                      value="sms"
+                      checked={bulkDeliveryMethod === "sms"}
+                      onChange={(e) =>
+                        setBulkDeliveryMethod(
+                          e.target.value as "email" | "sms" | "both",
+                        )
+                      }
+                      className="w-4 h-4 text-green-600"
+                    />
+                    <span className="text-sm text-gray-700">SMS Only</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="bulkDeliveryMethod"
+                      value="both"
+                      checked={bulkDeliveryMethod === "both"}
+                      onChange={(e) =>
+                        setBulkDeliveryMethod(
+                          e.target.value as "email" | "sms" | "both",
+                        )
+                      }
+                      className="w-4 h-4 text-green-600"
+                    />
+                    <span className="text-sm text-gray-700">
+                      Both Email & SMS
+                    </span>
+                  </label>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  {bulkDeliveryMethod === "email" &&
+                    "Credentials will be sent via email only. Voters must have email addresses."}
+                  {bulkDeliveryMethod === "sms" &&
+                    "Credentials will be sent via SMS only. Voters must have phone numbers."}
+                  {bulkDeliveryMethod === "both" &&
+                    "Credentials will be sent via both email and SMS if available."}
+                </p>
               </div>
 
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
@@ -903,8 +1152,13 @@ export default function VotersPage() {
                   <div className="flex flex-col items-center gap-4">
                     <div className="w-16 h-16 border-4 border-green-200 border-t-green-600 rounded-full animate-spin"></div>
                     <div>
-                      <p className="text-gray-900 font-medium mb-1">Uploading voters...</p>
-                      <p className="text-sm text-gray-500">Please wait while we process your CSV file and send emails</p>
+                      <p className="text-gray-900 font-medium mb-1">
+                        Uploading voters...
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        Please wait while we process your CSV file and send
+                        emails
+                      </p>
                     </div>
                   </div>
                 ) : (

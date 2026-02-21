@@ -14,8 +14,8 @@ const PublicNav = () => {
               <Image
                 src="/images/logo.png"
                 alt="Pawavotes"
-                width={70}
-                height={70}
+                width={100}
+                height={100}
               />{" "}
               <span className="text-xl absolute left-15 top-5 font-semibold text-green-600">
                 {" "}

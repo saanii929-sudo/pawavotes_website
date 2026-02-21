@@ -7,7 +7,40 @@ import { hashPassword } from '@/lib/auth';
 import { sendEmail } from '@/lib/email';
 import { sendVoterCredentialsSms } from '@/services/sms.service';
 
-// Generate unique 8-character alphanumeric token
+function scientificToDecimal(num: string): string {
+  const numStr = String(num).trim();
+  if (!numStr.includes('E') && !numStr.includes('e')) {
+    return numStr;
+  }
+  const [base, exponent] = numStr.split(/[eE]/);
+  const exp = parseInt(exponent, 10);
+  
+  if (exp === 0) {
+    return base;
+  }
+  const [intPart, decPart = ''] = base.split('.');
+  const digits = intPart + decPart;
+  if (exp > 0) {
+    const totalDigits = digits.length;
+    const zerosToAdd = exp - decPart.length;
+    
+    if (zerosToAdd >= 0) {
+      return digits + '0'.repeat(zerosToAdd);
+    } else {
+      const newDecimalPos = intPart.length + exp;
+      return digits.slice(0, newDecimalPos) + '.' + digits.slice(newDecimalPos);
+    }
+  } else {
+    const zerosToAdd = Math.abs(exp) - intPart.length;
+    if (zerosToAdd >= 0) {
+      return '0.' + '0'.repeat(zerosToAdd) + digits;
+    } else {
+      const newDecimalPos = intPart.length + exp;
+      return digits.slice(0, newDecimalPos) + '.' + digits.slice(newDecimalPos);
+    }
+  }
+}
+
 function generateToken(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let token = '';
@@ -16,36 +49,22 @@ function generateToken(): string {
   }
   return token;
 }
-
-// Generate 8-character password with uppercase, lowercase, and numbers
-// Excludes confusing characters: l, L, I, i, O, o, 0, 1
 function generatePassword(): string {
-  const uppercase = 'ABCDEFGHJKMNPQRSTUVWXYZ'; // Excluded: I, L, O
-  const lowercase = 'abcdefghjkmnpqrstuvwxyz'; // Excluded: i, l, o
-  const numbers = '23456789'; // Excluded: 0, 1
+  const uppercase = 'ABCDEFGHJKMNPQRSTUVWXYZ';
+  const lowercase = 'abcdefghjkmnpqrstuvwxyz';
+  const numbers = '23456789';
   const allChars = uppercase + lowercase + numbers;
   
   let password = '';
-  
-  // Ensure at least one uppercase letter
   password += uppercase.charAt(Math.floor(Math.random() * uppercase.length));
-  
-  // Ensure at least one lowercase letter
   password += lowercase.charAt(Math.floor(Math.random() * lowercase.length));
-  
-  // Ensure at least one number
   password += numbers.charAt(Math.floor(Math.random() * numbers.length));
-  
-  // Fill remaining 5 characters randomly
   for (let i = 0; i < 5; i++) {
     password += allChars.charAt(Math.floor(Math.random() * allChars.length));
   }
-  
-  // Shuffle the password to randomize position of guaranteed characters
   return password.split('').sort(() => Math.random() - 0.5).join('');
 }
 
-// Send voter credentials via email
 async function sendVoterCredentials(
   email: string,
   name: string,
@@ -57,8 +76,6 @@ async function sendVoterCredentials(
 ): Promise<boolean> {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
   const loginUrl = `${baseUrl}/election/login`;
-
-  // Format dates
   const formatDate = (date: Date) => {
     return new Date(date).toLocaleString('en-GB', {
       weekday: 'long',
@@ -193,7 +210,6 @@ async function sendVoterCredentials(
   }
 }
 
-// Check if token is unique
 async function generateUniqueToken(existingTokens: Set<string>): Promise<string> {
   let token = generateToken();
   
@@ -205,7 +221,6 @@ async function generateUniqueToken(existingTokens: Set<string>): Promise<string>
   return token;
 }
 
-// POST bulk upload voters
 export async function POST(req: NextRequest) {
   try {
     await connectDB();
@@ -221,7 +236,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { electionId, voters } = body;
+    const { electionId, voters, deliveryMethod = 'both' } = body;
 
     if (!electionId || !voters || !Array.isArray(voters) || voters.length === 0) {
       return NextResponse.json(
@@ -240,6 +255,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: 'Election not found' },
         { status: 404 }
+      );
+    }
+    const now = new Date();
+    const endDate = new Date(election.endDate);
+    if (now > endDate) {
+      return NextResponse.json(
+        { error: 'Cannot upload voters. This election has already ended.' },
+        { status: 400 }
       );
     }
 
@@ -264,12 +287,10 @@ export async function POST(req: NextRequest) {
       failed: [],
     };
 
-    // Process each voter
     for (let i = 0; i < voters.length; i++) {
       const voterData = voters[i];
       
       try {
-        // Validate required fields
         if (!voterData.name) {
           results.failed.push({
             row: i + 1,
@@ -278,8 +299,30 @@ export async function POST(req: NextRequest) {
           });
           continue;
         }
-
-        // Generate unique token and password
+        let phoneNumber = null;
+        if (voterData.phone) {
+          let phoneStr = String(voterData.phone).trim();
+          
+          console.log(`Row ${i + 1} - Original phone:`, phoneStr);
+          if (phoneStr.includes('E') || phoneStr.includes('e')) {
+            phoneStr = scientificToDecimal(phoneStr);
+            console.log(`Row ${i + 1} - Converted from scientific notation:`, phoneStr);
+  
+            const trailingZeros = phoneStr.match(/0+$/);
+            if (trailingZeros && trailingZeros[0].length >= 4) {
+              console.warn(`⚠️ Row ${i + 1} - Phone number may have lost precision due to Excel formatting. Original: ${voterData.phone}, Converted: ${phoneStr}`);
+              console.warn(`   This happens when Excel converts phone numbers to scientific notation.`);
+              console.warn(`   To fix: Format the phone column as TEXT in Excel before saving CSV.`);
+            }
+          }
+          if (phoneStr.includes('.')) {
+            phoneStr = phoneStr.split('.')[0];
+            console.log(`Row ${i + 1} - Removed decimal:`, phoneStr);
+          }
+          
+          phoneNumber = phoneStr;
+          console.log(`Row ${i + 1} - Final phone number:`, phoneNumber);
+        }
         const voterToken = await generateUniqueToken(existingTokens);
         const password = generatePassword();
         const hashedPassword = await hashPassword(password);
@@ -289,7 +332,7 @@ export async function POST(req: NextRequest) {
           organizationId: decoded.id,
           name: voterData.name,
           email: voterData.email || null,
-          phone: voterData.phone || null,
+          phone: phoneNumber,
           voterId: voterData.voterId || null,
           token: voterToken,
           password: hashedPassword,
@@ -308,9 +351,9 @@ export async function POST(req: NextRequest) {
           row: i + 1,
           name: voterData.name,
           token: voterToken,
-          password: password, // Plain password for download
+          password: password,
           email: voterData.email,
-          phone: voterData.phone,
+          phone: phoneNumber || undefined,
         });
       } catch (error: any) {
         results.failed.push({
@@ -320,13 +363,10 @@ export async function POST(req: NextRequest) {
         });
       }
     }
-
-    // Bulk insert voters
     if (votersToCreate.length > 0) {
       try {
         await Voter.insertMany(votersToCreate, { ordered: false });
       } catch (bulkError: any) {
-        // Handle duplicate key errors in bulk insert
         if (bulkError.code === 11000 && bulkError.writeErrors) {
           bulkError.writeErrors.forEach((writeError: any) => {
             const failedVoter = votersToCreate[writeError.index];
@@ -340,8 +380,6 @@ export async function POST(req: NextRequest) {
             } else if (field === 'token') {
               errorMsg = 'Token conflict';
             }
-            
-            // Find the corresponding success entry and move to failed
             const successIndex = results.success.findIndex(
               s => s.token === failedVoter.token
             );
@@ -357,8 +395,6 @@ export async function POST(req: NextRequest) {
         }
       }
     }
-
-    // Send emails and SMS to all successfully created voters
     let emailsSent = 0;
     let emailsFailed = 0;
     let smsSent = 0;
@@ -368,8 +404,8 @@ export async function POST(req: NextRequest) {
       console.log(`Sending notifications to ${results.success.length} voters...`);
       
       for (const voter of results.success) {
-        // Send email if available
-        if (voter.email) {
+        // Send email if available and delivery method allows
+        if (voter.email && (deliveryMethod === 'email' || deliveryMethod === 'both')) {
           try {
             const emailSent = await sendVoterCredentials(
               voter.email,
@@ -392,8 +428,8 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        // Send SMS if available
-        if (voter.phone) {
+        // Send SMS if available and delivery method allows
+        if (voter.phone && (deliveryMethod === 'sms' || deliveryMethod === 'both')) {
           try {
             const smsSentSuccess = await sendVoterCredentialsSms(
               voter.phone,

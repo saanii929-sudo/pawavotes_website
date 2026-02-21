@@ -13,7 +13,6 @@ export default function SuperAdminLogin() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Check if superadmin is already authenticated
   useEffect(() => {
     const token = localStorage.getItem('token');
     const userData = localStorage.getItem('user');
@@ -24,21 +23,17 @@ export default function SuperAdminLogin() {
         const user = JSON.parse(userData);
         const timestamp = parseInt(tokenTimestamp);
         const now = Date.now();
-        const sixHours = 6 * 60 * 60 * 1000; // 6 hours in milliseconds
+        const sixHours = 6 * 60 * 60 * 1000;
         
-        // Check if token is expired (older than 6 hours)
         if (now - timestamp > sixHours) {
-          // Token expired, clear storage
           localStorage.removeItem('token');
           localStorage.removeItem('user');
           localStorage.removeItem('tokenTimestamp');
           toast.error('Session expired. Please login again.');
         } else if (user.role === 'superadmin') {
-          // Token still valid, redirect
           router.push('/superadmin');
         }
       } catch (error) {
-        // Invalid data, clear storage
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         localStorage.removeItem('tokenTimestamp');
@@ -187,7 +182,7 @@ export default function SuperAdminLogin() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  placeholder="admin@pawavotes.com"
+                  placeholder="superadmin@example.com"
                   style={{
                     width: "100%",
                     padding: "10px 12px",

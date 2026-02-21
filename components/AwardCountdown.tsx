@@ -185,7 +185,7 @@ const AwardCountdown = ({
 
   if (phase === "ended") {
     return (
-      <div className="relative overflow-hidden rounded-xl sm:rounded-2xl bg-gradient-to-br from-gray-900 to-gray-800 p-6 sm:p-8">
+      <div className="relative overflow-hidden rounded-xl sm:rounded-2xl bg-linear-to-br from-gray-900 to-gray-800 p-6 sm:p-8">
         <div className="relative z-10 text-center">
           <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 mb-3 sm:mb-4">
             <div className="text-white">{config.icon}</div>
@@ -198,10 +198,10 @@ const AwardCountdown = ({
   }
 
   return (
-    <div className="relative overflow-hidden rounded-xl sm:rounded-2xl bg-gradient-to-br from-gray-900 via-gray-800 to-black p-4 sm:p-6 md:p-8">
+    <div className="relative overflow-hidden rounded-xl sm:rounded-2xl bg-linear-to-br from-gray-900 via-gray-800 to-black p-4 sm:p-6 md:p-8">
       {/* Animated background gradient */}
       <div
-        className={`absolute inset-0 bg-gradient-to-r ${config.gradient} opacity-10 animate-pulse`}
+        className={`absolute inset-0 bg-linear-to-r ${config.gradient} opacity-10 animate-pulse`}
       ></div>
       
       {/* Floating orbs - hidden on mobile for performance */}
@@ -212,7 +212,7 @@ const AwardCountdown = ({
       <div className="relative z-10">
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 mb-4 sm:mb-6 md:mb-8">
-          <div className={`p-2 sm:p-3 rounded-lg sm:rounded-xl bg-gradient-to-r ${config.gradient} shadow-lg`}>
+          <div className={`p-2 sm:p-3 rounded-lg sm:rounded-xl bg-linear-to-r ${config.gradient} shadow-lg`}>
             {config.icon}
           </div>
           <h3 className="text-xl sm:text-2xl md:text-3xl font-bold text-white text-center">{config.title}</h3>
@@ -229,24 +229,24 @@ const AwardCountdown = ({
             <div key={item.label} className="relative group">
               {/* Glow effect - reduced on mobile */}
               <div
-                className={`absolute inset-0 bg-gradient-to-r ${config.gradient} rounded-lg sm:rounded-xl md:rounded-2xl blur-md sm:blur-xl opacity-30 sm:opacity-50 group-hover:opacity-75 transition-opacity duration-300`}
+                className={`absolute inset-0 bg-linear-to-r ${config.gradient} rounded-lg sm:rounded-xl md:rounded-2xl blur-md sm:blur-xl opacity-30 sm:opacity-50 group-hover:opacity-75 transition-opacity duration-300`}
                 style={{
                   animation: `pulse ${2 + index * 0.5}s cubic-bezier(0.4, 0, 0.6, 1) infinite`,
                 }}
               ></div>
               
               {/* Card */}
-              <div className="relative bg-gradient-to-br from-gray-800 to-gray-900 rounded-lg sm:rounded-xl md:rounded-2xl p-3 sm:p-4 md:p-6 border border-gray-700 hover:border-gray-600 transition-all duration-300 transform hover:scale-105">
+              <div className="relative bg-linear-to-br from-gray-800 to-gray-900 rounded-lg sm:rounded-xl md:rounded-2xl p-3 sm:p-4 md:p-6 border border-gray-700 hover:border-gray-600 transition-all duration-300 transform hover:scale-105">
                 {/* Number */}
                 <div className="relative">
                   <div
-                    className={`text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black bg-gradient-to-r ${config.gradient} bg-clip-text text-transparent mb-1 sm:mb-2`}
+                    className={`text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black bg-linear-to-r ${config.gradient} bg-clip-text text-transparent mb-1 sm:mb-2`}
                   >
                     {String(item.value).padStart(2, "0")}
                   </div>
                   
                   {/* Animated underline */}
-                  <div className={`h-0.5 sm:h-1 bg-gradient-to-r ${config.gradient} rounded-full transform origin-left transition-transform duration-300 group-hover:scale-x-100 scale-x-75`}></div>
+                  <div className={`h-0.5 sm:h-1 bg-linear-to-r ${config.gradient} rounded-full transform origin-left transition-transform duration-300 group-hover:scale-x-100 scale-x-75`}></div>
                 </div>
                 
                 {/* Label */}
@@ -261,7 +261,7 @@ const AwardCountdown = ({
         {/* Progress Bar */}
         <div className="relative h-2 sm:h-3 bg-gray-800 rounded-full overflow-hidden">
           <div
-            className={`absolute inset-y-0 left-0 bg-gradient-to-r ${config.gradient} rounded-full transition-all duration-1000 ease-out`}
+            className={`absolute inset-y-0 left-0 bg-linear-to-r ${config.gradient} rounded-full transition-all duration-1000 ease-out`}
             style={{
               width: `${Math.min(100, (timeLeft.seconds / 60) * 100)}%`,
             }}
