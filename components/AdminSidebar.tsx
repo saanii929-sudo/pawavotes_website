@@ -50,8 +50,8 @@ export default function AdminSidebar() {
           <Image
             src="/images/logo.png"
             alt="Pawavotes"
-            width={100}
-            height={100}
+            width={70}
+            height={70}
           />{" "}
           <span className="text-xl absolute left-22 top-13 font-semibold text-green-600">
             {" "}

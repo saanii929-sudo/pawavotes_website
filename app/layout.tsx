@@ -18,11 +18,11 @@ export const metadata: Metadata = {
   description: "A simple and transparent voting experience",
   icons: {
     icon: [
-      { url: "/images/logo.png", sizes: "any" },
-      { url: "/images/logo.png", type: "image/png" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "any" },
     ],
-    shortcut: "/images/logo.png",
-    apple: "/images/logo.png",
+    shortcut: "/favicon.ico",
+    apple: "/favicon.svg",
   },
 };
 
