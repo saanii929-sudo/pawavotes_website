@@ -298,11 +298,13 @@ export default function CandidatesPage() {
                             </div>
 
                             {candidate.image ? (
-                              <img
-                                src={candidate.image}
-                                alt={candidate.name}
-                                className="w-full h-48 object-cover"
-                              />
+                              <div className="w-full h-48 bg-gray-100 overflow-hidden">
+                                <img
+                                  src={candidate.image}
+                                  alt={candidate.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
                             ) : (
                               <div className="w-full h-48 bg-purple-100 flex items-center justify-center">
                                 <User className="text-green-400" size={64} />

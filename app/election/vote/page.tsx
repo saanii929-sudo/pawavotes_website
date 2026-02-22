@@ -469,14 +469,6 @@ function VotingPageContent() {
                                     }`}>
                                       {candidate.name}
                                     </h4>
-                                    {showLiveResults && (
-                                      <div className="flex items-center justify-center gap-2 text-sm text-green-600 bg-white px-3 py-1 rounded-full">
-                                        <TrendingUp size={14} />
-                                        <span className="font-semibold">
-                                          {candidate.voteCount} votes
-                                        </span>
-                                      </div>
-                                    )}
                                   </div>
                                 </div>
                                 
