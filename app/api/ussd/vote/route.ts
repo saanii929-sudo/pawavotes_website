@@ -131,7 +131,7 @@ function handleBackNavigation(session: any) {
       if (awards.length === 0) {
         return { message: 'No awards available.', continueSession: false };
       }
-      let awardMenu = 'Welcome to PawaVotes\nVoting Platform\n\nSelect Event:\n\n';
+      let awardMenu = 'Welcome to PawaVotes\n\nSelect Event:\n\n';
       awards.forEach((award: any, index: number) => {
         awardMenu += `${index + 1}. ${award.name}\n`;
       });
