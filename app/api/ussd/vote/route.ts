@@ -90,28 +90,90 @@ async function handleUssdFlow(session: any, userInput: string, phoneNumber: stri
 }
 
 async function showWelcome(session: any) {
-  console.log('USSD: Fetching published awards...');
-  const awards = await Award.find()
+  console.log('USSD: Fetching active awards...');
+  const awards = await Award.find({ 
+    status: { $in: ['published', 'active'] } 
+  })
+    .select('name votingStartDate votingEndDate votingStartTime votingEndTime settings')
     .limit(10)
     .lean();
   
-  console.log(`USSD: Found ${awards.length} published awards`);
+  console.log(`USSD: Found ${awards.length} active awards`);
   
   if (awards.length === 0) {
-    console.log('USSD: No published awards found in database');
-    return { message: 'No active awards available at the moment.', continueSession: false };
+    console.log('USSD: No active awards found in database');
+    return { 
+      message: 'No voting events are currently available. Please try again later.', 
+      continueSession: false 
+    };
   }
 
-  console.log('USSD: Showing all published awards (date filtering disabled for testing)');
-  
-  let menu = 'Welcome to PawaVotes!\nSelect an award to vote:\n\n';
-  awards.forEach((award, index) => {
+  const now = new Date();
+  console.log(`USSD: Current time: ${now.toISOString()}`);
+  const activeAwards = [];
+
+  for (const award of awards) {
+    console.log(`\nUSSD: Checking award: ${award.name}`);
+    console.log(`USSD: - Status: ${award.status}`);
+    console.log(`USSD: - votingStartDate: ${award.votingStartDate}`);
+    console.log(`USSD: - votingEndDate: ${award.votingEndDate}`);
+    console.log(`USSD: - votingStartTime: ${award.votingStartTime}`);
+    console.log(`USSD: - votingEndTime: ${award.votingEndTime}`);
+    
+    let isActive = false;
+
+    if (award.votingStartDate && award.votingEndDate) {
+      const start = new Date(award.votingStartDate);
+      const end = new Date(award.votingEndDate);
+
+      // Add time if available
+      if (award.votingStartTime) {
+        const [hours, minutes] = award.votingStartTime.split(':');
+        start.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+      } else {
+        start.setHours(0, 0, 0, 0);
+      }
+
+      if (award.votingEndTime) {
+        const [hours, minutes] = award.votingEndTime.split(':');
+        end.setHours(parseInt(hours), parseInt(minutes), 59, 999);
+      } else {
+        end.setHours(23, 59, 59, 999);
+      }
+
+      console.log(`USSD: - Award start: ${start.toISOString()}`);
+      console.log(`USSD: - Award end: ${end.toISOString()}`);
+      isActive = now >= start && now <= end;
+      console.log(`USSD: - Award is active: ${isActive}`);
+    } else {
+      console.log('USSD: - No voting dates set, treating as active');
+      isActive = true;
+    }
+
+    if (isActive) {
+      console.log(`USSD: ✓ Award "${award.name}" added to active list`);
+      activeAwards.push(award);
+    } else {
+      console.log(`USSD: ✗ Award "${award.name}" not active`);
+    }
+  }
+
+  console.log(`\nUSSD: Total active awards: ${activeAwards.length}`);
+
+  if (activeAwards.length === 0) {
+    return { 
+      message: 'Voting is currently closed for all events. Please check back later.', 
+      continueSession: false 
+    };
+  }
+
+  let menu = 'Welcome to PawaVotes\nVoting Platform\n\nSelect Event:\n\n';
+  activeAwards.forEach((award, index) => {
     menu += `${index + 1}. ${award.name}\n`;
-    console.log(`USSD: - Award ${index + 1}: ${award.name} (ID: ${award._id})`);
   });
 
   session.currentStep = 'select_award';
-  session.data.awards = awards;
+  session.data.awards = activeAwards;
 
   return { message: menu, continueSession: true };
 }
@@ -121,7 +183,10 @@ async function handleAwardSelection(session: any, userInput: string) {
   const awards = session.data.awards;
 
   if (isNaN(selectedIndex) || selectedIndex < 0 || selectedIndex >= awards.length) {
-    return { message: 'Invalid selection. Please try again.', continueSession: false };
+    return { 
+      message: 'Invalid selection. Please enter a valid option number.', 
+      continueSession: false 
+    };
   }
 
   const selectedAward = awards[selectedIndex];
@@ -136,10 +201,13 @@ async function handleAwardSelection(session: any, userInput: string) {
     .lean();
 
   if (categories.length === 0) {
-    return { message: 'No categories available for this award.', continueSession: false };
+    return { 
+      message: 'No categories are available for this event at the moment.', 
+      continueSession: false 
+    };
   }
 
-  let menu = `${selectedAward.name}\nSelect a category:\n\n`;
+  let menu = `${selectedAward.name}\n\nSelect Category:\n\n`;
   categories.forEach((category, index) => {
     menu += `${index + 1}. ${category.name}\n`;
   });
@@ -155,32 +223,32 @@ async function handleCategorySelection(session: any, userInput: string) {
   const categories = session.data.categories;
 
   if (isNaN(selectedIndex) || selectedIndex < 0 || selectedIndex >= categories.length) {
-    return { message: 'Invalid selection. Please try again.', continueSession: false };
+    return { 
+      message: 'Invalid selection. Please enter a valid option number.', 
+      continueSession: false 
+    };
   }
 
   const selectedCategory = categories[selectedIndex];
   session.data.categoryId = selectedCategory._id.toString();
   session.data.categoryName = selectedCategory.name;
 
-  // Ask user how they want to select nominee
   session.currentStep = 'nominee_method';
 
   return {
-    message: `${selectedCategory.name}\n\nHow would you like to vote?\n\n1. Enter Nominee Code\n2. Browse Nominees`,
+    message: `${selectedCategory.name}\n\nVoting Method:\n\n1. Enter Nominee Code\n2. Browse Nominees`,
     continueSession: true,
   };
 }
 
 async function handleNomineeMethod(session: any, userInput: string) {
   if (userInput === '1') {
-    // User wants to enter nominee code
     session.currentStep = 'enter_nominee_code';
     return {
-      message: `Enter the Nominee Code\n(e.g., GMA001):`,
+      message: `Enter Nominee Code\n(e.g., TGMA001):`,
       continueSession: true,
     };
   } else if (userInput === '2') {
-    // User wants to browse nominees
     const nominees = await Nominee.find({
       categoryId: session.data.categoryId,
       status: 'published',
@@ -191,10 +259,13 @@ async function handleNomineeMethod(session: any, userInput: string) {
       .lean();
 
     if (nominees.length === 0) {
-      return { message: 'No nominees available for this category.', continueSession: false };
+      return { 
+        message: 'No nominees are available for this category at the moment.', 
+        continueSession: false 
+      };
     }
 
-    let menu = `${session.data.categoryName}\nSelect a nominee:\n\n`;
+    let menu = `${session.data.categoryName}\n\nSelect Nominee:\n\n`;
     nominees.forEach((nominee, index) => {
       const code = nominee.nomineeCode ? ` (${nominee.nomineeCode})` : '';
       menu += `${index + 1}. ${nominee.name}${code}\n`;
@@ -205,14 +276,16 @@ async function handleNomineeMethod(session: any, userInput: string) {
 
     return { message: menu, continueSession: true };
   } else {
-    return { message: 'Invalid selection. Please try again.', continueSession: false };
+    return { 
+      message: 'Invalid selection. Please enter 1 or 2.', 
+      continueSession: false 
+    };
   }
 }
 
 async function handleNomineeCodeEntry(session: any, userInput: string) {
   const nomineeCode = userInput.trim().toUpperCase();
 
-  // Find nominee by code
   const nominee = await Nominee.findOne({
     nomineeCode: nomineeCode,
     categoryId: session.data.categoryId,
@@ -224,24 +297,22 @@ async function handleNomineeCodeEntry(session: any, userInput: string) {
 
   if (!nominee) {
     return {
-      message: `Nominee code "${nomineeCode}" not found in this category. Please check the code and try again.`,
+      message: `Nominee code "${nomineeCode}" not found in this category. Please verify and try again.`,
       continueSession: false,
     };
   }
 
-  // Set nominee data
   session.data.nomineeId = nominee._id.toString();
   session.data.nomineeName = nominee.name;
   session.data.nomineeCode = nomineeCode;
 
-  // Get voting price
   const award = await Award.findById(session.data.awardId).select('pricing').lean();
   const pricePerVote = award?.pricing?.votingCost || 0.5;
 
   session.currentStep = 'enter_votes';
 
   return {
-    message: `Voting for:\n${nominee.name} (${nomineeCode})\n\nGHS ${pricePerVote} per vote\n\nEnter number of votes (1-100):`,
+    message: `Voting For:\n${nominee.name} (${nomineeCode})\n\nGHS ${pricePerVote.toFixed(2)} per vote\n\nEnter number of votes (1-100):`,
     continueSession: true,
   };
 }
@@ -251,7 +322,10 @@ async function handleNomineeSelection(session: any, userInput: string) {
   const nominees = session.data.nominees;
 
   if (isNaN(selectedIndex) || selectedIndex < 0 || selectedIndex >= nominees.length) {
-    return { message: 'Invalid selection. Please try again.', continueSession: false };
+    return { 
+      message: 'Invalid selection. Please enter a valid option number.', 
+      continueSession: false 
+    };
   }
 
   const selectedNominee = nominees[selectedIndex];
@@ -266,7 +340,7 @@ async function handleNomineeSelection(session: any, userInput: string) {
 
   const codeDisplay = selectedNominee.nomineeCode ? ` (${selectedNominee.nomineeCode})` : '';
   return {
-    message: `Voting for:\n${selectedNominee.name}${codeDisplay}\n\nGHS ${pricePerVote} per vote\n\nEnter number of votes (1-100):`,
+    message: `Voting For:\n${selectedNominee.name}${codeDisplay}\n\nGHS ${pricePerVote.toFixed(2)} per vote\n\nEnter number of votes (1-100):`,
     continueSession: true,
   };
 }
@@ -274,7 +348,10 @@ async function handleNomineeSelection(session: any, userInput: string) {
 async function handleVoteQuantity(session: any, userInput: string) {
   const numberOfVotes = parseInt(userInput);
   if (isNaN(numberOfVotes) || numberOfVotes < 1 || numberOfVotes > 100) {
-    return { message: 'Invalid number. Please enter between 1 and 100.', continueSession: false };
+    return { 
+      message: 'Invalid amount. Please enter a number between 1 and 100.', 
+      continueSession: false 
+    };
   }
   const award = await Award.findById(session.data.awardId).select('pricing').lean();
   const pricePerVote = award?.pricing?.votingCost || 0.5;
@@ -286,7 +363,7 @@ async function handleVoteQuantity(session: any, userInput: string) {
 
   const codeDisplay = session.data.nomineeCode ? ` (${session.data.nomineeCode})` : '';
   return {
-    message: `Confirm your vote:\n\nNominee: ${session.data.nomineeName}${codeDisplay}\nVotes: ${numberOfVotes}\nAmount: GHS ${amount.toFixed(2)}\n\n1. Confirm & Pay\n2. Cancel`,
+    message: `Confirm Vote\n\nNominee: ${session.data.nomineeName}${codeDisplay}\nVotes: ${numberOfVotes}\nAmount: GHS ${amount.toFixed(2)}\n\n1. Confirm & Pay\n2. Cancel`,
     continueSession: true,
   };
 }
@@ -294,26 +371,25 @@ async function handleVoteQuantity(session: any, userInput: string) {
 async function handleConfirmation(session: any, userInput: string, phoneNumber: string) {
   if (userInput === '2') {
     session.isActive = false;
-    return { message: 'Vote cancelled.', continueSession: false };
+    return { message: 'Vote cancelled. Thank you for using PawaVotes.', continueSession: false };
   }
   if (userInput !== '1') {
-    return { message: 'Invalid selection.', continueSession: false };
+    return { message: 'Invalid selection. Please enter 1 or 2.', continueSession: false };
   }
 
   try {
-    // Validate that voting is still open before processing payment
+    // Validate that voting is still open
     const award = await Award.findById(session.data.awardId)
       .select('votingStartDate votingEndDate votingStartTime votingEndTime')
       .lean();
 
     if (!award) {
-      return { message: 'Award not found.', continueSession: false };
+      return { message: 'Event not found. Please try again.', continueSession: false };
     }
 
     const now = new Date();
     let isVotingOpen = false;
 
-    // Simplified validation: Just use award voting dates
     if (award.votingStartDate && award.votingEndDate) {
       const start = new Date(award.votingStartDate);
       const end = new Date(award.votingEndDate);
@@ -334,14 +410,13 @@ async function handleConfirmation(session: any, userInput: string, phoneNumber: 
 
       isVotingOpen = now >= start && now <= end;
     } else {
-      // If no dates set, allow voting (for testing)
       isVotingOpen = true;
     }
 
     if (!isVotingOpen) {
       session.isActive = false;
       return {
-        message: 'Voting has closed for this award. Your vote was not processed.',
+        message: 'Voting has closed for this event. Your vote was not processed.',
         continueSession: false,
       };
     }
@@ -371,19 +446,19 @@ async function handleConfirmation(session: any, userInput: string, phoneNumber: 
     if (paystackResponse.success) {
       session.isActive = false;
       return {
-        message: `Vote submitted!\n\nApprove the payment prompt on your phone (${phoneNumber}) to complete.\n\nYou will receive SMS confirmation from Paystack.`,
+        message: `Vote Submitted Successfully!\n\nApprove the payment prompt on ${phoneNumber} to complete your vote.\n\nYou will receive SMS confirmation.\n\nThank you for using PawaVotes!`,
         continueSession: false,
       };
     } else {
       await Vote.findByIdAndUpdate(vote._id, { paymentStatus: 'failed' });
       return {
-        message: 'Payment initiation failed. Please try again later.',
+        message: 'Payment initiation failed. Please try again later or contact support.',
         continueSession: false,
       };
     }
   } catch (error: any) {
     return {
-      message: 'An error occurred. Please try again.',
+      message: 'An error occurred while processing your vote. Please try again.',
       continueSession: false,
     };
   }
