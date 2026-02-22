@@ -11,17 +11,13 @@ export async function POST(req: NextRequest) {
     await connectDB();
 
     const body = await req.json();
-    // Arkesel USSD format
     const { sessionID, userID, newSession, msisdn, userData, network } = body;
-    
-    // Map Arkesel fields to our internal format
     const sessionId = sessionID;
     const phoneNumber = msisdn;
     const text = userData || '';
     
     let session = await UssdSession.findOne({ sessionId });
     
-    // Check if this is a new session
     if (!session || newSession === true) {
       session = await UssdSession.create({
         sessionId,
@@ -39,10 +35,9 @@ export async function POST(req: NextRequest) {
     const response = await handleUssdFlow(session, userInput, phoneNumber);
     await session.save();
 
-    // Convert response to Arkesel format
     const arkeselResponse = {
       sessionID: sessionId,
-      userID: userID || 'CP9VG7Y5TN_dNri2', // Arkesel USERID
+      userID: userID || 'CP9VG7Y5TN_dNri2',
       msisdn: phoneNumber,
       message: response.message,
       continueSession: response.continueSession,
@@ -96,82 +91,27 @@ async function handleUssdFlow(session: any, userInput: string, phoneNumber: stri
 
 async function showWelcome(session: any) {
   console.log('USSD: Fetching published awards...');
-  const awards = await Award.find({ status: 'published' })
-    .select('name votingStartDate votingEndDate votingStartTime votingEndTime settings')
+  const awards = await Award.find()
     .limit(10)
     .lean();
   
   console.log(`USSD: Found ${awards.length} published awards`);
   
   if (awards.length === 0) {
+    console.log('USSD: No published awards found in database');
     return { message: 'No active awards available at the moment.', continueSession: false };
   }
 
-  const now = new Date();
-  console.log(`USSD: Current time: ${now.toISOString()}`);
-  const activeAwards = [];
-
-  for (const award of awards) {
-    console.log(`\nUSSD: Checking award: ${award.name}`);
-    console.log(`USSD: - votingStartDate: ${award.votingStartDate}`);
-    console.log(`USSD: - votingEndDate: ${award.votingEndDate}`);
-    console.log(`USSD: - votingStartTime: ${award.votingStartTime}`);
-    console.log(`USSD: - votingEndTime: ${award.votingEndTime}`);
-    
-    let isActive = false;
-
-    // Simplified logic: Just use award voting dates, ignore stages for now
-    // This allows USSD voting to work even without stages configured
-    if (award.votingStartDate && award.votingEndDate) {
-      const start = new Date(award.votingStartDate);
-      const end = new Date(award.votingEndDate);
-
-      // Add time if available
-      if (award.votingStartTime) {
-        const [hours, minutes] = award.votingStartTime.split(':');
-        start.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-      } else {
-        start.setHours(0, 0, 0, 0);
-      }
-
-      if (award.votingEndTime) {
-        const [hours, minutes] = award.votingEndTime.split(':');
-        end.setHours(parseInt(hours), parseInt(minutes), 59, 999);
-      } else {
-        end.setHours(23, 59, 59, 999);
-      }
-
-      console.log(`USSD: - Award start: ${start.toISOString()}`);
-      console.log(`USSD: - Award end: ${end.toISOString()}`);
-      isActive = now >= start && now <= end;
-      console.log(`USSD: - Award is active: ${isActive}`);
-    } else {
-      console.log('USSD: - No voting dates set, treating as active for testing');
-      // If no dates set, consider it active (allows testing)
-      isActive = true;
-    }
-
-    if (isActive) {
-      console.log(`USSD: ✓ Award "${award.name}" added to active list`);
-      activeAwards.push(award);
-    } else {
-      console.log(`USSD: ✗ Award "${award.name}" not active`);
-    }
-  }
-
-  console.log(`\nUSSD: Total active awards: ${activeAwards.length}`);
-
-  if (activeAwards.length === 0) {
-    return { message: 'No awards are currently open for voting.', continueSession: false };
-  }
-
+  console.log('USSD: Showing all published awards (date filtering disabled for testing)');
+  
   let menu = 'Welcome to PawaVotes!\nSelect an award to vote:\n\n';
-  activeAwards.forEach((award, index) => {
+  awards.forEach((award, index) => {
     menu += `${index + 1}. ${award.name}\n`;
+    console.log(`USSD: - Award ${index + 1}: ${award.name} (ID: ${award._id})`);
   });
 
   session.currentStep = 'select_award';
-  session.data.awards = activeAwards;
+  session.data.awards = awards;
 
   return { message: menu, continueSession: true };
 }

@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/pawavotes';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://saanii929_db_user:QrSSAhB6OU0HjqAs@blinkit.y2dpp4h.mongodb.net/?appName=Blinkit';
 
 async function hashPassword(password) {
   const salt = await bcrypt.genSalt(10);
