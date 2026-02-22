@@ -95,95 +95,71 @@ async function handleUssdFlow(session: any, userInput: string, phoneNumber: stri
 }
 
 async function showWelcome(session: any) {
+  console.log('USSD: Fetching published awards...');
   const awards = await Award.find({ status: 'published' })
-    .select('name votingStartDate votingEndDate votingStartTime votingEndTime')
+    .select('name votingStartDate votingEndDate votingStartTime votingEndTime settings')
     .limit(10)
     .lean();
+  
+  console.log(`USSD: Found ${awards.length} published awards`);
   
   if (awards.length === 0) {
     return { message: 'No active awards available at the moment.', continueSession: false };
   }
 
   const now = new Date();
+  console.log(`USSD: Current time: ${now.toISOString()}`);
   const activeAwards = [];
 
   for (const award of awards) {
+    console.log(`\nUSSD: Checking award: ${award.name}`);
+    console.log(`USSD: - votingStartDate: ${award.votingStartDate}`);
+    console.log(`USSD: - votingEndDate: ${award.votingEndDate}`);
+    console.log(`USSD: - votingStartTime: ${award.votingStartTime}`);
+    console.log(`USSD: - votingEndTime: ${award.votingEndTime}`);
+    
     let isActive = false;
 
-    try {
-      // Check if award has active stages
-      const Stage = (await import('@/models/Stage')).default;
-      const activeStage = await Stage.findOne({
-        awardId: award._id.toString(),
-        status: 'active',
-        stageType: 'voting',
-      })
-        .select('startDate endDate startTime endTime')
-        .lean();
+    // Simplified logic: Just use award voting dates, ignore stages for now
+    // This allows USSD voting to work even without stages configured
+    if (award.votingStartDate && award.votingEndDate) {
+      const start = new Date(award.votingStartDate);
+      const end = new Date(award.votingEndDate);
 
-      // If award has an active voting stage, check stage dates
-      if (activeStage) {
-        const stageStart = new Date(activeStage.startDate);
-        const stageEnd = new Date(activeStage.endDate);
-
-        // Add time if available
-        if (activeStage.startTime) {
-          const [hours, minutes] = activeStage.startTime.split(':');
-          stageStart.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-        }
-
-        if (activeStage.endTime) {
-          const [hours, minutes] = activeStage.endTime.split(':');
-          stageEnd.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-        }
-
-        isActive = now >= stageStart && now <= stageEnd;
+      // Add time if available
+      if (award.votingStartTime) {
+        const [hours, minutes] = award.votingStartTime.split(':');
+        start.setHours(parseInt(hours), parseInt(minutes), 0, 0);
       } else {
-        // Fallback to award's voting period if no active stage
-        if (award.votingStartDate && award.votingEndDate) {
-          const start = new Date(award.votingStartDate);
-          const end = new Date(award.votingEndDate);
-
-          // Add time if available
-          if (award.votingStartTime) {
-            const [hours, minutes] = award.votingStartTime.split(':');
-            start.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-          }
-
-          if (award.votingEndTime) {
-            const [hours, minutes] = award.votingEndTime.split(':');
-            end.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-          }
-
-          isActive = now >= start && now <= end;
-        }
+        start.setHours(0, 0, 0, 0);
       }
-    } catch (error) {
-      // If Stage model doesn't exist or error occurs, fallback to award dates
-      console.log('Stage check error, using award dates:', error);
-      if (award.votingStartDate && award.votingEndDate) {
-        const start = new Date(award.votingStartDate);
-        const end = new Date(award.votingEndDate);
 
-        // Add time if available
-        if (award.votingStartTime) {
-          const [hours, minutes] = award.votingStartTime.split(':');
-          start.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-        }
-
-        if (award.votingEndTime) {
-          const [hours, minutes] = award.votingEndTime.split(':');
-          end.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-        }
-
-        isActive = now >= start && now <= end;
+      if (award.votingEndTime) {
+        const [hours, minutes] = award.votingEndTime.split(':');
+        end.setHours(parseInt(hours), parseInt(minutes), 59, 999);
+      } else {
+        end.setHours(23, 59, 59, 999);
       }
+
+      console.log(`USSD: - Award start: ${start.toISOString()}`);
+      console.log(`USSD: - Award end: ${end.toISOString()}`);
+      isActive = now >= start && now <= end;
+      console.log(`USSD: - Award is active: ${isActive}`);
+    } else {
+      console.log('USSD: - No voting dates set, treating as active for testing');
+      // If no dates set, consider it active (allows testing)
+      isActive = true;
     }
 
     if (isActive) {
+      console.log(`USSD: ✓ Award "${award.name}" added to active list`);
       activeAwards.push(award);
+    } else {
+      console.log(`USSD: ✗ Award "${award.name}" not active`);
     }
   }
+
+  console.log(`\nUSSD: Total active awards: ${activeAwards.length}`);
 
   if (activeAwards.length === 0) {
     return { message: 'No awards are currently open for voting.', continueSession: false };
@@ -397,70 +373,29 @@ async function handleConfirmation(session: any, userInput: string, phoneNumber: 
     const now = new Date();
     let isVotingOpen = false;
 
-    try {
-      // Check if award has active voting stage
-      const Stage = (await import('@/models/Stage')).default;
-      const activeStage = await Stage.findOne({
-        awardId: session.data.awardId,
-        status: 'active',
-        stageType: 'voting',
-      })
-        .select('startDate endDate startTime endTime')
-        .lean();
+    // Simplified validation: Just use award voting dates
+    if (award.votingStartDate && award.votingEndDate) {
+      const start = new Date(award.votingStartDate);
+      const end = new Date(award.votingEndDate);
 
-      if (activeStage) {
-        const stageStart = new Date(activeStage.startDate);
-        const stageEnd = new Date(activeStage.endDate);
-
-        if (activeStage.startTime) {
-          const [hours, minutes] = activeStage.startTime.split(':');
-          stageStart.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-        }
-
-        if (activeStage.endTime) {
-          const [hours, minutes] = activeStage.endTime.split(':');
-          stageEnd.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-        }
-
-        isVotingOpen = now >= stageStart && now <= stageEnd;
+      if (award.votingStartTime) {
+        const [hours, minutes] = award.votingStartTime.split(':');
+        start.setHours(parseInt(hours), parseInt(minutes), 0, 0);
       } else {
-        // Fallback to award's voting period
-        if (award.votingStartDate && award.votingEndDate) {
-          const start = new Date(award.votingStartDate);
-          const end = new Date(award.votingEndDate);
-
-          if (award.votingStartTime) {
-            const [hours, minutes] = award.votingStartTime.split(':');
-            start.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-          }
-
-          if (award.votingEndTime) {
-            const [hours, minutes] = award.votingEndTime.split(':');
-            end.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-          }
-
-          isVotingOpen = now >= start && now <= end;
-        }
+        start.setHours(0, 0, 0, 0);
       }
-    } catch (error) {
-      // If Stage model doesn't exist, fallback to award dates
-      console.log('Stage check error in confirmation, using award dates:', error);
-      if (award.votingStartDate && award.votingEndDate) {
-        const start = new Date(award.votingStartDate);
-        const end = new Date(award.votingEndDate);
 
-        if (award.votingStartTime) {
-          const [hours, minutes] = award.votingStartTime.split(':');
-          start.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-        }
-
-        if (award.votingEndTime) {
-          const [hours, minutes] = award.votingEndTime.split(':');
-          end.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-        }
-
-        isVotingOpen = now >= start && now <= end;
+      if (award.votingEndTime) {
+        const [hours, minutes] = award.votingEndTime.split(':');
+        end.setHours(parseInt(hours), parseInt(minutes), 59, 999);
+      } else {
+        end.setHours(23, 59, 59, 999);
       }
+
+      isVotingOpen = now >= start && now <= end;
+    } else {
+      // If no dates set, allow voting (for testing)
+      isVotingOpen = true;
     }
 
     if (!isVotingOpen) {
