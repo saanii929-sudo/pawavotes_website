@@ -451,7 +451,8 @@ async function handleConfirmation(session: any, userInput: string, phoneNumber: 
     const paymentReference = `USSD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const dummyEmail = `${phoneNumber}@ussd.pawavotes.com`;
     
-    const vote = await Vote.create({
+    console.log(`USSD: Creating vote record...`);
+    console.log(`USSD: Vote data:`, {
       awardId: session.data.awardId,
       categoryId: session.data.categoryId,
       nomineeId: session.data.nomineeId,
@@ -463,12 +464,39 @@ async function handleConfirmation(session: any, userInput: string, phoneNumber: 
       paymentMethod: 'ussd',
       paymentStatus: 'pending',
     });
+    
+    let vote;
+    try {
+      vote = await Vote.create({
+        awardId: session.data.awardId,
+        categoryId: session.data.categoryId,
+        nomineeId: session.data.nomineeId,
+        voterEmail: dummyEmail,
+        voterPhone: phoneNumber,
+        numberOfVotes: session.data.numberOfVotes,
+        amount: session.data.amount,
+        paymentReference,
+        paymentMethod: 'ussd',
+        paymentStatus: 'pending',
+      });
+      
+      console.log(`USSD: Vote created successfully with ID: ${vote._id}`);
+    } catch (voteError: any) {
+      console.error(`USSD: Error creating vote:`, voteError);
+      return {
+        message: 'Error creating vote record. Please try again.',
+        continueSession: false,
+      };
+    }
+    
     const paystackResponse = await initiatePaystackCharge(
       dummyEmail,
       session.data.amount,
       phoneNumber,
       paymentReference
     );
+
+    console.log(`USSD: Paystack response:`, JSON.stringify(paystackResponse));
 
     if (paystackResponse.success) {
       session.isActive = false;
@@ -479,10 +507,17 @@ async function handleConfirmation(session: any, userInput: string, phoneNumber: 
     } else {
       // Check if we're in test mode (using test keys)
       const isTestMode = process.env.PAYSTACK_SECRET_KEY?.startsWith('sk_test_');
+      console.log(`USSD: Test mode: ${isTestMode}`);
       
       if (isTestMode) {
         // In test mode, mark vote as completed for testing
-        await Vote.findByIdAndUpdate(vote._id, { paymentStatus: 'completed' });
+        console.log(`USSD: Marking vote as completed in test mode`);
+        const updatedVote = await Vote.findByIdAndUpdate(
+          vote._id, 
+          { paymentStatus: 'completed' },
+          { new: true }
+        );
+        console.log(`USSD: Vote updated:`, updatedVote ? 'success' : 'failed');
         session.isActive = false;
         return {
           message: `TEST MODE: Vote recorded successfully!\n\nNominee: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nNote: Using test keys. Mobile money requires live Paystack keys.\n\nThank you for using PawaVotes!`,
@@ -490,6 +525,7 @@ async function handleConfirmation(session: any, userInput: string, phoneNumber: 
         };
       }
       
+      console.log(`USSD: Payment failed, marking vote as failed`);
       await Vote.findByIdAndUpdate(vote._id, { paymentStatus: 'failed' });
       return {
         message: 'Payment initiation failed. Please try again later or contact support.',
@@ -497,6 +533,7 @@ async function handleConfirmation(session: any, userInput: string, phoneNumber: 
       };
     }
   } catch (error: any) {
+    console.error('USSD: Error in handleConfirmation:', error);
     return {
       message: 'An error occurred while processing your vote. Please try again.',
       continueSession: false,
