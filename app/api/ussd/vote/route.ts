@@ -417,27 +417,95 @@ async function handleConfirmation(session: any, userInput: string, phoneNumber: 
     const now = new Date();
     let isVotingOpen = false;
 
-    if (award.votingStartDate && award.votingEndDate) {
-      const start = new Date(award.votingStartDate);
-      const end = new Date(award.votingEndDate);
+    try {
+      // Check if award has an active voting stage (takes priority over award dates)
+      const Stage = (await import('@/models/Stage')).default;
+      const activeStage = await Stage.findOne({
+        awardId: session.data.awardId,
+        status: 'active',
+        stageType: 'voting',
+      })
+        .select('startDate endDate startTime endTime')
+        .lean();
 
-      if (award.votingStartTime) {
-        const [hours, minutes] = award.votingStartTime.split(':');
-        start.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+      console.log(`USSD: Active voting stage found: ${!!activeStage}`);
+
+      if (activeStage) {
+        // If award has an active voting stage, use stage dates (takes priority)
+        const stageStart = new Date(activeStage.startDate);
+        const stageEnd = new Date(activeStage.endDate);
+
+        if (activeStage.startTime) {
+          const [hours, minutes] = activeStage.startTime.split(':');
+          stageStart.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        } else {
+          stageStart.setHours(0, 0, 0, 0);
+        }
+
+        if (activeStage.endTime) {
+          const [hours, minutes] = activeStage.endTime.split(':');
+          stageEnd.setHours(parseInt(hours), parseInt(minutes), 59, 999);
+        } else {
+          stageEnd.setHours(23, 59, 59, 999);
+        }
+
+        console.log(`USSD: Stage voting period: ${stageStart.toISOString()} to ${stageEnd.toISOString()}`);
+        isVotingOpen = now >= stageStart && now <= stageEnd;
+        console.log(`USSD: Stage voting is open: ${isVotingOpen}`);
       } else {
-        start.setHours(0, 0, 0, 0);
-      }
+        // Fallback to award's voting period if no active stage
+        console.log(`USSD: No active stage, using award voting dates`);
+        if (award.votingStartDate && award.votingEndDate) {
+          const start = new Date(award.votingStartDate);
+          const end = new Date(award.votingEndDate);
 
-      if (award.votingEndTime) {
-        const [hours, minutes] = award.votingEndTime.split(':');
-        end.setHours(parseInt(hours), parseInt(minutes), 59, 999);
+          if (award.votingStartTime) {
+            const [hours, minutes] = award.votingStartTime.split(':');
+            start.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+          } else {
+            start.setHours(0, 0, 0, 0);
+          }
+
+          if (award.votingEndTime) {
+            const [hours, minutes] = award.votingEndTime.split(':');
+            end.setHours(parseInt(hours), parseInt(minutes), 59, 999);
+          } else {
+            end.setHours(23, 59, 59, 999);
+          }
+
+          console.log(`USSD: Award voting period: ${start.toISOString()} to ${end.toISOString()}`);
+          isVotingOpen = now >= start && now <= end;
+          console.log(`USSD: Award voting is open: ${isVotingOpen}`);
+        } else {
+          console.log(`USSD: No voting dates set, allowing voting`);
+          isVotingOpen = true;
+        }
+      }
+    } catch (error) {
+      // If Stage model doesn't exist or error occurs, fallback to award dates
+      console.log('USSD: Stage check error, using award dates:', error);
+      if (award.votingStartDate && award.votingEndDate) {
+        const start = new Date(award.votingStartDate);
+        const end = new Date(award.votingEndDate);
+
+        if (award.votingStartTime) {
+          const [hours, minutes] = award.votingStartTime.split(':');
+          start.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        } else {
+          start.setHours(0, 0, 0, 0);
+        }
+
+        if (award.votingEndTime) {
+          const [hours, minutes] = award.votingEndTime.split(':');
+          end.setHours(parseInt(hours), parseInt(minutes), 59, 999);
+        } else {
+          end.setHours(23, 59, 59, 999);
+        }
+
+        isVotingOpen = now >= start && now <= end;
       } else {
-        end.setHours(23, 59, 59, 999);
+        isVotingOpen = true;
       }
-
-      isVotingOpen = now >= start && now <= end;
-    } else {
-      isVotingOpen = true;
     }
 
     if (!isVotingOpen) {
@@ -619,18 +687,28 @@ function detectMobileProvider(phoneNumber: string): string | null {
   } else {
     prefix = cleanNumber.substring(0, 2);
   }
+  
+  // MTN prefixes
   const mtnPrefixes = ['24', '25', '53', '54', '55', '59'];
 
-  const vodafonePrefixes = ['20', '50'];
+  // Telecel (formerly Vodafone) prefixes - Paystack still uses 'vod'
+  const telecelPrefixes = ['20', '50'];
   
+  // AirtelTigo prefixes
   const airtelTigoPrefixes = ['26', '27', '56', '57'];
 
   if (mtnPrefixes.includes(prefix)) {
+    console.log(`USSD: Detected MTN for prefix ${prefix}`);
     return 'mtn';
-  } else if (vodafonePrefixes.includes(prefix)) {
-    return 'vod';
+  } else if (telecelPrefixes.includes(prefix)) {
+    console.log(`USSD: Detected Telecel (Vodafone) for prefix ${prefix}`);
+    return 'vod'; // Paystack still uses 'vod' for Telecel
   } else if (airtelTigoPrefixes.includes(prefix)) {
+    console.log(`USSD: Detected AirtelTigo for prefix ${prefix}`);
     return 'tgo';
   }
+  
+  // Default to MTN if unknown
+  console.log(`USSD: Unknown prefix ${prefix}, defaulting to MTN`);
   return 'mtn';
 }
