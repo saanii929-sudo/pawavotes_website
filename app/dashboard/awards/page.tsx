@@ -76,7 +76,7 @@ const AwardPage = () => {
   };
 
   const [formData, setFormData] = useState({
-    eventImage: null,
+    eventImage: "",
     organization: "",
     awardName: "",
     votingStartDate: "",
@@ -91,7 +91,7 @@ const AwardPage = () => {
     nominationStartTime: "00:00 AM",
     nominationEndTime: "00:00 PM",
     categories: [],
-    pricingType: "paid", // paid, social
+    pricingType: "paid",
     votingCost: "0.5",
     socialOptions: {
       normalVoting: false,
@@ -136,7 +136,7 @@ const AwardPage = () => {
     setEditingAwardId(null);
     const currentOrgName = formData.organization;
     setFormData({
-      eventImage: null,
+      eventImage: "",
       organization: currentOrgName,
       awardName: "",
       votingStartDate: "",
@@ -256,7 +256,7 @@ const AwardPage = () => {
     setCurrentView("list");
     setCurrentStep(1);
     setFormData({
-      eventImage: null,
+      eventImage: "",
       organization: "",
       awardName: "",
       votingStartDate: "",
@@ -374,7 +374,7 @@ const AwardPage = () => {
         setCurrentStep(1);
         fetchAwards();
         setFormData({
-          eventImage: null,
+          eventImage: "",
           organization: "",
           awardName: "",
           votingStartDate: "",
