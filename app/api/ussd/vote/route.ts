@@ -94,7 +94,7 @@ async function showWelcome(session: any) {
   const awards = await Award.find({ 
     status: { $in: ['published', 'active'] } 
   })
-    .select('name votingStartDate votingEndDate votingStartTime votingEndTime settings')
+    .select('name status votingStartDate votingEndDate votingStartTime votingEndTime settings')
     .limit(10)
     .lean();
   
@@ -192,6 +192,10 @@ async function handleAwardSelection(session: any, userInput: string) {
   const selectedAward = awards[selectedIndex];
   session.data.awardId = selectedAward._id.toString();
   session.data.awardName = selectedAward.name;
+  
+  console.log(`USSD: Selected award: ${selectedAward.name} (ID: ${selectedAward._id})`);
+  console.log(`USSD: Fetching categories for award...`);
+  
   const categories = await Category.find({
     awardId: selectedAward._id,
     status: 'published',
@@ -200,9 +204,11 @@ async function handleAwardSelection(session: any, userInput: string) {
     .limit(10)
     .lean();
 
-  if (categories.length === 0) {
+  console.log(`USSD: Found ${categories ? categories.length : 0} categories`);
+
+  if (!categories || categories.length === 0) {
     return { 
-      message: 'No categories are available for this event at the moment.', 
+      message: 'No categories are available for this event. Please contact the organizer.', 
       continueSession: false 
     };
   }
