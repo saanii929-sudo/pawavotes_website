@@ -477,6 +477,19 @@ async function handleConfirmation(session: any, userInput: string, phoneNumber: 
         continueSession: false,
       };
     } else {
+      // Check if we're in test mode (using test keys)
+      const isTestMode = process.env.PAYSTACK_SECRET_KEY?.startsWith('sk_test_');
+      
+      if (isTestMode) {
+        // In test mode, mark vote as completed for testing
+        await Vote.findByIdAndUpdate(vote._id, { paymentStatus: 'completed' });
+        session.isActive = false;
+        return {
+          message: `TEST MODE: Vote recorded successfully!\n\nNominee: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nNote: Using test keys. Mobile money requires live Paystack keys.\n\nThank you for using PawaVotes!`,
+          continueSession: false,
+        };
+      }
+      
       await Vote.findByIdAndUpdate(vote._id, { paymentStatus: 'failed' });
       return {
         message: 'Payment initiation failed. Please try again later or contact support.',
