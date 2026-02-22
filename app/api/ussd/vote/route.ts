@@ -96,19 +96,72 @@ async function handleUssdFlow(session: any, userInput: string, phoneNumber: stri
 
 async function showWelcome(session: any) {
   const awards = await Award.find({ status: 'published' })
-    .select('name votingStartDate votingEndDate')
+    .select('name votingStartDate votingEndDate votingStartTime votingEndTime')
     .limit(10)
     .lean();
+  
   if (awards.length === 0) {
     return { message: 'No active awards available at the moment.', continueSession: false };
   }
+
   const now = new Date();
-  const activeAwards = awards.filter(award => {
-    if (!award.votingStartDate || !award.votingEndDate) return false;
-    const start = new Date(award.votingStartDate);
-    const end = new Date(award.votingEndDate);
-    return now >= start && now <= end;
-  });
+  const activeAwards = [];
+
+  for (const award of awards) {
+    // Check if award has active stages
+    const Stage = (await import('@/models/Stage')).default;
+    const activeStage = await Stage.findOne({
+      awardId: award._id,
+      status: 'active',
+      stageType: 'voting',
+    })
+      .select('startDate endDate startTime endTime')
+      .lean();
+
+    let isActive = false;
+
+    // If award has an active voting stage, check stage dates
+    if (activeStage) {
+      const stageStart = new Date(activeStage.startDate);
+      const stageEnd = new Date(activeStage.endDate);
+
+      // Add time if available
+      if (activeStage.startTime) {
+        const [hours, minutes] = activeStage.startTime.split(':');
+        stageStart.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+      }
+
+      if (activeStage.endTime) {
+        const [hours, minutes] = activeStage.endTime.split(':');
+        stageEnd.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+      }
+
+      isActive = now >= stageStart && now <= stageEnd;
+    } else {
+      // Fallback to award's voting period if no active stage
+      if (award.votingStartDate && award.votingEndDate) {
+        const start = new Date(award.votingStartDate);
+        const end = new Date(award.votingEndDate);
+
+        // Add time if available
+        if (award.votingStartTime) {
+          const [hours, minutes] = award.votingStartTime.split(':');
+          start.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        }
+
+        if (award.votingEndTime) {
+          const [hours, minutes] = award.votingEndTime.split(':');
+          end.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        }
+
+        isActive = now >= start && now <= end;
+      }
+    }
+
+    if (isActive) {
+      activeAwards.push(award);
+    }
+  }
 
   if (activeAwards.length === 0) {
     return { message: 'No awards are currently open for voting.', continueSession: false };
@@ -308,7 +361,73 @@ async function handleConfirmation(session: any, userInput: string, phoneNumber: 
   if (userInput !== '1') {
     return { message: 'Invalid selection.', continueSession: false };
   }
+
   try {
+    // Validate that voting is still open before processing payment
+    const award = await Award.findById(session.data.awardId)
+      .select('votingStartDate votingEndDate votingStartTime votingEndTime')
+      .lean();
+
+    if (!award) {
+      return { message: 'Award not found.', continueSession: false };
+    }
+
+    const now = new Date();
+    let isVotingOpen = false;
+
+    // Check if award has active voting stage
+    const Stage = (await import('@/models/Stage')).default;
+    const activeStage = await Stage.findOne({
+      awardId: award._id,
+      status: 'active',
+      stageType: 'voting',
+    })
+      .select('startDate endDate startTime endTime')
+      .lean();
+
+    if (activeStage) {
+      const stageStart = new Date(activeStage.startDate);
+      const stageEnd = new Date(activeStage.endDate);
+
+      if (activeStage.startTime) {
+        const [hours, minutes] = activeStage.startTime.split(':');
+        stageStart.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+      }
+
+      if (activeStage.endTime) {
+        const [hours, minutes] = activeStage.endTime.split(':');
+        stageEnd.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+      }
+
+      isVotingOpen = now >= stageStart && now <= stageEnd;
+    } else {
+      // Fallback to award's voting period
+      if (award.votingStartDate && award.votingEndDate) {
+        const start = new Date(award.votingStartDate);
+        const end = new Date(award.votingEndDate);
+
+        if (award.votingStartTime) {
+          const [hours, minutes] = award.votingStartTime.split(':');
+          start.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        }
+
+        if (award.votingEndTime) {
+          const [hours, minutes] = award.votingEndTime.split(':');
+          end.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        }
+
+        isVotingOpen = now >= start && now <= end;
+      }
+    }
+
+    if (!isVotingOpen) {
+      session.isActive = false;
+      return {
+        message: 'Voting has closed for this award. Your vote was not processed.',
+        continueSession: false,
+      };
+    }
+
     const paymentReference = `USSD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const dummyEmail = `${phoneNumber}@ussd.pawavotes.com`;
     

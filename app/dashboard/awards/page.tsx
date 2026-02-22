@@ -832,7 +832,7 @@ const StepContent = ({
               }
               currentImage={formData.eventImage}
               folder="awards/banners"
-              maxSize={5}
+              maxSize={10}
             />
           </div>
           <div>

@@ -174,7 +174,48 @@ const PublicVotingPlatform = () => {
     return false;
   };
 
+  // Check if award is closed (stage ended or voting period ended)
+  const isAwardClosed = () => {
+    if (!selectedAward) return false;
+
+    const now = new Date();
+    
+    // If award has an active stage, check if stage has ended
+    if (activeStage) {
+      const stageEnd = new Date(activeStage.endDate);
+      
+      if (activeStage.endTime) {
+        const [hours, minutes] = activeStage.endTime.split(':');
+        stageEnd.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+      }
+      
+      // If stage has ended, award is closed
+      if (now > stageEnd) {
+        return true;
+      }
+    }
+    
+    // Check if voting period has ended
+    if (selectedAward.votingEndDate) {
+      const endDate = new Date(selectedAward.votingEndDate);
+      
+      if (selectedAward.votingEndTime) {
+        const [hours, minutes] = selectedAward.votingEndTime.split(':');
+        endDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+      }
+      
+      return now > endDate;
+    }
+    
+    return false;
+  };
+
   const handleNomineeClick = (nominee: Nominee) => {
+    if (isAwardClosed()) {
+      toast.error('This award is closed. Voting has ended.');
+      return;
+    }
+    
     if (isVotingOpen()) {
       setSelectedNominee(nominee);
       setVotingModalOpen(true);
@@ -665,14 +706,17 @@ const PublicVotingPlatform = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
           <div className="lg:col-span-2">
             <div className="mb-4">
-              {status === "voting" && (
+              {isAwardClosed() ? (
                 <span className="bg-red-600 text-white px-4 py-1 rounded-full text-sm font-medium">
-                  Voting Has Ended
+                  CLOSED - Voting Has Ended
                 </span>
-              )}
-              {status === "closed" && (
+              ) : isVotingOpen() ? (
                 <span className="bg-green-600 text-white px-4 py-1 rounded-full text-sm font-medium">
-                  ACTIVE
+                  VOTING OPEN
+                </span>
+              ) : (
+                <span className="bg-gray-600 text-white px-4 py-1 rounded-full text-sm font-medium">
+                  VOTING NOT STARTED
                 </span>
               )}
             </div>
