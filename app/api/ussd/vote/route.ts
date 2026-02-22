@@ -111,7 +111,7 @@ async function showWelcome(session: any) {
     // Check if award has active stages
     const Stage = (await import('@/models/Stage')).default;
     const activeStage = await Stage.findOne({
-      awardId: award._id,
+      awardId: award._id.toString(),
       status: 'active',
       stageType: 'voting',
     })
@@ -378,7 +378,7 @@ async function handleConfirmation(session: any, userInput: string, phoneNumber: 
     // Check if award has active voting stage
     const Stage = (await import('@/models/Stage')).default;
     const activeStage = await Stage.findOne({
-      awardId: award._id,
+      awardId: session.data.awardId,
       status: 'active',
       stageType: 'voting',
     })
