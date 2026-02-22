@@ -499,6 +499,12 @@ async function handleConfirmation(session: any, userInput: string, phoneNumber: 
     console.log(`USSD: Paystack response:`, JSON.stringify(paystackResponse));
 
     if (paystackResponse.success) {
+      // Update nominee vote count
+      await Nominee.findByIdAndUpdate(
+        session.data.nomineeId,
+        { $inc: { voteCount: session.data.numberOfVotes } }
+      );
+      
       session.isActive = false;
       return {
         message: `Vote Submitted Successfully!\n\nApprove the payment prompt on ${phoneNumber} to complete your vote.\n\nYou will receive SMS confirmation.\n\nThank you for using PawaVotes!`,
@@ -518,6 +524,15 @@ async function handleConfirmation(session: any, userInput: string, phoneNumber: 
           { new: true }
         );
         console.log(`USSD: Vote updated:`, updatedVote ? 'success' : 'failed');
+        
+        // Update nominee vote count
+        console.log(`USSD: Updating nominee vote count`);
+        await Nominee.findByIdAndUpdate(
+          session.data.nomineeId,
+          { $inc: { voteCount: session.data.numberOfVotes } }
+        );
+        console.log(`USSD: Nominee vote count updated`);
+        
         session.isActive = false;
         return {
           message: `TEST MODE: Vote recorded successfully!\n\nNominee: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nNote: Using test keys. Mobile money requires live Paystack keys.\n\nThank you for using PawaVotes!`,
