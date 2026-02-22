@@ -126,7 +126,7 @@ export default function ContactSection() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-gray-900 mb-1 text-sm">Email Us</h3>
-                  <p className="text-gray-600 text-sm">support@pawavotes.com</p>
+                  <p className="text-gray-600 text-sm">pawavotes@gmail.com</p>
                   <p className="text-gray-600 text-sm">sales@pawavotes.com</p>
                 </div>
               </div>
@@ -138,8 +138,8 @@ export default function ContactSection() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-gray-900 mb-1 text-sm">Call Us</h3>
-                  <p className="text-gray-600 text-sm">+233 24 123 4567</p>
-                  <p className="text-gray-600 text-sm">+233 55 987 6543</p>
+                  <p className="text-gray-600 text-sm">+233 55 273 2025</p>
+                  <p className="text-gray-600 text-sm">+233 54 319 4406</p>
                 </div>
               </div>
 
@@ -150,8 +150,8 @@ export default function ContactSection() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-gray-900 mb-1 text-sm">Visit Our Office</h3>
-                  <p className="text-gray-600 text-sm">12 Independence Avenue, Ridge</p>
-                  <p className="text-gray-600 text-sm">Accra, Ghana</p>
+                  <p className="text-gray-600 text-sm">Asafo, O.A Street</p>
+                  <p className="text-gray-600 text-sm">Kumasi, Ghana</p>
                 </div>
               </div>
             </div>
@@ -343,7 +343,7 @@ export default function ContactSection() {
           {/* Copyright */}
           <div className="pt-8 border-t border-gray-200">
             <p className="text-center text-sm text-gray-500">
-              © 2025 Pawavotes. All rights reserved. Built for trust and transparency in Africa.
+              © {new Date().getFullYear()} Pawavotes. All rights reserved. Built for trust and transparency in Africa.
             </p>
           </div>
         </div>
