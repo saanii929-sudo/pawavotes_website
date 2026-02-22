@@ -1,23 +1,17 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Sidebar1 from '@/components/sidebar1';
 import Topbar1 from '@/components/topbar1';
 import { UIProvider } from '@/context/ui-context';
-import { 
-  LayoutGrid, 
-  Vote, 
-  Users, 
-  UserCheck, 
-  BarChart3, 
-  Settings,
-  LogOut,
-  Menu,
-  X
-} from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
-import ChatbotWidget from '@/components/chatbot-widget';
+
+
+const metadata = {
+  title: "PawaVotes Election Dashboard",
+  description: "Manage your elections, candidates, and voters with ease.",
+};
 
 export default function ElectionDashboardLayout({
   children,
@@ -74,7 +68,7 @@ export default function ElectionDashboardLayout({
   }
 
   if (!isAuthenticated) {
-    return null; // or a fallback UI
+    return null;
   }
 
   return (

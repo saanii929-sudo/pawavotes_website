@@ -8,6 +8,12 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Toaster } from 'react-hot-toast';
 
+
+const metadata = {
+  title: "PawaVotes Awards Dashboard",
+  description: "Manage your awards, campaigns, and analytics with ease.",
+};
+
 export default function DashboardLayout({
   children,
 }: {
@@ -28,10 +34,7 @@ export default function DashboardLayout({
 
     try {
       const user = JSON.parse(userData);
-      
-      // Check if user is an organization or org-admin
       if (user.role !== 'organization' && user.role !== 'org-admin') {
-        // If superadmin, redirect to superadmin dashboard
         if (user.role === 'superadmin') {
           router.push('/superadmin');
         } else {
@@ -39,8 +42,6 @@ export default function DashboardLayout({
         }
         return;
       }
-
-      // Redirect election organizations to election dashboard
       if (user.role === 'organization' && user.eventType === 'election') {
         router.push('/election-dashboard');
         return;
@@ -123,7 +124,6 @@ export default function DashboardLayout({
           <main className="p-4 md:px-24">{children}</main>
         </div>
       </div>
-      {/* Chatbot Widget */}
       <ChatbotWidget />
     </UIProvider>
   );

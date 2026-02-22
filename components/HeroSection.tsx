@@ -47,7 +47,7 @@ export default function HeroSection() {
         animate="visible"
         className="absolute top-0 z-20 flex w-full items-center justify-between px-4 py-5 sm:px-6 md:px-16"
       >
-        <Image src="/images/logo.png" alt="Pawavotes" width={120} height={120} />
+        <Image src="/images/logo.png" alt="Pawavotes" width={100} height={100} />
 
         {/* Desktop Nav */}
         <ul className="hidden items-center gap-16 text-lg text-white md:flex">

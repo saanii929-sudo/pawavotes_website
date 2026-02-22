@@ -2,14 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import Link from "next/link";
-import Image from "next/image";
 import {
   LayoutGrid,
   Building2,
-  LogOut,
-  Menu,
-  X,
   DollarSign,
   CreditCard,
 } from "lucide-react";
@@ -17,6 +12,12 @@ import AdminSidebar from "@/components/AdminSidebar";
 import { UIProvider } from "@/context/ui-context";
 import { Toaster } from "react-hot-toast";
 import AdminTopBar from "@/components/AdminTopBar";
+
+
+const metadata = {
+  title: "PawaVotes SuperAdmin Dashboard",
+  description: "Manage organizations, service fees, and platform revenue.",
+};
 
 export default function SuperAdminLayout({
   children,
