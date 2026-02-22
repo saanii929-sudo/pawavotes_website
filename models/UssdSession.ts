@@ -5,12 +5,16 @@ export interface IUssdSession extends Document {
   phoneNumber: string;
   currentStep: string;
   data: {
+    awards?: any[];
+    categories?: any[];
+    nominees?: any[];
     awardId?: string;
     awardName?: string;
     categoryId?: string;
     categoryName?: string;
     nomineeId?: string;
     nomineeName?: string;
+    nomineeCode?: string;
     numberOfVotes?: number;
     amount?: number;
     email?: string;
@@ -40,12 +44,16 @@ const UssdSessionSchema: Schema = new Schema(
       default: 'welcome',
     },
     data: {
+      awards: [Schema.Types.Mixed],
+      categories: [Schema.Types.Mixed],
+      nominees: [Schema.Types.Mixed],
       awardId: String,
       awardName: String,
       categoryId: String,
       categoryName: String,
       nomineeId: String,
       nomineeName: String,
+      nomineeCode: String,
       numberOfVotes: Number,
       amount: Number,
       email: String,
