@@ -58,12 +58,14 @@ export async function POST(req: NextRequest) {
 
 async function handleUssdFlow(session: any, userInput: string, phoneNumber: string) {
   const step = session.currentStep;
+  console.log(`USSD: handleUssdFlow - step: ${step}, input: ${userInput}`);
 
   switch (step) {
     case 'welcome':
       return await showWelcome(session);
 
     case 'select_award':
+      console.log(`USSD: Calling handleAwardSelection`);
       return await handleAwardSelection(session, userInput);
 
     case 'select_category':
@@ -85,6 +87,7 @@ async function handleUssdFlow(session: any, userInput: string, phoneNumber: stri
       return await handleConfirmation(session, userInput, phoneNumber);
 
     default:
+      console.log(`USSD: Invalid step: ${step}`);
       return { message: 'Invalid session. Please try again.', continueSession: false };
   }
 }
