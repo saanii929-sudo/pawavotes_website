@@ -16,6 +16,8 @@
     "check-votes": "npx ts-node scripts/check-vote-amounts.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.995.0",
+    "@aws-sdk/s3-request-presigner": "^3.995.0",
     "@next/swc-win32-x64-msvc": "^16.1.6",
     "bcryptjs": "^3.0.3",
     "framer-motion": "^12.34.0",

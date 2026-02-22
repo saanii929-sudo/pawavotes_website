@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { Plus, Edit, Trash2, User, Upload, Loader2 } from 'lucide-react';
+import { Plus, Edit, Trash2, User } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ImageUpload from '@/components/ImageUpload';
 
 interface Candidate {
   _id: string;
@@ -36,8 +37,6 @@ export default function CandidatesPage() {
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingCandidate, setEditingCandidate] = useState<Candidate | null>(null);
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const [imagePreview, setImagePreview] = useState<string>('');
   const [formData, setFormData] = useState({
     categoryId: '',
     name: '',
@@ -167,53 +166,10 @@ export default function CandidatesPage() {
       manifesto: candidate.manifesto || '',
       ballotNumber: candidate.ballotNumber,
     });
-    setImagePreview(candidate.image || '');
     setShowModal(true);
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please upload an image file');
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Image size should be less than 5MB');
-      return;
-    }
-
-    setUploadingImage(true);
-
-    try {
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-
-      setImagePreview(base64);
-      setFormData({ ...formData, image: base64 });
-      toast.success('Image uploaded successfully');
-    } catch (error) {
-      console.error('Image upload error:', error);
-      toast.error('Failed to upload image');
-    } finally {
-      setUploadingImage(false);
-    }
-  };
-
-  const removeImage = () => {
-    setImagePreview('');
-    setFormData({ ...formData, image: '' });
-  };
-
   const handleDelete = async (candidateId: string) => {
-    if (!confirm('Are you sure you want to delete this candidate? This action cannot be undone.')) {
-      return;
-    }
 
     try {
       const token = localStorage.getItem('token');
@@ -246,7 +202,6 @@ export default function CandidatesPage() {
       manifesto: '',
       ballotNumber: 1,
     });
-    setImagePreview('');
   };
 
   const groupedCandidates = candidates.reduce((acc, candidate) => {
@@ -436,52 +391,13 @@ export default function CandidatesPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Candidate Image</label>
-                
-                {imagePreview ? (
-                  <div className="relative">
-                    <img
-                      src={imagePreview}
-                      alt="Preview"
-                      className="w-full h-48 object-cover rounded-lg border-2 border-gray-200"
-                    />
-                    <button
-                      type="button"
-                      onClick={removeImage}
-                      className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-green-400 transition">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      className="hidden"
-                      id="candidate-image-upload"
-                      disabled={uploadingImage}
-                    />
-                    <label
-                      htmlFor="candidate-image-upload"
-                      className="cursor-pointer"
-                    >
-                      {uploadingImage ? (
-                        <div className="flex flex-col items-center">
-                          <Loader2 size={32} className="text-green-600 animate-spin mb-2" />
-                          <p className="text-sm text-gray-600">Uploading...</p>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center">
-                          <Upload size={32} className="text-gray-400 mb-2" />
-                          <p className="text-sm text-gray-600">Click to upload candidate image</p>
-                          <p className="text-xs text-gray-400 mt-1">PNG, JPG up to 5MB</p>
-                        </div>
-                      )}
-                    </label>
-                  </div>
-                )}
+                <label className="block text-sm font-medium mb-2">Candidate Image</label>
+                <ImageUpload
+                  onUploadComplete={(url) => setFormData({ ...formData, image: url })}
+                  currentImage={formData.image}
+                  folder="elections/candidates"
+                  maxSize={5}
+                />
               </div>
 
               <div>

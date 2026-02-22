@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Upload, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
+import ImageUpload from '@/components/ImageUpload';
 
 interface OrganizationData {
   _id: string;
@@ -107,21 +108,6 @@ const OrganizationSettings = () => {
         ...prev,
         [name]: value,
       }));
-    }
-  };
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Convert to base64
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData(prev => ({
-          ...prev,
-          logo: reader.result as string,
-        }));
-      };
-      reader.readAsDataURL(file);
     }
   };
 
@@ -239,31 +225,12 @@ const OrganizationSettings = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Organization Profile Image
                 </label>
-                <div className="flex items-center gap-4">
-                  <div className="w-24 h-24 bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center overflow-hidden">
-                    {formData.logo ? (
-                      <img src={formData.logo} alt="Logo" className="w-full h-full object-cover" />
-                    ) : (
-                      <Upload className="text-gray-400" size={32} />
-                    )}
-                  </div>
-                  <div>
-                    <input
-                      type="file"
-                      id="logo-upload"
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      className="hidden"
-                    />
-                    <label
-                      htmlFor="logo-upload"
-                      className="cursor-pointer inline-block px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
-                    >
-                      Upload Image
-                    </label>
-                    <p className="text-sm text-gray-600 mt-2">Upload your organization logo</p>
-                  </div>
-                </div>
+                <ImageUpload
+                  onUploadComplete={(url) => setFormData(prev => ({ ...prev, logo: url }))}
+                  currentImage={formData.logo}
+                  folder="organizations/logos"
+                  maxSize={5}
+                />
               </div>
 
               {/* Organization Name */}

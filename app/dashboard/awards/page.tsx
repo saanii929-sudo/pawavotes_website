@@ -1,19 +1,10 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Plus,
-  Upload,
-  Award,
-  ChevronRight,
-  ChevronLeft,
-  Info,
-  MoreVertical,
-  Edit2,
-  Trash2,
-} from "lucide-react";
+import { Plus, ChevronRight, ChevronLeft, Info } from "lucide-react";
 import Image from "next/image";
 import toast from "react-hot-toast";
+import ImageUpload from "@/components/ImageUpload";
 
 const AwardPage = () => {
   const [currentView, setCurrentView] = useState("list"); // list, create
@@ -21,7 +12,7 @@ const AwardPage = () => {
   const [awards, setAwards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingAwardId, setEditingAwardId] = useState<string | null>(null);
-  const [userRole, setUserRole] = useState<string>('organization');
+  const [userRole, setUserRole] = useState<string>("organization");
   const [serviceFeePercentage, setServiceFeePercentage] = useState<number>(10);
   const [showActionMenu, setShowActionMenu] = useState<string | null>(null);
 
@@ -35,7 +26,7 @@ const AwardPage = () => {
     try {
       const token = localStorage.getItem("token");
       console.log("Fetching current user...");
-      
+
       const response = await fetch("/api/auth/me", {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -48,9 +39,9 @@ const AwardPage = () => {
         const user = data.data;
         const orgName = user.organizationName || user.name || "";
         console.log("Organization name:", orgName);
-        
-        setFormData(prev => ({ ...prev, organization: orgName }));
-        setUserRole(user.role || 'organization');
+
+        setFormData((prev) => ({ ...prev, organization: orgName }));
+        setUserRole(user.role || "organization");
         setServiceFeePercentage(user.serviceFeePercentage || 10);
       } else {
         const errorData = await response.json();
@@ -84,34 +75,6 @@ const AwardPage = () => {
     }
   };
 
-  const handleDeleteAward = async (awardId: string, awardName: string) => {
-    if (!confirm(`Are you sure you want to delete "${awardName}"? This action cannot be undone.`)) {
-      return;
-    }
-
-    const loadingToast = toast.loading("Deleting award...");
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`/api/awards/${awardId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        toast.success("Award deleted successfully!", { id: loadingToast });
-        fetchAwards(); // Refresh the list
-        setShowActionMenu(null);
-      } else {
-        const data = await response.json();
-        toast.error(data.error || "Failed to delete award", { id: loadingToast });
-      }
-    } catch (error) {
-      console.error("Failed to delete award:", error);
-      toast.error("Failed to delete award", { id: loadingToast });
-    }
-  };
   const [formData, setFormData] = useState({
     eventImage: null,
     organization: "",
@@ -210,7 +173,7 @@ const AwardPage = () => {
 
   const handleEditAward = async (awardId: string) => {
     const loadingToast = toast.loading("Loading award...");
-    
+
     try {
       const token = localStorage.getItem("token");
       const response = await fetch(`/api/awards/${awardId}`, {
@@ -221,20 +184,28 @@ const AwardPage = () => {
 
       if (response.ok) {
         const { data: award } = await response.json();
-        const imageToDisplay = award.banner || '/images/events/event-1.png';
+        const imageToDisplay = award.banner || "/images/events/event-1.png";
         setFormData({
           eventImage: imageToDisplay,
           organization: award.organizationName,
           awardName: award.name,
-          votingStartDate: award.votingStartDate ? new Date(award.votingStartDate).toISOString().split('T')[0] : "",
-          votingEndDate: award.votingEndDate ? new Date(award.votingEndDate).toISOString().split('T')[0] : "",
+          votingStartDate: award.votingStartDate
+            ? new Date(award.votingStartDate).toISOString().split("T")[0]
+            : "",
+          votingEndDate: award.votingEndDate
+            ? new Date(award.votingEndDate).toISOString().split("T")[0]
+            : "",
           votingStartTime: award.votingStartTime || "00:00",
           votingEndTime: award.votingEndTime || "00:00",
           activateNomination: award.nomination?.enabled || false,
           nominationType: award.nomination?.type || "free",
           nominationFixedPrice: award.nomination?.fixedPrice?.toString() || "",
-          nominationStartDate: award.nomination?.startDate ? new Date(award.nomination.startDate).toISOString().split('T')[0] : "",
-          nominationEndDate: award.nomination?.endDate ? new Date(award.nomination.endDate).toISOString().split('T')[0] : "",
+          nominationStartDate: award.nomination?.startDate
+            ? new Date(award.nomination.startDate).toISOString().split("T")[0]
+            : "",
+          nominationEndDate: award.nomination?.endDate
+            ? new Date(award.nomination.endDate).toISOString().split("T")[0]
+            : "",
           nominationStartTime: award.nomination?.startTime || "00:00",
           nominationEndTime: award.nomination?.endTime || "00:00",
           categories: award.nomination?.categories || [],
@@ -247,14 +218,14 @@ const AwardPage = () => {
             twitter: false,
           },
           votingFrequency: award.pricing?.votingFrequency?.toString() || "",
-          publishAward: award.status === 'active',
+          publishAward: award.status === "active",
           showResults: award.settings?.showResults || false,
           awardPreferences: {
-            publish: award.status === 'active',
+            publish: award.status === "active",
             showResults: award.settings?.showResults || false,
           },
         });
-        
+
         setEditingAwardId(awardId);
         setCurrentView("create");
         setCurrentStep(1);
@@ -320,11 +291,13 @@ const AwardPage = () => {
 
   const handleDone = async () => {
     const isEditing = !!editingAwardId;
-    const loadingToast = toast.loading(isEditing ? "Updating award..." : "Creating award...");
-    
+    const loadingToast = toast.loading(
+      isEditing ? "Updating award..." : "Creating award...",
+    );
+
     try {
       const token = localStorage.getItem("token");
-      
+
       console.log("Form data before submission:", formData);
       console.log("Organization name:", formData.organization);
       const awardData = {
@@ -337,26 +310,38 @@ const AwardPage = () => {
         votingEndDate: formData.votingEndDate,
         votingStartTime: formData.votingStartTime,
         votingEndTime: formData.votingEndTime,
-        status: formData.awardPreferences.publish ? 'active' : 'draft',
+        status: formData.awardPreferences.publish ? "active" : "draft",
         banner: formData.eventImage || undefined,
         nomination: {
           enabled: formData.activateNomination,
           type: formData.nominationType,
-          fixedPrice: formData.nominationType === 'fixed' ? parseFloat(formData.nominationFixedPrice) || 0 : undefined,
+          fixedPrice:
+            formData.nominationType === "fixed"
+              ? parseFloat(formData.nominationFixedPrice) || 0
+              : undefined,
           startDate: formData.nominationStartDate || undefined,
           endDate: formData.nominationEndDate || undefined,
           startTime: formData.nominationStartTime || undefined,
           endTime: formData.nominationEndTime || undefined,
-          categories: formData.nominationType === 'category' ? formData.categories : undefined,
+          categories:
+            formData.nominationType === "category"
+              ? formData.categories
+              : undefined,
         },
         pricing: {
           type: formData.pricingType,
-          votingCost: formData.pricingType === 'paid' ? parseFloat(formData.votingCost) || 0.5 : undefined,
-          votingFrequency: formData.pricingType === 'social' ? parseFloat(formData.votingFrequency) || undefined : undefined,
+          votingCost:
+            formData.pricingType === "paid"
+              ? parseFloat(formData.votingCost) || 0.5
+              : undefined,
+          votingFrequency:
+            formData.pricingType === "social"
+              ? parseFloat(formData.votingFrequency) || undefined
+              : undefined,
           socialOptions: formData.socialOptions,
         },
         settings: {
-          allowPublicVoting: formData.pricingType === 'paid',
+          allowPublicVoting: formData.pricingType === "paid",
           requireEmailVerification: false,
           maxVotesPerUser: 1,
           showResults: formData.awardPreferences.showResults,
@@ -378,11 +363,16 @@ const AwardPage = () => {
       const data = await response.json();
 
       if (response.ok) {
-        toast.success(isEditing ? "Award updated successfully!" : "Award created successfully!", { id: loadingToast });
+        toast.success(
+          isEditing
+            ? "Award updated successfully!"
+            : "Award created successfully!",
+          { id: loadingToast },
+        );
         setEditingAwardId(null);
         setCurrentView("list");
         setCurrentStep(1);
-        fetchAwards(); 
+        fetchAwards();
         setFormData({
           eventImage: null,
           organization: "",
@@ -416,11 +406,18 @@ const AwardPage = () => {
           },
         });
       } else {
-        toast.error(data.error || (isEditing ? "Failed to update award" : "Failed to create award"), { id: loadingToast });
+        toast.error(
+          data.error ||
+            (isEditing ? "Failed to update award" : "Failed to create award"),
+          { id: loadingToast },
+        );
       }
     } catch (error) {
       console.error("Failed to save award:", error);
-      toast.error(isEditing ? "Failed to update award" : "Failed to create award", { id: loadingToast });
+      toast.error(
+        isEditing ? "Failed to update award" : "Failed to create award",
+        { id: loadingToast },
+      );
     }
   };
 
@@ -445,7 +442,7 @@ const AwardPage = () => {
                   Review and organize your categories and honors.
                 </p>
               </div>
-              {userRole !== 'org-admin' && (
+              {userRole !== "org-admin" && (
                 <button
                   onClick={handleCreateNew}
                   className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm font-medium whitespace-nowrap"
@@ -468,14 +465,16 @@ const AwardPage = () => {
               ) : awards.length === 0 ? (
                 <div className="text-center py-20">
                   <h2 className="text-2xl font-bold text-gray-900 mb-3">
-                    {userRole === 'org-admin' ? 'No awards assigned to you' : 'No awards created yet'}
+                    {userRole === "org-admin"
+                      ? "No awards assigned to you"
+                      : "No awards created yet"}
                   </h2>
                   <p className="text-gray-500 mb-8 max-w-md mx-auto">
-                    {userRole === 'org-admin' 
-                      ? 'Contact your organization owner to get access to awards.'
-                      : 'Define your award programs, categories, and nominees to begin the voting process.'}
+                    {userRole === "org-admin"
+                      ? "Contact your organization owner to get access to awards."
+                      : "Define your award programs, categories, and nominees to begin the voting process."}
                   </p>
-                  {userRole !== 'org-admin' && (
+                  {userRole !== "org-admin" && (
                     <button
                       onClick={handleCreateNew}
                       className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg inline-flex items-center gap-2 transition-colors"
@@ -492,7 +491,7 @@ const AwardPage = () => {
                       key={award._id}
                       className="group overflow-hidden rounded-xl bg-white shadow transition hover:shadow-lg relative"
                     >
-                      <div 
+                      <div
                         onClick={() => handleEditAward(award._id)}
                         className="cursor-pointer"
                       >
@@ -507,14 +506,21 @@ const AwardPage = () => {
                           <div className="absolute top-0 p-4 left-0 right-0 flex justify-between items-center">
                             <div className="bg-[#FFFFFFCC] py-1 px-2 rounded-full text-xs">
                               <p className="text-[10px] text-black font-semibold">
-                                Price (GHS {award.pricing?.votingCost?.toFixed(2) || '0.50'})
+                                Price (GHS{" "}
+                                {award.pricing?.votingCost?.toFixed(2) ||
+                                  "0.50"}
+                                )
                               </p>
                             </div>
-                            <div className={`${
-                              award.status === 'active' ? 'bg-[#16A34A]' : 
-                              award.status === 'voting' ? 'bg-blue-600' : 
-                              'bg-yellow-600'
-                            } py-1 px-2 rounded-full text-xs`}>
+                            <div
+                              className={`${
+                                award.status === "active"
+                                  ? "bg-[#16A34A]"
+                                  : award.status === "voting"
+                                    ? "bg-blue-600"
+                                    : "bg-yellow-600"
+                              } py-1 px-2 rounded-full text-xs`}
+                            >
                               <p className="text-[10px] text-white font-semibold uppercase">
                                 {award.status}
                               </p>
@@ -536,7 +542,9 @@ const AwardPage = () => {
                             </p>
                             <div className="flex justify-between items-center text-xs">
                               <div>
-                                <span className="text-gray-500">Categories</span>
+                                <span className="text-gray-500">
+                                  Categories
+                                </span>
                                 <p className="font-semibold text-gray-900">
                                   {award.categories}
                                 </p>
@@ -546,13 +554,14 @@ const AwardPage = () => {
                                   Show Results
                                 </span>
                                 <p className="font-semibold text-gray-900 text-end">
-                                  {award.settings?.showResults ? 'Yes' : 'No'}
+                                  {award.settings?.showResults ? "Yes" : "No"}
                                 </p>
                               </div>
                             </div>
                             <p className="text-green-600 text-xs mt-3 flex items-center gap-1 mb-2">
                               <Info size={14} />
-                              {serviceFeePercentage}% service fee later applied for all awards.
+                              {serviceFeePercentage}% service fee later applied
+                              for all awards.
                             </p>
                           </div>
                         </div>
@@ -654,7 +663,13 @@ const AwardPage = () => {
   );
 };
 
-const StepContent = ({ step, formData, setFormData, steps, editingAwardId }: any) => {
+const StepContent = ({
+  step,
+  formData,
+  setFormData,
+  steps,
+  editingAwardId,
+}: any) => {
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [categories, setCategories] = useState<any[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
@@ -668,7 +683,11 @@ const StepContent = ({ step, formData, setFormData, steps, editingAwardId }: any
 
   // Fetch categories when step 2 is active and nomination type is category
   useEffect(() => {
-    if (step === 2 && formData.nominationType === 'category' && editingAwardId) {
+    if (
+      step === 2 &&
+      formData.nominationType === "category" &&
+      editingAwardId
+    ) {
       fetchCategories();
     }
   }, [step, formData.nominationType, editingAwardId]);
@@ -681,19 +700,22 @@ const StepContent = ({ step, formData, setFormData, steps, editingAwardId }: any
 
     setLoadingCategories(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/categories?awardId=${editingAwardId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
+      const token = localStorage.getItem("token");
+      const response = await fetch(
+        `/api/categories?awardId=${editingAwardId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         },
-      });
+      );
 
       if (response.ok) {
         const data = await response.json();
         setCategories(data.data || []);
       }
     } catch (error) {
-      console.error('Failed to fetch categories:', error);
+      console.error("Failed to fetch categories:", error);
     } finally {
       setLoadingCategories(false);
     }
@@ -705,17 +727,17 @@ const StepContent = ({ step, formData, setFormData, steps, editingAwardId }: any
     }
 
     if (!editingAwardId) {
-      toast.error('Please save the award first before adding categories');
+      toast.error("Please save the award first before adding categories");
       return;
     }
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/categories', {
-        method: 'POST',
+      const token = localStorage.getItem("token");
+      const response = await fetch("/api/categories", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           name: newCategory.name,
@@ -726,27 +748,30 @@ const StepContent = ({ step, formData, setFormData, steps, editingAwardId }: any
       });
 
       if (response.ok) {
-        toast.success('Category created successfully');
+        toast.success("Category created successfully");
         setNewCategory({ name: "", price: "", publish: false });
         fetchCategories(); // Refresh the list
       } else {
         const error = await response.json();
-        toast.error(error.error || 'Failed to create category');
+        toast.error(error.error || "Failed to create category");
       }
     } catch (error) {
-      console.error('Failed to create category:', error);
-      toast.error('Failed to create category');
+      console.error("Failed to create category:", error);
+      toast.error("Failed to create category");
     }
   };
 
-  const handleUpdateCategoryPrice = async (categoryId: string, price: string) => {
+  const handleUpdateCategoryPrice = async (
+    categoryId: string,
+    price: string,
+  ) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem("token");
       const response = await fetch(`/api/categories/${categoryId}`, {
-        method: 'PUT',
+        method: "PUT",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           price: parseFloat(price) || 0,
@@ -754,33 +779,15 @@ const StepContent = ({ step, formData, setFormData, steps, editingAwardId }: any
       });
 
       if (response.ok) {
-        toast.success('Category price updated');
+        toast.success("Category price updated");
         fetchCategories(); // Refresh the list
       } else {
-        toast.error('Failed to update category price');
+        toast.error("Failed to update category price");
       }
     } catch (error) {
-      console.error('Failed to update category:', error);
-      toast.error('Failed to update category');
+      console.error("Failed to update category:", error);
+      toast.error("Failed to update category");
     }
-  };
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith("image/")) {
-      alert("Please upload a valid image file");
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setFormData((prev: any) => ({
-        ...prev,
-        eventImage: reader.result as string,
-      }));
-    };
-    reader.readAsDataURL(file);
   };
 
   return (
@@ -819,46 +826,14 @@ const StepContent = ({ step, formData, setFormData, steps, editingAwardId }: any
             <label className="mb-2 block text-sm font-medium text-gray-700">
               Event Banner Image <span className="text-red-500">*</span>
             </label>
-
-            <label
-              htmlFor="eventImage"
-              className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 p-8 text-center transition hover:border-green-500 hover:bg-green-50"
-            >
-              {formData.eventImage ? (
-                <div className="relative h-40 w-full">
-                  <Image
-                    src={formData.eventImage}
-                    alt="Event banner preview"
-                    fill
-                    sizes="(max-width: 768px) 100vw, 600px"
-                    className="rounded-md object-cover"
-                  />
-                  <div className="absolute inset-0 flex items-center justify-center rounded-md bg-black/40 opacity-0 transition hover:opacity-100">
-                    <span className="text-sm font-medium text-white">
-                      Click to change image
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <Upload className="mb-2 text-gray-400" size={28} />
-                  <p className="text-sm text-gray-500">
-                    Upload your award logo or banner image
-                  </p>
-                  <p className="mt-1 text-xs text-gray-400">
-                    PNG, JPG, JPEG (max 5MB)
-                  </p>
-                </>
-              )}
-
-              <input
-                id="eventImage"
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleImageUpload}
-              />
-            </label>
+            <ImageUpload
+              onUploadComplete={(url) =>
+                setFormData({ ...formData, eventImage: url })
+              }
+              currentImage={formData.eventImage}
+              folder="awards/banners"
+              maxSize={5}
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1041,7 +1016,9 @@ const StepContent = ({ step, formData, setFormData, steps, editingAwardId }: any
                     <div>
                       <p className="text-green-600 text-sm mb-4 flex items-center gap-2">
                         <ChevronRight size={14} />
-                        {editingAwardId ? 'Manage categories and set prices for each category.' : 'Please save the award first, then you can add categories.'}
+                        {editingAwardId
+                          ? "Manage categories and set prices for each category."
+                          : "Please save the award first, then you can add categories."}
                       </p>
 
                       {!editingAwardId ? (
@@ -1050,13 +1027,17 @@ const StepContent = ({ step, formData, setFormData, steps, editingAwardId }: any
                             Save Award First
                           </h3>
                           <p className="text-gray-600 text-sm mb-4">
-                            You need to save the award before you can add categories. Click "Done" at the bottom to save this award.
+                            You need to save the award before you can add
+                            categories. Click "Done" at the bottom to save this
+                            award.
                           </p>
                         </div>
                       ) : loadingCategories ? (
                         <div className="text-center py-12">
                           <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mb-2"></div>
-                          <p className="text-gray-500 text-sm">Loading categories...</p>
+                          <p className="text-gray-500 text-sm">
+                            Loading categories...
+                          </p>
                         </div>
                       ) : categories.length === 0 ? (
                         <div className="text-center py-12 border border-gray-200 rounded-lg">
@@ -1102,12 +1083,19 @@ const StepContent = ({ step, formData, setFormData, steps, editingAwardId }: any
                                       Nomination Price
                                     </label>
                                     <div className="flex items-center gap-2">
-                                      <span className="text-sm text-gray-600">GHS</span>
+                                      <span className="text-sm text-gray-600">
+                                        GHS
+                                      </span>
                                       <input
                                         type="number"
                                         step="0.01"
                                         value={cat.price || 0}
-                                        onChange={(e) => handleUpdateCategoryPrice(cat._id, e.target.value)}
+                                        onChange={(e) =>
+                                          handleUpdateCategoryPrice(
+                                            cat._id,
+                                            e.target.value,
+                                          )
+                                        }
                                         className="flex-1 text-sm text-black border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
                                         placeholder="0.00"
                                       />
@@ -1244,7 +1232,10 @@ const StepContent = ({ step, formData, setFormData, steps, editingAwardId }: any
                         step="0.01"
                         value={newCategory.price}
                         onChange={(e) =>
-                          setNewCategory({ ...newCategory, price: e.target.value })
+                          setNewCategory({
+                            ...newCategory,
+                            price: e.target.value,
+                          })
                         }
                         className="flex-1 text-black border border-gray-300 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-green-500"
                         placeholder="0.00"
@@ -1293,14 +1284,17 @@ const StepContent = ({ step, formData, setFormData, steps, editingAwardId }: any
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 max-h-64 overflow-y-auto">
                       {categories.map((cat: any) => (
-                        <div key={cat._id} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                        <div
+                          key={cat._id}
+                          className="border border-gray-200 rounded-lg p-3 bg-gray-50"
+                        >
                           <div className="flex items-start justify-between">
                             <div className="flex-1">
                               <p className="font-medium text-gray-900 text-sm mb-1">
                                 {cat.name}
                               </p>
                               <p className="text-xs text-gray-600">
-                                Price: GHS {cat.price || '0.00'}
+                                Price: GHS {cat.price || "0.00"}
                               </p>
                             </div>
                             {cat.isPublished && (

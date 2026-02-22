@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { Plus, Search, MoreVertical, X, Upload, ChevronDown, ChevronLeft, Info, Edit2, Trash2 } from "lucide-react";
 import Image from "next/image";
 import toast from "react-hot-toast";
+import ImageUpload from '@/components/ImageUpload';
 
 interface Award {
   _id: string;
@@ -350,22 +351,6 @@ const AwardsManagementSystem = () => {
     } catch (error) { 
       toast.error("Failed to delete nominee", { id: loadingToast }); 
     }
-  };
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    if (!file.type.startsWith("image/")) { 
-      toast.error("Please upload a valid image file"); 
-      return; 
-    }
-    
-    const reader = new FileReader();
-    reader.onloadend = () => { 
-      setFormData((prev) => ({ ...prev, image: reader.result as string })); 
-    };
-    reader.readAsDataURL(file);
   };
 
   const getInitials = (name: string) => {
@@ -798,34 +783,15 @@ const AwardsManagementSystem = () => {
             <div className="p-4 sm:p-6">
               {/* Image Upload */}
               <div className="flex flex-col items-center mb-6">
-                <div className="relative">
-                  {formData.image ? (
-                    <Image 
-                      src={formData.image} 
-                      alt="Nominee" 
-                      width={96} 
-                      height={96} 
-                      className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover" 
-                    />
-                  ) : (
-                    <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gray-100 flex items-center justify-center">
-                      <Upload className="text-gray-400" size={28} />
-                    </div>
-                  )}
-                  <input 
-                    type="file" 
-                    accept="image/*" 
-                    onChange={handleImageUpload} 
-                    className="hidden" 
-                    id="imageUpload" 
-                  />
-                </div>
-                <label 
-                  htmlFor="imageUpload" 
-                  className="mt-2 text-xs sm:text-sm text-green-600 cursor-pointer hover:underline"
-                >
-                  Click to upload an image
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
+                  Nominee Image
                 </label>
+                <ImageUpload
+                  onUploadComplete={(url) => setFormData({ ...formData, image: url })}
+                  currentImage={formData.image}
+                  folder="awards/nominees"
+                  maxSize={5}
+                />
               </div>
 
               {/* Nominee Name */}
