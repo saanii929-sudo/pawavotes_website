@@ -15,7 +15,7 @@ const ALLOWED_IMAGE_TYPES = [
   'image/svg+xml',
 ];
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024;
+const MAX_FILE_SIZE = 8 * 1024 * 1024;
 
 export async function POST(request: NextRequest) {
   try {
