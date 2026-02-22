@@ -32,7 +32,9 @@ export async function POST(req: NextRequest) {
     }
     
     const userInput = text.split('*').pop() || '';
+    console.log(`USSD: Session data before flow:`, JSON.stringify(session.data));
     const response = await handleUssdFlow(session, userInput, phoneNumber);
+    console.log(`USSD: Session data after flow:`, JSON.stringify(session.data));
     await session.save();
 
     const arkeselResponse = {
@@ -182,10 +184,24 @@ async function showWelcome(session: any) {
 }
 
 async function handleAwardSelection(session: any, userInput: string) {
+  console.log(`USSD: handleAwardSelection - session.data:`, JSON.stringify(session.data));
+  
+  const awards = session.data?.awards;
+  
+  if (!awards || !Array.isArray(awards) || awards.length === 0) {
+    console.log('USSD: ERROR - awards data is missing, invalid, or empty');
+    return { 
+      message: 'Session expired. Please dial the code again to start over.', 
+      continueSession: false 
+    };
+  }
+  
+  console.log(`USSD: Awards array has ${awards.length} items`);
+  
   const selectedIndex = parseInt(userInput) - 1;
-  const awards = session.data.awards;
 
   if (isNaN(selectedIndex) || selectedIndex < 0 || selectedIndex >= awards.length) {
+    console.log(`USSD: Invalid selection index: ${selectedIndex}`);
     return { 
       message: 'Invalid selection. Please enter a valid option number.', 
       continueSession: false 
@@ -193,11 +209,12 @@ async function handleAwardSelection(session: any, userInput: string) {
   }
 
   const selectedAward = awards[selectedIndex];
+  console.log(`USSD: Selected award: ${selectedAward.name} (ID: ${selectedAward._id})`);
+  
   session.data.awardId = selectedAward._id.toString();
   session.data.awardName = selectedAward.name;
   
-  console.log(`USSD: Selected award: ${selectedAward.name} (ID: ${selectedAward._id})`);
-  console.log(`USSD: Fetching categories for award...`);
+  console.log(`USSD: Fetching categories for award ID: ${session.data.awardId}`);
   
   const categories = await Category.find({
     awardId: selectedAward._id,
@@ -224,6 +241,7 @@ async function handleAwardSelection(session: any, userInput: string) {
   session.currentStep = 'select_category';
   session.data.categories = categories;
 
+  console.log(`USSD: Returning category menu with ${categories.length} options`);
   return { message: menu, continueSession: true };
 }
 
