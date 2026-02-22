@@ -219,13 +219,13 @@ function VotingPageContent() {
             <div className="flex items-center justify-between gap-2">
               <button
                 onClick={() => router.back()}
-                className="flex items-center gap-1 sm:gap-2 text-gray-600 hover:text-gray-900 flex-shrink-0"
+                className="flex items-center gap-1 sm:gap-2 text-gray-600 hover:text-gray-900 shrink-0"
               >
                 <ArrowLeft size={18} className="sm:w-5 sm:h-5" />
                 <span className="text-sm sm:text-base">Back</span>
               </button>
               <div className="flex items-center gap-2 sm:gap-3 flex-1 justify-center min-w-0">
-                <Vote className="text-green-600 flex-shrink-0" size={20} />
+                <Vote className="text-green-600 shrink-0" size={20} />
                 <div className="min-w-0">
                   <h1 className="text-sm sm:text-lg font-bold text-gray-900 truncate">
                     Cast Your Vote
@@ -235,7 +235,7 @@ function VotingPageContent() {
                   </p>
                 </div>
               </div>
-              <div className="text-right flex-shrink-0 min-w-0">
+              <div className="text-right shrink-0 min-w-0">
                 <p className="text-xs sm:text-sm font-medium text-gray-900 truncate max-w-[100px] sm:max-w-none">
                   {voterData?.name}
                 </p>
@@ -320,7 +320,7 @@ function VotingPageContent() {
                                   }
                                   className={`group text-left p-6 rounded-2xl border-2 transition-all duration-200 relative overflow-hidden ${
                                     isSelected
-                                      ? "border-green-600 bg-gradient-to-br from-green-50 to-green-100 shadow-lg scale-[1.02]"
+                                      ? "border-green-600 bg-linear-to-br from-green-50 to-green-100 shadow-lg scale-[1.02]"
                                       : "border-gray-200 hover:border-green-400 hover:bg-gray-50 hover:shadow-md"
                                   }`}
                                 >
@@ -363,14 +363,6 @@ function VotingPageContent() {
                                       }`}>
                                         {candidate.name}
                                       </h4>
-                                      {showLiveResults && (
-                                        <div className="flex items-center justify-center gap-2 text-sm text-green-600 bg-white px-3 py-1 rounded-full">
-                                          <TrendingUp size={14} />
-                                          <span className="font-semibold">
-                                            {candidate.voteCount} votes
-                                          </span>
-                                        </div>
-                                      )}
                                     </div>
                                   </div>
                                   
@@ -433,7 +425,7 @@ function VotingPageContent() {
                                 }
                                 className={`group text-left p-6 rounded-2xl border-2 transition-all duration-200 relative overflow-hidden ${
                                   isSelected
-                                    ? "border-green-600 bg-gradient-to-br from-green-50 to-green-100 shadow-lg scale-[1.02]"
+                                    ? "border-green-600 bg-linear-to-br from-green-50 to-green-100 shadow-lg scale-[1.02]"
                                     : "border-gray-200 hover:border-green-400 hover:bg-gray-50 hover:shadow-md"
                                 }`}
                               >
