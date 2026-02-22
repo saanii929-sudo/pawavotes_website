@@ -218,7 +218,7 @@ async function handleAwardSelection(session: any, userInput: string) {
   
   const categories = await Category.find({
     awardId: selectedAward._id,
-    status: 'published',
+    isPublished: true,
   })
     .select('name')
     .limit(10)
