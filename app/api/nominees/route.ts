@@ -6,9 +6,15 @@ import Award from '@/models/Award';
 import { withAuth } from '@/middleware/auth';
 import { hasAwardAccess } from '@/lib/access-control';
 
+// Generate award code from name (e.g., "Ghana Music Awards" -> "GMA")
+// Numbers in the name are excluded (e.g., "Ghana Music Awards 2024" -> "GMA")
 function generateAwardCode(name: string): string {
-  const words = name.trim().split(/\s+/);
-  const code = words.map(word => word.charAt(0).toUpperCase()).join('');
+  // Split by spaces and filter out words that are purely numeric
+  const words = name.trim().split(/\s+/).filter(word => !/^\d+$/.test(word));
+  const code = words
+    .map(word => word.charAt(0).toUpperCase())
+    .join('');
+  
   return code;
 }
 

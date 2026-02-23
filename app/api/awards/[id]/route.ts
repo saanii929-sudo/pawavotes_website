@@ -52,9 +52,10 @@ async function getAward(
 }
 
 // Generate award code from name (e.g., "Ghana Music Awards" -> "GMA")
+// Numbers in the name are excluded (e.g., "Ghana Music Awards 2024" -> "GMA")
 function generateAwardCode(name: string): string {
-  // Split by spaces and get first letter of each word
-  const words = name.trim().split(/\s+/);
+  // Split by spaces and filter out words that are purely numeric
+  const words = name.trim().split(/\s+/).filter(word => !/^\d+$/.test(word));
   const code = words
     .map(word => word.charAt(0).toUpperCase())
     .join('');
@@ -123,6 +124,8 @@ async function updateAward(
       );
     }
 
+    const oldCode = existingAward.code;
+
     // If name is being updated, regenerate the code
     if (body.name && body.name !== existingAward.name) {
       body.code = await generateUniqueCode(body.name, id);
@@ -133,6 +136,38 @@ async function updateAward(
       body,
       { new: true, runValidators: true }
     );
+
+    // If the award code changed, update all nominee codes
+    if (body.code && oldCode && body.code !== oldCode) {
+      // Import Nominee model
+      const Nominee = (await import('@/models/Nominee')).default;
+      
+      // Get all nominees for this award that have codes
+      const nominees = await Nominee.find({
+        awardId: id,
+        nomineeCode: { $exists: true, $ne: null }
+      });
+
+      // Update each nominee code by replacing the old award code with the new one
+      const updatePromises = nominees.map(async (nominee) => {
+        if (nominee.nomineeCode) {
+          // Extract the number part from the old code (e.g., "GMA001" -> "001")
+          const numberPart = nominee.nomineeCode.replace(oldCode, '');
+          // Create new code with new award code (e.g., "GMA2" + "001" -> "GMA2001")
+          const newNomineeCode = body.code + numberPart;
+          
+          return Nominee.findByIdAndUpdate(
+            nominee._id,
+            { nomineeCode: newNomineeCode },
+            { runValidators: false }
+          );
+        }
+      });
+
+      await Promise.all(updatePromises);
+      
+      console.log(`Updated ${nominees.length} nominee codes from ${oldCode} to ${body.code}`);
+    }
 
     return NextResponse.json({
       success: true,

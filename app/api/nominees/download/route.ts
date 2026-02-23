@@ -19,8 +19,6 @@ async function downloadNominees(req: NextRequest) {
         { status: 400 }
       );
     }
-
-    // Fetch all nominees for this award
     const nominees = await Nominee.find({ awardId })
       .populate('categoryId', 'name')
       .sort({ name: 1 });
@@ -31,14 +29,8 @@ async function downloadNominees(req: NextRequest) {
         { status: 404 }
       );
     }
-
-    // Create a new JSZip instance
     const zip = new JSZip();
-
-    // Create a CSV content with nominee information
     let csvContent = 'Name,Nominee Code,Category,Email,Phone,Image URL\n';
-
-    // Group nominees by name to avoid duplicates
     const nomineeMap = new Map();
     
     for (const nominee of nominees) {
@@ -58,19 +50,14 @@ async function downloadNominees(req: NextRequest) {
         code: nominee.nomineeCode
       });
     }
-
-    // Process each unique nominee
     let imageIndex = 1;
     const imageFolder = zip.folder('images');
 
     for (const [, nomineeData] of nomineeMap) {
-      // Add each category entry to CSV
       for (const category of nomineeData.categories) {
-        const imageFileName = nomineeData.image ? `nominee_${imageIndex}.jpg` : 'No Image';
+        const imageFileName = nomineeData.image ? `${nomineeData.name}_${imageIndex}.jpg` : 'No Image';
         csvContent += `"${nomineeData.name}","${category.code}","${category.name}","${nomineeData.email}","${nomineeData.phone}","${imageFileName}"\n`;
       }
-
-      // Download and add image to zip if it exists
       if (nomineeData.image && imageFolder) {
         try {
           const imageUrl = nomineeData.image.startsWith('http') 
@@ -82,7 +69,7 @@ async function downloadNominees(req: NextRequest) {
             const arrayBuffer = await imageResponse.arrayBuffer();
             const imageBuffer = Buffer.from(arrayBuffer);
             const extension = nomineeData.image.match(/\.(jpg|jpeg|png|gif|webp)$/i)?.[1] || 'jpg';
-            imageFolder.file(`nominee_${imageIndex}.${extension}`, imageBuffer);
+            imageFolder.file(`${nomineeData.name}_${imageIndex}.${extension}`, imageBuffer);
           }
         } catch (error) {
           console.error(`Failed to download image for ${nomineeData.name}:`, error);
@@ -91,11 +78,7 @@ async function downloadNominees(req: NextRequest) {
 
       imageIndex++;
     }
-
-    // Add CSV file to zip
     zip.file('nominees.csv', csvContent);
-
-    // Add a README file with instructions
     const readmeContent = `Nominees Export
 ================
 
@@ -109,7 +92,6 @@ CSV Columns:
 - Category: Award category name
 - Email: Nominee's email address
 - Phone: Nominee's phone number
-- Image URL: Reference to the image file in the images folder
 
 Note: Some nominees may appear multiple times if they are nominated in multiple categories.
 
@@ -117,15 +99,11 @@ Generated: ${new Date().toISOString()}
 `;
 
     zip.file('README.txt', readmeContent);
-
-    // Generate the ZIP file as arraybuffer
     const zipData = await zip.generateAsync({ 
       type: 'arraybuffer',
       compression: 'DEFLATE',
       compressionOptions: { level: 6 }
     });
-
-    // Return the ZIP file
     return new NextResponse(zipData, {
       headers: {
         'Content-Type': 'application/zip',
