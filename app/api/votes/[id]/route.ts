@@ -5,10 +5,10 @@ import { handleError } from '@/utils/error-handler';
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
+    const { id } = await context.params;
     const vote = await voteService.getVoteById(id);
     return NextResponse.json(successResponse('Vote retrieved successfully', vote));
   } catch (error: any) {
