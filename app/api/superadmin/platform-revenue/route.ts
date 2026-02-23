@@ -20,26 +20,18 @@ export async function GET(req: NextRequest) {
     if (!decoded) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
-
-    // Only superadmin can access this
     if (decoded.role !== 'superadmin') {
       return NextResponse.json(
         { error: 'Access denied. Superadmin only.' },
         { status: 403 }
       );
     }
-
-    // Get all awards
     const awards = await Award.find({}).lean();
-
-    // Get all organizations for service fee lookup
     const organizations = await Organization.find({}).lean();
     const orgServiceFees: Record<string, number> = {};
     organizations.forEach(org => {
       orgServiceFees[org._id.toString()] = org.serviceFeePercentage || 10;
     });
-
-    // Calculate total revenue across all awards
     let totalRevenue = 0;
     const revenueByOrganization: Record<string, {
       organizationId: string;
@@ -51,7 +43,6 @@ export async function GET(req: NextRequest) {
     }> = {};
 
     for (const award of awards) {
-      // Calculate revenue for this award
       const votes = await Vote.find({ awardId: award._id.toString(), paymentStatus: 'completed' });
       const votingRevenue = votes.reduce((sum, v) => sum + (v.amount || 0), 0);
 
@@ -60,8 +51,6 @@ export async function GET(req: NextRequest) {
 
       const awardRevenue = votingRevenue + nominationRevenue;
       totalRevenue += awardRevenue;
-
-      // Group by organization
       const orgId = award.organizationId;
       const serviceFeePercentage = orgServiceFees[orgId] || 10;
 
@@ -79,26 +68,18 @@ export async function GET(req: NextRequest) {
       revenueByOrganization[orgId].totalRevenue += awardRevenue;
       revenueByOrganization[orgId].platformFee += awardRevenue * (serviceFeePercentage / 100);
     }
-
-    // Get all successful transfers
     const allTransfers = await Transfer.find({ status: 'successful' });
     const totalTransferred = allTransfers.reduce((sum, t) => sum + t.amount, 0);
-
-    // Add transferred amounts to organization data
     for (const transfer of allTransfers) {
       const orgId = transfer.organizationId;
       if (revenueByOrganization[orgId]) {
         revenueByOrganization[orgId].transferredToOrganizer += transfer.amount;
       }
     }
-
-    // Calculate total platform fees (sum of all organization-specific fees)
     const totalPlatformFees = Object.values(revenueByOrganization).reduce(
       (sum, org) => sum + org.platformFee,
       0
     );
-
-    // Get transfer statistics
     const transferCount = allTransfers.length;
     const successfulTransfers = allTransfers.filter(t => t.status === 'successful').length;
     const pendingTransfers = await Transfer.countDocuments({ status: 'pending' });
@@ -116,7 +97,6 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error: any) {
-    console.error('Get platform revenue error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch platform revenue', details: error.message },
       { status: 500 }

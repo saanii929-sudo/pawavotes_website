@@ -6,8 +6,6 @@ import { hashPassword } from '@/lib/auth';
 export async function POST(req: NextRequest) {
   try {
     await connectDB();
-
-    // Check if superadmin already exists
     const existingSuperAdmin = await Admin.findOne({ role: 'superadmin' });
 
     if (existingSuperAdmin) {
@@ -47,7 +45,6 @@ export async function POST(req: NextRequest) {
       },
     }, { status: 201 });
   } catch (error: any) {
-    console.error('Init superadmin error:', error);
     return NextResponse.json(
       { error: 'Failed to create superadmin', details: error.message },
       { status: 500 }

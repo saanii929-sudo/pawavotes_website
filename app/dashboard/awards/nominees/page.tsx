@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect } from "react";
-import { Plus, Search, MoreVertical, X, Upload, ChevronDown, ChevronLeft, Info, Edit2, Trash2 } from "lucide-react";
+import { Plus, Search, MoreVertical, X, Upload, ChevronDown, ChevronLeft, Info, Edit2, Trash2, Download } from "lucide-react";
 import Image from "next/image";
 import toast from "react-hot-toast";
 import ImageUpload from '@/components/ImageUpload';
@@ -45,6 +45,7 @@ const AwardsManagementSystem = () => {
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [showActionMenu, setShowActionMenu] = useState<string | null>(null);
+  const [downloadingZip, setDownloadingZip] = useState(false);
   const [nominees, setNominees] = useState<Nominee[]>([]);
   const [selectedAward, setSelectedAward] = useState<Award | null>(null);
   const [awards, setAwards] = useState<Award[]>([]);
@@ -353,6 +354,41 @@ const AwardsManagementSystem = () => {
     }
   };
 
+  const handleDownloadNominees = async () => {
+    if (!selectedAward) return;
+    
+    setDownloadingZip(true);
+    const loadingToast = toast.loading("Preparing nominees download...");
+    
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`/api/nominees/download?awardId=${selectedAward._id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${selectedAward.name.replace(/[^a-z0-9]/gi, '_')}_nominees.zip`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        toast.success("Nominees downloaded successfully!", { id: loadingToast });
+      } else {
+        const data = await response.json();
+        toast.error(data.error || "Failed to download nominees", { id: loadingToast });
+      }
+    } catch (error) {
+      console.error("Download error:", error);
+      toast.error("Failed to download nominees", { id: loadingToast });
+    } finally {
+      setDownloadingZip(false);
+    }
+  };
+
   const getInitials = (name: string) => {
     return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
   };
@@ -555,6 +591,25 @@ const AwardsManagementSystem = () => {
                   </div>
                 )}
               </div>
+
+              <button 
+                onClick={handleDownloadNominees}
+                disabled={downloadingZip || nominees.length === 0}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors w-full sm:w-auto"
+                title="Download all nominees with images"
+              >
+                {downloadingZip ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-xs sm:text-sm">Preparing...</span>
+                  </>
+                ) : (
+                  <>
+                    <Download size={18} />
+                    <span className="text-xs sm:text-sm">Download</span>
+                  </>
+                )}
+              </button>
             </div>
 
             <div className="divide-y divide-gray-200 overflow-x-auto">
@@ -582,7 +637,7 @@ const AwardsManagementSystem = () => {
                             </div>
                           )}
                           <div className="min-w-0 flex-1">
-                            <h3 className="font-semibold text-sm text-gray-900 break-words">
+                            <h3 className="font-semibold text-sm text-gray-900 wrap-break-word">
                               {nominee.name}
                             </h3>
                             <div className="text-xs text-gray-500 mt-0.5">

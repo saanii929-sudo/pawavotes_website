@@ -169,7 +169,7 @@ export default function SuperAdminDashboard() {
       {/* SMS Balance Card */}
       <div className="bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 p-6 border-l-4 border-purple-500">
         <div className="flex items-start justify-between mb-4">
-          <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+          <div className="w-12 h-12 bg-linear-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
             <MessageSquare className="text-white" size={24} />
           </div>
           <div className="bg-purple-50 rounded-lg px-3 py-1">
@@ -184,11 +184,8 @@ export default function SuperAdminDashboard() {
           </div>
         ) : smsBalance ? (
           <>
-            <p className="text-3xl sm:text-4xl font-bold text-gray-900 mb-1">
-              {smsBalance.currency} {Number(smsBalance.balance || 0).toFixed(2)}
-            </p>
             <div className="flex items-center gap-1 text-xs text-gray-500">
-              <span>~{smsBalance.smsCount?.toLocaleString() || 0} SMS credits</span>
+              <span>~{Number(smsBalance.balance || 0).toFixed(2) || 0} SMS credits</span>
             </div>
           </>
         ) : (

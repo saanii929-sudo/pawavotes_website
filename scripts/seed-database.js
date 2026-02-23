@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://saanii929_db_user:QrSSAhB6OU0HjqAs@blinkit.y2dpp4h.mongodb.net/?appName=Blinkit';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/pawavotes';
 
 async function hashPassword(password) {
   const salt = await bcrypt.genSalt(10);
@@ -61,25 +61,13 @@ const AdminSchema = new mongoose.Schema({
 
 async function seedDatabase() {
   try {
-    console.log('🌱 Starting database seeding...\n');
-
-    // Connect to MongoDB
     await mongoose.connect(MONGODB_URI);
-    console.log('✅ Connected to MongoDB\n');
-
-    // Get or create models
     const Organization = mongoose.models.Organization || mongoose.model('Organization', OrganizationSchema);
     const Admin = mongoose.models.Admin || mongoose.model('Admin', AdminSchema);
-
-    // Clear existing data (optional - comment out if you want to keep existing data)
-    console.log('🗑️  Clearing existing organizations...');
     await Organization.deleteMany({});
-    console.log('✅ Cleared organizations\n');
 
-    // Create SuperAdmin if not exists
     const existingSuperAdmin = await Admin.findOne({ role: 'superadmin' });
     if (!existingSuperAdmin) {
-      console.log('👤 Creating SuperAdmin...');
       const hashedPassword = await hashPassword('Iddi1234!');
       await Admin.create({
         username: 'PawaVotesAdmin',
@@ -88,15 +76,9 @@ async function seedDatabase() {
         role: 'superadmin',
         status: 'active',
       });
-      console.log('✅ SuperAdmin created');
-      console.log('   Email: admin@pawavotes.com');
-      console.log('   Password: admin123\n');
     } else {
       console.log('ℹ️  SuperAdmin already exists\n');
     }
-
-    // Create sample organizations
-    console.log('🏢 Creating sample organizations...\n');
     
     for (const orgData of sampleOrganizations) {
       const hashedPassword = await hashPassword(orgData.password);
@@ -107,14 +89,7 @@ async function seedDatabase() {
         role: 'organization',
         serviceFeePercentage: 10,
       });
-      
-      console.log(`✅ Created: ${org.name}`);
-      console.log(`   Email: ${orgData.email}`);
-      console.log(`   Password: ${orgData.password}`);
-      console.log(`   Status: ${org.status}\n`);
     }
-
-    // Display summary
     const totalOrgs = await Organization.countDocuments();
     const activeOrgs = await Organization.countDocuments({ status: 'active' });
     const inactiveOrgs = await Organization.countDocuments({ status: 'inactive' });

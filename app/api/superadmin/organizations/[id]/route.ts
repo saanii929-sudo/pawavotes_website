@@ -4,7 +4,6 @@ import Organization from '@/models/Organization';
 import { hashPassword } from '@/lib/auth';
 import { withAuth } from '@/middleware/auth';
 
-// GET single organization
 async function getOrganization(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -28,7 +27,6 @@ async function getOrganization(
       data: organization,
     });
   } catch (error: any) {
-    console.error('Get organization error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch organization', details: error.message },
       { status: 500 }
@@ -36,7 +34,6 @@ async function getOrganization(
   }
 }
 
-// PUT update organization
 async function updateOrganization(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -52,7 +49,6 @@ async function updateOrganization(
       updateData.password = await hashPassword(password);
     }
 
-    // Validate service fee percentage if provided
     if (serviceFeePercentage !== undefined) {
       const fee = Number(serviceFeePercentage);
       if (isNaN(fee) || fee < 0 || fee > 100) {
@@ -83,7 +79,6 @@ async function updateOrganization(
       data: organization,
     });
   } catch (error: any) {
-    console.error('Update organization error:', error);
     return NextResponse.json(
       { error: 'Failed to update organization', details: error.message },
       { status: 500 }
@@ -91,7 +86,6 @@ async function updateOrganization(
   }
 }
 
-// DELETE organization
 async function deleteOrganization(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -115,7 +109,6 @@ async function deleteOrganization(
       message: 'Organization deleted successfully',
     });
   } catch (error: any) {
-    console.error('Delete organization error:', error);
     return NextResponse.json(
       { error: 'Failed to delete organization', details: error.message },
       { status: 500 }

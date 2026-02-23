@@ -19,7 +19,11 @@ export default function OrganizationsPage() {
     description: "",
     eventType: "awards",
     status: "active",
+    deliveryMethod: "email",
   });
+  const [creationResult, setCreationResult] = useState<any>(null);
+  const [showResultModal, setShowResultModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     fetchOrganizations();
@@ -48,6 +52,7 @@ export default function OrganizationsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitting(true);
     const token = localStorage.getItem("token");
 
     console.log('Submitting organization with data:', formData);
@@ -70,7 +75,13 @@ export default function OrganizationsPage() {
       console.log('Response:', data);
 
       if (response.ok) {
-        alert('Organization saved successfully!');
+        if (!editingOrg && data.data?.generatedPassword) {
+          // Show result modal for new organizations with generated password
+          setCreationResult(data);
+          setShowResultModal(true);
+        } else {
+          alert('Organization saved successfully!');
+        }
         setShowModal(false);
         setEditingOrg(null);
         resetForm();
@@ -82,6 +93,8 @@ export default function OrganizationsPage() {
     } catch (error) {
       console.error("Failed to save organization:", error);
       alert("Failed to save organization");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -117,6 +130,7 @@ export default function OrganizationsPage() {
       description: "",
       eventType: "awards",
       status: "active",
+      deliveryMethod: "email",
     });
   };
 
@@ -132,6 +146,7 @@ export default function OrganizationsPage() {
       description: org.description || "",
       eventType: org.eventType || "awards",
       status: org.status,
+      deliveryMethod: "email", // Not needed for edit
     });
     setShowModal(true);
   };
@@ -518,35 +533,77 @@ export default function OrganizationsPage() {
                     </p>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Password {!editingOrg && "*"}
-                    </label>
-                    <input
-                      type="password"
-                      required={!editingOrg}
-                      value={formData.password}
-                      onChange={(e) =>
-                        setFormData({ ...formData, password: e.target.value })
-                      }
-                      placeholder={editingOrg ? "Leave blank to keep current" : "Enter password"}
-                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
-                    />
-                  </div>
+                  {!editingOrg && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Credential Delivery Method *
+                      </label>
+                      <select
+                        value={formData.deliveryMethod}
+                        onChange={(e) =>
+                          setFormData({ ...formData, deliveryMethod: e.target.value })
+                        }
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+                      >
+                        <option value="email">Email Only</option>
+                        <option value="sms">SMS Only</option>
+                        <option value="both">Both Email & SMS</option>
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1.5 flex items-start gap-1">
+                        <span className="text-green-600 font-bold">•</span>
+                        {formData.deliveryMethod === "email" 
+                          ? "Credentials will be sent via email"
+                          : formData.deliveryMethod === "sms"
+                          ? "Credentials will be sent via SMS (phone required)"
+                          : "Credentials will be sent via both email and SMS (phone required)"}
+                      </p>
+                    </div>
+                  )}
+
+                  {editingOrg && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Password {!editingOrg && "*"}
+                      </label>
+                      <input
+                        type="password"
+                        required={!editingOrg}
+                        value={formData.password}
+                        onChange={(e) =>
+                          setFormData({ ...formData, password: e.target.value })
+                        }
+                        placeholder={editingOrg ? "Leave blank to keep current" : "Enter password"}
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+                      />
+                    </div>
+                  )}
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Phone Number
+                      Phone Number {!editingOrg && (formData.deliveryMethod === "sms" || formData.deliveryMethod === "both") && (
+                        <span className="text-red-600">*</span>
+                      )}
                     </label>
                     <input
                       type="tel"
+                      required={!editingOrg && (formData.deliveryMethod === "sms" || formData.deliveryMethod === "both")}
                       value={formData.phone}
                       onChange={(e) =>
                         setFormData({ ...formData, phone: e.target.value })
                       }
-                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
-                      placeholder="+1 234 567 8900"
+                      className={`w-full px-4 py-2.5 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all ${
+                        !editingOrg && (formData.deliveryMethod === "sms" || formData.deliveryMethod === "both")
+                          ? "border-red-300 bg-red-50"
+                          : "border-gray-200"
+                      }`}
+                      placeholder="+233 234 567 890"
                     />
+                    {!editingOrg && (formData.deliveryMethod === "sms" || formData.deliveryMethod === "both") && (
+                      <p className="text-xs text-red-600 mt-1.5 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        Phone number is required for SMS delivery
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -564,7 +621,7 @@ export default function OrganizationsPage() {
                     />
                   </div>
 
-                  <div className="sm:col-span-2">
+                  <div className="">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Address
                     </label>
@@ -622,15 +679,24 @@ export default function OrganizationsPage() {
                     setEditingOrg(null);
                     resetForm();
                   }}
-                  className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all font-semibold"
+                  disabled={submitting}
+                  className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-6 py-3 bg-linear-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg hover:shadow-xl font-semibold"
+                  disabled={submitting}
+                  className="flex-1 px-6 py-3 bg-linear-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg hover:shadow-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  {editingOrg ? "Update Organization" : "Create Organization"}
+                  {submitting ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>{editingOrg ? "Updating..." : "Creating..."}</span>
+                    </>
+                  ) : (
+                    <span>{editingOrg ? "Update Organization" : "Create Organization"}</span>
+                  )}
                 </button>
               </div>
             </form>

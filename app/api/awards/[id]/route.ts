@@ -51,6 +51,41 @@ async function getAward(
   }
 }
 
+// Generate award code from name (e.g., "Ghana Music Awards" -> "GMA")
+function generateAwardCode(name: string): string {
+  // Split by spaces and get first letter of each word
+  const words = name.trim().split(/\s+/);
+  const code = words
+    .map(word => word.charAt(0).toUpperCase())
+    .join('');
+  
+  return code;
+}
+
+// Ensure unique code by adding number suffix if needed
+async function generateUniqueCode(baseName: string, excludeId?: string): Promise<string> {
+  let code = generateAwardCode(baseName);
+  let counter = 1;
+  let isUnique = false;
+
+  while (!isUnique) {
+    const query: any = { code };
+    if (excludeId) {
+      query._id = { $ne: excludeId };
+    }
+    const existing = await Award.findOne(query);
+    if (!existing) {
+      isUnique = true;
+    } else {
+      // Add number suffix (GMA -> GMA2, GMA3, etc.)
+      code = `${generateAwardCode(baseName)}${counter}`;
+      counter++;
+    }
+  }
+
+  return code;
+}
+
 // PUT update award
 async function updateAward(
   req: NextRequest,
@@ -78,18 +113,26 @@ async function updateAward(
       query.organizationId = user.id;
     }
 
-    const award = await Award.findOneAndUpdate(
-      query,
-      body,
-      { new: true, runValidators: true }
-    );
-
-    if (!award) {
+    // Check if the award exists first
+    const existingAward = await Award.findOne(query);
+    
+    if (!existingAward) {
       return NextResponse.json(
         { error: 'Award not found' },
         { status: 404 }
       );
     }
+
+    // If name is being updated, regenerate the code
+    if (body.name && body.name !== existingAward.name) {
+      body.code = await generateUniqueCode(body.name, id);
+    }
+
+    const award = await Award.findOneAndUpdate(
+      query,
+      body,
+      { new: true, runValidators: true }
+    );
 
     return NextResponse.json({
       success: true,

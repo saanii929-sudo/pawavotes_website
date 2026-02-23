@@ -5,7 +5,6 @@ import Vote from '@/models/Vote';
 import Payment from '@/models/Payment';
 import { verifyToken } from '@/lib/auth';
 
-// GET /api/transfers/revenue?awardId=xxx
 export async function GET(req: NextRequest) {
   try {
     await connectDB();
@@ -29,8 +28,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Verify the award belongs to this organization (if not superadmin)
-    let serviceFeePercentage = 10; // Default
+    let serviceFeePercentage = 10;
     if (decoded.role === 'organization') {
       const Award = (await import('@/models/Award')).default;
       const award = await Award.findOne({
@@ -45,12 +43,10 @@ export async function GET(req: NextRequest) {
         );
       }
 
-      // Get organization's service fee percentage
       const Organization = (await import('@/models/Organization')).default;
       const organization = await Organization.findById(decoded.id);
       serviceFeePercentage = organization?.serviceFeePercentage || 10;
     } else {
-      // For superadmin, get the organization from the award
       const Award = (await import('@/models/Award')).default;
       const award = await Award.findById(awardId);
       if (award) {
@@ -60,7 +56,6 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Calculate total revenue for this award
     const votes = await Vote.find({ awardId, paymentStatus: 'completed' });
     const votingRevenue = votes.reduce((sum, v) => sum + (v.amount || 0), 0);
 
@@ -68,13 +63,8 @@ export async function GET(req: NextRequest) {
     const nominationRevenue = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
 
     const totalRevenue = votingRevenue + nominationRevenue;
-
-    // Calculate platform fee based on organization's service fee percentage
     const platformFee = totalRevenue * (serviceFeePercentage / 100);
-    // Organizer gets the remaining amount
     const organizerShare = totalRevenue - platformFee;
-
-    // Check already transferred amount by this organization
     const query: any = { awardId, status: 'successful' };
     if (decoded.role === 'organization') {
       query.organizationId = decoded.id;
