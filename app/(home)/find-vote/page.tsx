@@ -395,16 +395,7 @@ const PublicVotingPlatform = () => {
       setLoading(false);
     }
   };
-
-  const handleSearchAwards = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      fetchAwards(searchQuery);
-    } else {
-      fetchAwards(); // Fetch all if search is empty
-    }
-  };
-
+  
   const handleClearAwardSearch = () => {
     setSearchQuery("");
     fetchAwards(); // Fetch all awards when clearing search
