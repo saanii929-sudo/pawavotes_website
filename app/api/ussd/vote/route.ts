@@ -62,14 +62,14 @@ async function handleUssdFlow(
 ) {
   const step = session.currentStep;
 
-  if (userInput === '#') {
+  if (userInput === "#") {
     return handleNextPage(session);
   }
 
-  if (userInput === '0') {
+  if (userInput === "0") {
     if (session.data.currentPage && session.data.currentPage > 1) {
       return handlePreviousPage(session);
-    } else if (step !== 'welcome') {
+    } else if (step !== "welcome") {
       return handleBackNavigation(session);
     }
   }
@@ -109,69 +109,70 @@ async function handleUssdFlow(
 
 function handleBackNavigation(session: any) {
   console.log(`USSD: Back navigation from step: ${session.currentStep}`);
-  
+
   const stepFlow: { [key: string]: string } = {
-    'select_award': 'welcome',
-    'select_category': 'select_award',
-    'nominee_method': 'select_category',
-    'enter_nominee_code': 'nominee_method',
-    'select_nominee': 'nominee_method',
-    'enter_votes': 'nominee_method',
-    'confirm': 'enter_votes',
+    select_award: "welcome",
+    select_category: "select_award",
+    nominee_method: "select_category",
+    enter_nominee_code: "nominee_method",
+    select_nominee: "nominee_method",
+    enter_votes: "nominee_method",
+    confirm: "enter_votes",
   };
 
   const previousStep = stepFlow[session.currentStep];
-  
+
   if (!previousStep) {
-    return { message: 'Cannot go back from here.', continueSession: false };
+    return { message: "Cannot go back from here.", continueSession: false };
   }
 
   session.currentStep = previousStep;
   session.data.currentPage = 1;
   switch (previousStep) {
-    case 'welcome':
+    case "welcome":
       return showWelcome(session);
-      
-    case 'select_award':
+
+    case "select_award":
       return showAwardMenu(session);
-      
-    case 'select_category':
+
+    case "select_category":
       return showCategoryMenu(session);
-      
-    case 'nominee_method':
+
+    case "nominee_method":
       return {
         message: `${session.data.categoryName}\n\nVoting Method:\n\n1. Enter Nominee Code\n2. Browse Nominees\n\n0. Back`,
         continueSession: true,
       };
-      
+
     default:
-      return { message: 'Error navigating back.', continueSession: false };
+      return { message: "Error navigating back.", continueSession: false };
   }
 }
 
 function handleNextPage(session: any) {
   const currentPage = session.data.currentPage || 1;
   const totalPages = session.data.totalPages || 1;
-  
+
   if (currentPage >= totalPages) {
     return {
-      message: 'You are on the last page. Please select an option or press 0 to go back.',
+      message:
+        "You are on the last page. Please select an option or press 0 to go back.",
       continueSession: true,
     };
   }
-  
+
   session.data.currentPage = currentPage + 1;
 
   switch (session.currentStep) {
-    case 'select_award':
+    case "select_award":
       return showAwardMenu(session);
-    case 'select_category':
+    case "select_category":
       return showCategoryMenu(session);
-    case 'select_nominee':
+    case "select_nominee":
       return showNomineeMenu(session);
     default:
       return {
-        message: 'Pagination not available on this screen.',
+        message: "Pagination not available on this screen.",
         continueSession: true,
       };
   }
@@ -179,26 +180,26 @@ function handleNextPage(session: any) {
 
 function handlePreviousPage(session: any) {
   const currentPage = session.data.currentPage || 1;
-  
+
   if (currentPage <= 1) {
     return {
-      message: 'You are on the first page. Please select an option.',
+      message: "You are on the first page. Please select an option.",
       continueSession: true,
     };
   }
-  
+
   session.data.currentPage = currentPage - 1;
 
   switch (session.currentStep) {
-    case 'select_award':
+    case "select_award":
       return showAwardMenu(session);
-    case 'select_category':
+    case "select_category":
       return showCategoryMenu(session);
-    case 'select_nominee':
+    case "select_nominee":
       return showNomineeMenu(session);
     default:
       return {
-        message: 'Pagination not available on this screen.',
+        message: "Pagination not available on this screen.",
         continueSession: true,
       };
   }
@@ -209,33 +210,33 @@ function showAwardMenu(session: any) {
   const itemsPerPage = 4;
   const currentPage = session.data.currentPage || 1;
   const totalPages = Math.ceil(awards.length / itemsPerPage);
-  
+
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const pageAwards = awards.slice(startIndex, endIndex);
-  
+
   if (pageAwards.length === 0) {
-    return { message: 'No awards available.', continueSession: false };
+    return { message: "No awards available.", continueSession: false };
   }
-  
+
   let menu = `Welcome to PawaVotes\n\nSelect Event:\n\n`;
   pageAwards.forEach((award: any, index: number) => {
     const globalIndex = startIndex + index + 1;
     menu += `${index + 1}. ${award.name}\n`;
   });
-  
+
   if (currentPage < totalPages) {
-    menu += '\n#. Next Page';
+    menu += "\n#. Next Page";
   }
   if (currentPage > 1) {
-    menu += '\n0. Previous';
+    menu += "\n0. Previous";
   } else {
-    menu += '\n0. Exit';
+    menu += "\n0. Exit";
   }
-  
+
   session.data.totalPages = totalPages;
   session.data.pageStartIndex = startIndex;
-  
+
   return { message: menu, continueSession: true };
 }
 
@@ -244,32 +245,32 @@ function showCategoryMenu(session: any) {
   const itemsPerPage = 4;
   const currentPage = session.data.currentPage || 1;
   const totalPages = Math.ceil(categories.length / itemsPerPage);
-  
+
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const pageCategories = categories.slice(startIndex, endIndex);
-  
+
   if (pageCategories.length === 0) {
-    return { message: 'No categories available.', continueSession: false };
+    return { message: "No categories available.", continueSession: false };
   }
-  
+
   let menu = `${session.data.awardName}\n\nSelect Category:\n\n`;
   pageCategories.forEach((category: any, index: number) => {
     menu += `${index + 1}. ${category.name}\n`;
   });
-  
+
   if (currentPage < totalPages) {
-    menu += '\n#. Next Page';
+    menu += "\n#. Next Page";
   }
   if (currentPage > 1) {
-    menu += '\n0. Previous';
+    menu += "\n0. Previous";
   } else {
-    menu += '\n0. Back';
+    menu += "\n0. Back";
   }
-  
+
   session.data.totalPages = totalPages;
   session.data.pageStartIndex = startIndex;
-  
+
   return { message: menu, continueSession: true };
 }
 
@@ -278,33 +279,33 @@ function showNomineeMenu(session: any) {
   const itemsPerPage = 4;
   const currentPage = session.data.currentPage || 1;
   const totalPages = Math.ceil(nominees.length / itemsPerPage);
-  
+
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const pageNominees = nominees.slice(startIndex, endIndex);
-  
+
   if (pageNominees.length === 0) {
-    return { message: 'No nominees available.', continueSession: false };
+    return { message: "No nominees available.", continueSession: false };
   }
-  
+
   let menu = `${session.data.categoryName}\n\nSelect Nominee:\n\n`;
   pageNominees.forEach((nominee: any, index: number) => {
     const code = nominee.nomineeCode ? ` (${nominee.nomineeCode})` : "";
     menu += `${index + 1}. ${nominee.name}${code}\n`;
   });
-  
+
   if (currentPage < totalPages) {
-    menu += '\n#. Next Page';
+    menu += "\n#. Next Page";
   }
   if (currentPage > 1) {
-    menu += '\n0. Previous';
+    menu += "\n0. Previous";
   } else {
-    menu += '\n0. Back';
+    menu += "\n0. Back";
   }
-  
+
   session.data.totalPages = totalPages;
   session.data.pageStartIndex = startIndex;
-  
+
   return { message: menu, continueSession: true };
 }
 
@@ -422,7 +423,7 @@ async function handleAwardSelection(session: any, userInput: string) {
 
   session.currentStep = "select_category";
   session.data.categories = categories;
-  
+
   return showCategoryMenu(session);
 }
 
@@ -748,17 +749,23 @@ async function handleConfirmation(
     );
 
     if (paystackResponse.success) {
-      // Check the charge status from Paystack
       const chargeStatus = paystackResponse.data?.data?.status;
       const displayText = paystackResponse.data?.data?.display_text;
-      
+
       console.log(`Charge status: ${chargeStatus}`);
       console.log(`Display text: ${displayText}`);
-      
+
       // Handle different charge statuses
       switch (chargeStatus) {
-        case 'send_otp':
-        case 'pending':
+        case "send_otp":
+          // OTP/PIN prompt will be sent to user's phone automatically by Paystack
+          // Just end the session and let Paystack handle it
+          session.isActive = false;
+          return {
+            message: `Vote Submitted!\n\nCheck your phone to complete payment.\n\nFor: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you!`,
+            continueSession: false,
+          }
+        case "pending":
           // OTP/PIN prompt will be sent to user's phone automatically by Paystack
           // Just end the session and let Paystack handle it
           session.isActive = false;
@@ -766,18 +773,20 @@ async function handleConfirmation(
             message: `Vote Submitted!\n\nCheck your phone to complete payment.\n\nFor: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you!`,
             continueSession: false,
           };
-          
-        case 'pay_offline':
+
+        case "pay_offline":
           // Requires *170# approval
           session.isActive = false;
           return {
             message: `Payment Initiated!\n\nTo complete:\nDial *170# > My Approvals\nApprove GHS ${session.data.amount.toFixed(2)}\n\nFor: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\n\nThank you!`,
             continueSession: false,
           };
-          
-        case 'success':
+
+        case "success":
           // Payment completed immediately
-          await Vote.findByIdAndUpdate(vote._id, { paymentStatus: "completed" });
+          await Vote.findByIdAndUpdate(vote._id, {
+            paymentStatus: "completed",
+          });
           await Nominee.findByIdAndUpdate(session.data.nomineeId, {
             $inc: { voteCount: session.data.numberOfVotes },
           });
@@ -786,16 +795,16 @@ async function handleConfirmation(
             message: `Vote Successful!\n\n${session.data.numberOfVotes} vote(s) for ${session.data.nomineeName}\n\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you for voting!`,
             continueSession: false,
           };
-          
-        case 'failed':
+
+        case "failed":
           // Payment failed
           await Vote.findByIdAndUpdate(vote._id, { paymentStatus: "failed" });
           session.isActive = false;
           return {
-            message: `Payment Failed!\n\n${displayText || 'Unable to process payment. Please try again.'}\n\nThank you!`,
+            message: `Payment Failed!\n\n${displayText || "Unable to process payment. Please try again."}\n\nThank you!`,
             continueSession: false,
           };
-          
+
         default:
           // Default - end session
           session.isActive = false;
@@ -860,23 +869,25 @@ async function initiatePaystackCharge(
 
     // Format phone number - try without country code prefix
     let formattedPhone = phoneNumber.replace(/[\s\-+]/g, "");
-    
+
     // Remove leading zero if present
     if (formattedPhone.startsWith("0")) {
       formattedPhone = formattedPhone.substring(1);
     }
-    
+
     // Remove 233 prefix if present - some providers work better without it
     if (formattedPhone.startsWith("233")) {
       formattedPhone = formattedPhone.substring(3);
     }
-    
+
     // Add back the 0 prefix (local format: 0XXXXXXXXX)
     if (!formattedPhone.startsWith("0")) {
       formattedPhone = "0" + formattedPhone;
     }
 
-    console.log(`Original phone: ${phoneNumber}, Formatted phone: ${formattedPhone}, Provider: ${provider}`);
+    console.log(
+      `Original phone: ${phoneNumber}, Formatted phone: ${formattedPhone}, Provider: ${provider}`,
+    );
 
     // Prepare charge request matching working implementation
     const chargeRequest = {
@@ -895,7 +906,10 @@ async function initiatePaystackCharge(
       },
     };
 
-    console.log("Paystack charge request:", JSON.stringify(chargeRequest, null, 2));
+    console.log(
+      "Paystack charge request:",
+      JSON.stringify(chargeRequest, null, 2),
+    );
 
     const response = await fetch("https://api.paystack.co/charge", {
       method: "POST",
@@ -909,7 +923,7 @@ async function initiatePaystackCharge(
 
     const data = await response.json();
     console.log("Paystack charge response:", JSON.stringify(data, null, 2));
-    
+
     return {
       success: data.status === true,
       data,
@@ -947,4 +961,3 @@ function detectMobileProvider(phoneNumber: string): string | null {
   }
   return "mtn";
 }
-
