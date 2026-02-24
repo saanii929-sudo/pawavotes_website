@@ -218,7 +218,7 @@ function showAwardMenu(session: any) {
     return { message: 'No awards available.', continueSession: false };
   }
   
-  let menu = `Welcome to PawaVotes\nVoting Platform\n\nSelect Event:\n\n`;
+  let menu = `Welcome to PawaVotes\n\nSelect Event:\n\n`;
   pageAwards.forEach((award: any, index: number) => {
     const globalIndex = startIndex + index + 1;
     menu += `${index + 1}. ${award.name}\n`;
