@@ -62,9 +62,19 @@ async function handleUssdFlow(
 ) {
   const step = session.currentStep;
 
-  // Handle back navigation (0 = back)
-  if (userInput === '0' && step !== 'welcome') {
-    return handleBackNavigation(session);
+  // Handle pagination navigation
+  if (userInput === '#') {
+    return handleNextPage(session);
+  }
+
+  // Handle back navigation (0 = back/previous)
+  if (userInput === '0') {
+    // Check if we're on a paginated screen with multiple pages
+    if (session.data.currentPage && session.data.currentPage > 1) {
+      return handlePreviousPage(session);
+    } else if (step !== 'welcome') {
+      return handleBackNavigation(session);
+    }
   }
 
   switch (step) {
@@ -120,6 +130,7 @@ function handleBackNavigation(session: any) {
   }
 
   session.currentStep = previousStep;
+  session.data.currentPage = 1; // Reset to first page when going back
   
   // Regenerate the menu for the previous step
   switch (previousStep) {
@@ -127,28 +138,10 @@ function handleBackNavigation(session: any) {
       return showWelcome(session);
       
     case 'select_award':
-      const awards = session.data.awards || [];
-      if (awards.length === 0) {
-        return { message: 'No awards available.', continueSession: false };
-      }
-      let awardMenu = 'Welcome to PawaVotes\n\nSelect Event:\n\n';
-      awards.forEach((award: any, index: number) => {
-        awardMenu += `${index + 1}. ${award.name}\n`;
-      });
-      awardMenu += '\n0. Exit';
-      return { message: awardMenu, continueSession: true };
+      return showAwardMenu(session);
       
     case 'select_category':
-      const categories = session.data.categories || [];
-      if (categories.length === 0) {
-        return { message: 'No categories available.', continueSession: false };
-      }
-      let categoryMenu = `${session.data.awardName}\n\nSelect Category:\n\n`;
-      categories.forEach((category: any, index: number) => {
-        categoryMenu += `${index + 1}. ${category.name}\n`;
-      });
-      categoryMenu += '\n0. Back';
-      return { message: categoryMenu, continueSession: true };
+      return showCategoryMenu(session);
       
     case 'nominee_method':
       return {
@@ -161,6 +154,167 @@ function handleBackNavigation(session: any) {
   }
 }
 
+function handleNextPage(session: any) {
+  const currentPage = session.data.currentPage || 1;
+  const totalPages = session.data.totalPages || 1;
+  
+  if (currentPage >= totalPages) {
+    return {
+      message: 'You are on the last page. Please select an option or press 0 to go back.',
+      continueSession: true,
+    };
+  }
+  
+  session.data.currentPage = currentPage + 1;
+  
+  // Show the appropriate menu based on current step
+  switch (session.currentStep) {
+    case 'select_award':
+      return showAwardMenu(session);
+    case 'select_category':
+      return showCategoryMenu(session);
+    case 'select_nominee':
+      return showNomineeMenu(session);
+    default:
+      return {
+        message: 'Pagination not available on this screen.',
+        continueSession: true,
+      };
+  }
+}
+
+function handlePreviousPage(session: any) {
+  const currentPage = session.data.currentPage || 1;
+  
+  if (currentPage <= 1) {
+    return {
+      message: 'You are on the first page. Please select an option.',
+      continueSession: true,
+    };
+  }
+  
+  session.data.currentPage = currentPage - 1;
+  
+  // Show the appropriate menu based on current step
+  switch (session.currentStep) {
+    case 'select_award':
+      return showAwardMenu(session);
+    case 'select_category':
+      return showCategoryMenu(session);
+    case 'select_nominee':
+      return showNomineeMenu(session);
+    default:
+      return {
+        message: 'Pagination not available on this screen.',
+        continueSession: true,
+      };
+  }
+}
+
+function showAwardMenu(session: any) {
+  const awards = session.data.awards || [];
+  const itemsPerPage = 4;
+  const currentPage = session.data.currentPage || 1;
+  const totalPages = Math.ceil(awards.length / itemsPerPage);
+  
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const pageAwards = awards.slice(startIndex, endIndex);
+  
+  if (pageAwards.length === 0) {
+    return { message: 'No awards available.', continueSession: false };
+  }
+  
+  let menu = `PawaVotes (${currentPage}/${totalPages})\n\nSelect Event:\n\n`;
+  pageAwards.forEach((award: any, index: number) => {
+    const globalIndex = startIndex + index + 1;
+    menu += `${index + 1}. ${award.name}\n`;
+  });
+  
+  if (currentPage < totalPages) {
+    menu += '\n#. Next Page';
+  }
+  if (currentPage > 1) {
+    menu += '\n0. Previous';
+  } else {
+    menu += '\n0. Exit';
+  }
+  
+  session.data.totalPages = totalPages;
+  session.data.pageStartIndex = startIndex;
+  
+  return { message: menu, continueSession: true };
+}
+
+function showCategoryMenu(session: any) {
+  const categories = session.data.categories || [];
+  const itemsPerPage = 4;
+  const currentPage = session.data.currentPage || 1;
+  const totalPages = Math.ceil(categories.length / itemsPerPage);
+  
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const pageCategories = categories.slice(startIndex, endIndex);
+  
+  if (pageCategories.length === 0) {
+    return { message: 'No categories available.', continueSession: false };
+  }
+  
+  let menu = `${session.data.awardName}\n(${currentPage}/${totalPages})\n\nSelect Category:\n\n`;
+  pageCategories.forEach((category: any, index: number) => {
+    menu += `${index + 1}. ${category.name}\n`;
+  });
+  
+  if (currentPage < totalPages) {
+    menu += '\n#. Next Page';
+  }
+  if (currentPage > 1) {
+    menu += '\n0. Previous';
+  } else {
+    menu += '\n0. Back';
+  }
+  
+  session.data.totalPages = totalPages;
+  session.data.pageStartIndex = startIndex;
+  
+  return { message: menu, continueSession: true };
+}
+
+function showNomineeMenu(session: any) {
+  const nominees = session.data.nominees || [];
+  const itemsPerPage = 4;
+  const currentPage = session.data.currentPage || 1;
+  const totalPages = Math.ceil(nominees.length / itemsPerPage);
+  
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const pageNominees = nominees.slice(startIndex, endIndex);
+  
+  if (pageNominees.length === 0) {
+    return { message: 'No nominees available.', continueSession: false };
+  }
+  
+  let menu = `${session.data.categoryName}\n(${currentPage}/${totalPages})\n\nSelect Nominee:\n\n`;
+  pageNominees.forEach((nominee: any, index: number) => {
+    const code = nominee.nomineeCode ? ` (${nominee.nomineeCode})` : "";
+    menu += `${index + 1}. ${nominee.name}${code}\n`;
+  });
+  
+  if (currentPage < totalPages) {
+    menu += '\n#. Next Page';
+  }
+  if (currentPage > 1) {
+    menu += '\n0. Previous';
+  } else {
+    menu += '\n0. Back';
+  }
+  
+  session.data.totalPages = totalPages;
+  session.data.pageStartIndex = startIndex;
+  
+  return { message: menu, continueSession: true };
+}
+
 async function showWelcome(session: any) {
   const awards = await Award.find({
     status: { $in: ["published", "active"] },
@@ -168,7 +322,6 @@ async function showWelcome(session: any) {
     .select(
       "name status votingStartDate votingEndDate votingStartTime votingEndTime settings",
     )
-    .limit(10)
     .lean();
 
   if (awards.length === 0) {
@@ -209,7 +362,6 @@ async function showWelcome(session: any) {
 
     if (isActive) {
       activeAwards.push(award);
-    } else {
     }
   }
 
@@ -221,16 +373,11 @@ async function showWelcome(session: any) {
     };
   }
 
-  let menu = "Welcome to PawaVotes\nVoting Platform\n\nSelect Event:\n\n";
-  activeAwards.forEach((award, index) => {
-    menu += `${index + 1}. ${award.name}\n`;
-  });
-  menu += "\n0. Exit";
-
   session.currentStep = "select_award";
   session.data.awards = activeAwards;
+  session.data.currentPage = 1;
 
-  return { message: menu, continueSession: true };
+  return showAwardMenu(session);
 }
 
 async function handleAwardSelection(session: any, userInput: string) {
@@ -244,11 +391,14 @@ async function handleAwardSelection(session: any, userInput: string) {
   }
 
   const selectedIndex = parseInt(userInput) - 1;
+  const pageStartIndex = session.data.pageStartIndex || 0;
+  const actualIndex = pageStartIndex + selectedIndex;
 
   if (
     isNaN(selectedIndex) ||
     selectedIndex < 0 ||
-    selectedIndex >= awards.length
+    selectedIndex >= 4 ||
+    actualIndex >= awards.length
   ) {
     return {
       message: "Invalid selection. Please enter a valid option number.",
@@ -256,17 +406,17 @@ async function handleAwardSelection(session: any, userInput: string) {
     };
   }
 
-  const selectedAward = awards[selectedIndex];
+  const selectedAward = awards[actualIndex];
 
   session.data.awardId = selectedAward._id.toString();
   session.data.awardName = selectedAward.name;
+  session.data.currentPage = 1; // Reset page for categories
 
   const categories = await Category.find({
     awardId: selectedAward._id,
     isPublished: true,
   })
     .select("name")
-    .limit(10)
     .lean();
 
   if (!categories || categories.length === 0) {
@@ -277,25 +427,23 @@ async function handleAwardSelection(session: any, userInput: string) {
     };
   }
 
-  let menu = `${selectedAward.name}\n\nSelect Category:\n\n`;
-  categories.forEach((category, index) => {
-    menu += `${index + 1}. ${category.name}\n`;
-  });
-  menu += "\n0. Back";
-
   session.currentStep = "select_category";
   session.data.categories = categories;
-  return { message: menu, continueSession: true };
+  
+  return showCategoryMenu(session);
 }
 
 async function handleCategorySelection(session: any, userInput: string) {
   const selectedIndex = parseInt(userInput) - 1;
   const categories = session.data.categories;
+  const pageStartIndex = session.data.pageStartIndex || 0;
+  const actualIndex = pageStartIndex + selectedIndex;
 
   if (
     isNaN(selectedIndex) ||
     selectedIndex < 0 ||
-    selectedIndex >= categories.length
+    selectedIndex >= 4 ||
+    actualIndex >= categories.length
   ) {
     return {
       message: "Invalid selection. Please enter a valid option number.",
@@ -303,9 +451,10 @@ async function handleCategorySelection(session: any, userInput: string) {
     };
   }
 
-  const selectedCategory = categories[selectedIndex];
+  const selectedCategory = categories[actualIndex];
   session.data.categoryId = selectedCategory._id.toString();
   session.data.categoryName = selectedCategory.name;
+  session.data.currentPage = 1; // Reset page for next step
 
   session.currentStep = "nominee_method";
 
@@ -329,7 +478,6 @@ async function handleNomineeMethod(session: any, userInput: string) {
       nominationStatus: "accepted",
     })
       .select("name nomineeCode")
-      .limit(10)
       .lean();
 
     if (nominees.length === 0) {
@@ -339,17 +487,11 @@ async function handleNomineeMethod(session: any, userInput: string) {
       };
     }
 
-    let menu = `${session.data.categoryName}\n\nSelect Nominee:\n\n`;
-    nominees.forEach((nominee, index) => {
-      const code = nominee.nomineeCode ? ` (${nominee.nomineeCode})` : "";
-      menu += `${index + 1}. ${nominee.name}${code}\n`;
-    });
-    menu += "\n0. Back";
-
     session.currentStep = "select_nominee";
     session.data.nominees = nominees;
+    session.data.currentPage = 1;
 
-    return { message: menu, continueSession: true };
+    return showNomineeMenu(session);
   } else {
     return {
       message: "Invalid selection. Please enter 1 or 2.",
@@ -397,11 +539,14 @@ async function handleNomineeCodeEntry(session: any, userInput: string) {
 async function handleNomineeSelection(session: any, userInput: string) {
   const selectedIndex = parseInt(userInput) - 1;
   const nominees = session.data.nominees;
+  const pageStartIndex = session.data.pageStartIndex || 0;
+  const actualIndex = pageStartIndex + selectedIndex;
 
   if (
     isNaN(selectedIndex) ||
     selectedIndex < 0 ||
-    selectedIndex >= nominees.length
+    selectedIndex >= 4 ||
+    actualIndex >= nominees.length
   ) {
     return {
       message: "Invalid selection. Please enter a valid option number.",
@@ -409,7 +554,7 @@ async function handleNomineeSelection(session: any, userInput: string) {
     };
   }
 
-  const selectedNominee = nominees[selectedIndex];
+  const selectedNominee = nominees[actualIndex];
   session.data.nomineeId = selectedNominee._id.toString();
   session.data.nomineeName = selectedNominee.name;
   session.data.nomineeCode = selectedNominee.nomineeCode;

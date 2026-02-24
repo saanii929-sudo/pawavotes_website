@@ -43,7 +43,6 @@ const VotingModal = ({
   const [activeTab, setActiveTab] = useState<"normal" | "bulk">("normal");
   const [numberOfVotes, setNumberOfVotes] = useState(1);
   const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState(`${phone}@ussd.pawavotes.com`);
   const [isProcessing, setIsProcessing] = useState(false);
   const [bulkPackages, setBulkPackages] = useState<BulkVotePackage[]>([]);
   const [selectedPackage, setSelectedPackage] =
@@ -59,7 +58,6 @@ const VotingModal = ({
     if (!isOpen) {
       setActiveTab("normal");
       setNumberOfVotes(1);
-      setEmail(`${phone}@ussd.pawavotes.com`);
       setPhone("");
       setIsProcessing(false);
       setSelectedPackage(null);
@@ -94,6 +92,9 @@ const VotingModal = ({
 
   const initializePaystack = async () => {
     try {
+      // Generate email from phone number
+      const email = `${phone}@ussd.pawavotes.com`;
+      
       const voteData =
         allowBulkVoting && activeTab === "bulk" && selectedPackage
           ? {
@@ -159,8 +160,8 @@ const VotingModal = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!email || !phone) {
-      toast.error("Please fill in all fields");
+    if (!phone) {
+      toast.error("Please enter your phone number");
       return;
     }
 
@@ -178,6 +179,9 @@ const VotingModal = ({
 
     try {
       const initData = await initializePaystack();
+  
+      const email = `${phone}@ussd.pawavotes.com`;
+      
       if (!window.PaystackPop) {
         const script = document.createElement("script");
         script.src = "https://js.paystack.co/v1/inline.js";
@@ -228,8 +232,6 @@ const VotingModal = ({
               toast.success(
                 `Successfully voted ${votesCount} time${votesCount > 1 ? "s" : ""} for ${nominee.name}!`,
               );
-
-              // Redirect to success page with vote details
               const successUrl = `/vote-success?nominee=${encodeURIComponent(nominee.name)}&votes=${votesCount}&amount=${totalAmount}&type=${allowBulkVoting && activeTab === "bulk" ? "bulk" : "normal"}`;
 
               if (onSuccess) {
@@ -274,10 +276,7 @@ const VotingModal = ({
             <X size={24} />
           </button>
         </div>
-
-        {/* Content */}
         <div className="p-6">
-          {/* Tabs - Only show if bulk voting is allowed */}
           {allowBulkVoting && (
             <div className="flex gap-2 mb-6 border-b border-gray-200">
               <button
@@ -344,7 +343,6 @@ const VotingModal = ({
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Normal Voting Tab Content */}
             {(!allowBulkVoting || activeTab === "normal") && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -352,9 +350,8 @@ const VotingModal = ({
                 </label>
                 <div className="flex items-center gap-3">
                   <input
-                    type="text"
+                    type="number"
                     placeholder="Enter number of votes"
-                    value={numberOfVotes}
                     onChange={handleVoteCountChange}
                     className="flex-1 text-center text-2xl font-bold border border-gray-300 rounded-lg py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
                   />
@@ -364,8 +361,6 @@ const VotingModal = ({
                 </p>
               </div>
             )}
-
-            {/* Bulk Voting Tab Content */}
             {allowBulkVoting && activeTab === "bulk" && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-3">
@@ -423,7 +418,6 @@ const VotingModal = ({
                 )}
               </div>
             )}
-            {/* Phone */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Phone Number
