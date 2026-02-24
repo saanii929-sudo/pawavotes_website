@@ -748,21 +748,55 @@ async function handleConfirmation(
     );
 
     if (paystackResponse.success) {
-      // Check if payment is already completed or if it's pending user action
-      const paymentStatus = paystackResponse.data?.data?.status;
+      // Check the charge status from Paystack
+      const chargeStatus = paystackResponse.data?.data?.status;
+      const displayText = paystackResponse.data?.data?.display_text;
       
-      if (paymentStatus === "success" || paymentStatus === "completed") {
-        // Payment completed immediately, increment vote count
-        await Vote.findByIdAndUpdate(vote._id, { paymentStatus: "completed" });
-        await Nominee.findByIdAndUpdate(session.data.nomineeId, {
-          $inc: { voteCount: session.data.numberOfVotes },
-        });
+      console.log(`Charge status: ${chargeStatus}`);
+      console.log(`Display text: ${displayText}`);
+      
+      // Handle different charge statuses
+      let userMessage;
+      
+      switch (chargeStatus) {
+        case 'send_otp':
+          // OTP sent to user's phone - automatic prompt
+          userMessage = `Payment Initiated!\n\n${displayText || 'Check your phone for payment prompt.'}\n\nFor: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you!`;
+          break;
+          
+        case 'pending':
+          // Awaiting PIN entry
+          userMessage = `Payment Initiated!\n\n${displayText || 'Enter your PIN on your phone to complete payment.'}\n\nFor: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you!`;
+          break;
+          
+        case 'pay_offline':
+          // Requires *170# approval
+          userMessage = `Payment Initiated!\n\nTo complete:\nDial *170# > My Approvals\nApprove GHS ${session.data.amount.toFixed(2)}\n\nFor: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\n\nThank you!`;
+          break;
+          
+        case 'success':
+          // Payment completed immediately
+          await Vote.findByIdAndUpdate(vote._id, { paymentStatus: "completed" });
+          await Nominee.findByIdAndUpdate(session.data.nomineeId, {
+            $inc: { voteCount: session.data.numberOfVotes },
+          });
+          userMessage = `Vote Successful!\n\n${session.data.numberOfVotes} vote(s) for ${session.data.nomineeName}\n\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you for voting!`;
+          break;
+          
+        case 'failed':
+          // Payment failed
+          await Vote.findByIdAndUpdate(vote._id, { paymentStatus: "failed" });
+          userMessage = `Payment Failed!\n\n${displayText || 'Unable to process payment. Please try again.'}\n\nThank you!`;
+          break;
+          
+        default:
+          // Default message for unknown status
+          userMessage = `Payment Initiated!\n\nPlease complete the payment on your phone.\n\nFor: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you!`;
       }
-      // For "pay_offline" or "pending" status, votes will be incremented via webhook
 
       session.isActive = false;
       return {
-        message: `Vote Submitted Successfully!\n\nApprove the payment prompt on ${phoneNumber} to complete your vote.\n\nYou will receive SMS confirmation.\n\nThank you for using PawaVotes!`,
+        message: userMessage,
         continueSession: false,
       };
     } else {
@@ -827,23 +861,32 @@ async function initiatePaystackCharge(
       formattedPhone = "233" + formattedPhone;
     }
 
+    // Prepare charge request matching working implementation
+    const chargeRequest = {
+      email,
+      amount: amountInKobo,
+      currency: "GHS",
+      reference,
+      metadata: {
+        phoneNumber,
+        payment_method: "stk_push",
+        direct_charge: true,
+      },
+      mobile_money: {
+        phone: formattedPhone,
+        provider: provider,
+      },
+    };
+
+    console.log("Paystack charge request:", JSON.stringify(chargeRequest, null, 2));
+
     const response = await fetch("https://api.paystack.co/charge", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${paystackSecretKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        email,
-        amount: amountInKobo,
-        mobile_money: {
-          phone: formattedPhone,
-          provider: provider,
-        },
-        reference,
-        currency: "GHS",
-        channel: ["mobile_money"],
-      }),
+      body: JSON.stringify(chargeRequest),
     });
 
     const data = await response.json();
