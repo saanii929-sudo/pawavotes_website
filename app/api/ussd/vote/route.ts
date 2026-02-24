@@ -62,14 +62,11 @@ async function handleUssdFlow(
 ) {
   const step = session.currentStep;
 
-  // Handle pagination navigation
   if (userInput === '#') {
     return handleNextPage(session);
   }
 
-  // Handle back navigation (0 = back/previous)
   if (userInput === '0') {
-    // Check if we're on a paginated screen with multiple pages
     if (session.data.currentPage && session.data.currentPage > 1) {
       return handlePreviousPage(session);
     } else if (step !== 'welcome') {
@@ -130,9 +127,7 @@ function handleBackNavigation(session: any) {
   }
 
   session.currentStep = previousStep;
-  session.data.currentPage = 1; // Reset to first page when going back
-  
-  // Regenerate the menu for the previous step
+  session.data.currentPage = 1;
   switch (previousStep) {
     case 'welcome':
       return showWelcome(session);
@@ -166,8 +161,7 @@ function handleNextPage(session: any) {
   }
   
   session.data.currentPage = currentPage + 1;
-  
-  // Show the appropriate menu based on current step
+
   switch (session.currentStep) {
     case 'select_award':
       return showAwardMenu(session);
@@ -194,8 +188,7 @@ function handlePreviousPage(session: any) {
   }
   
   session.data.currentPage = currentPage - 1;
-  
-  // Show the appropriate menu based on current step
+
   switch (session.currentStep) {
     case 'select_award':
       return showAwardMenu(session);
@@ -225,7 +218,7 @@ function showAwardMenu(session: any) {
     return { message: 'No awards available.', continueSession: false };
   }
   
-  let menu = `PawaVotes (${currentPage}/${totalPages})\n\nSelect Event:\n\n`;
+  let menu = `Welcome to PawaVotes\nVoting Platform\n\nSelect Event:\n\n`;
   pageAwards.forEach((award: any, index: number) => {
     const globalIndex = startIndex + index + 1;
     menu += `${index + 1}. ${award.name}\n`;
@@ -260,7 +253,7 @@ function showCategoryMenu(session: any) {
     return { message: 'No categories available.', continueSession: false };
   }
   
-  let menu = `${session.data.awardName}\n(${currentPage}/${totalPages})\n\nSelect Category:\n\n`;
+  let menu = `${session.data.awardName}\n\nSelect Category:\n\n`;
   pageCategories.forEach((category: any, index: number) => {
     menu += `${index + 1}. ${category.name}\n`;
   });
@@ -294,7 +287,7 @@ function showNomineeMenu(session: any) {
     return { message: 'No nominees available.', continueSession: false };
   }
   
-  let menu = `${session.data.categoryName}\n(${currentPage}/${totalPages})\n\nSelect Nominee:\n\n`;
+  let menu = `${session.data.categoryName}\n\nSelect Nominee:\n\n`;
   pageNominees.forEach((nominee: any, index: number) => {
     const code = nominee.nomineeCode ? ` (${nominee.nomineeCode})` : "";
     menu += `${index + 1}. ${nominee.name}${code}\n`;
@@ -410,7 +403,7 @@ async function handleAwardSelection(session: any, userInput: string) {
 
   session.data.awardId = selectedAward._id.toString();
   session.data.awardName = selectedAward.name;
-  session.data.currentPage = 1; // Reset page for categories
+  session.data.currentPage = 1;
 
   const categories = await Category.find({
     awardId: selectedAward._id,
@@ -454,7 +447,7 @@ async function handleCategorySelection(session: any, userInput: string) {
   const selectedCategory = categories[actualIndex];
   session.data.categoryId = selectedCategory._id.toString();
   session.data.categoryName = selectedCategory.name;
-  session.data.currentPage = 1; // Reset page for next step
+  session.data.currentPage = 1;
 
   session.currentStep = "nominee_method";
 
