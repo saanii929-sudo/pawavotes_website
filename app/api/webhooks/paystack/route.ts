@@ -40,13 +40,20 @@ export async function POST(req: NextRequest) {
       
       // Update vote payment status
       const Vote = (await import('@/models/Vote')).default;
+      const Nominee = (await import('@/models/Nominee')).default;
+      
       const vote = await Vote.findOne({ paymentReference: reference });
       
-      if (vote) {
+      if (vote && vote.paymentStatus !== 'completed') {
         vote.paymentStatus = 'completed';
         await vote.save();
         
-        console.log(`Vote payment ${reference} marked as completed`);
+        // Increment nominee vote count
+        await Nominee.findByIdAndUpdate(vote.nomineeId, {
+          $inc: { voteCount: vote.numberOfVotes },
+        });
+        
+        console.log(`Vote payment ${reference} marked as completed and ${vote.numberOfVotes} votes added to nominee`);
       }
     } else if (event.event === 'charge.failed') {
       const reference = event.data.reference;

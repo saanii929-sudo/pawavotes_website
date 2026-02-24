@@ -748,9 +748,17 @@ async function handleConfirmation(
     );
 
     if (paystackResponse.success) {
-      await Nominee.findByIdAndUpdate(session.data.nomineeId, {
-        $inc: { voteCount: session.data.numberOfVotes },
-      });
+      // Check if payment is already completed or if it's pending user action
+      const paymentStatus = paystackResponse.data?.data?.status;
+      
+      if (paymentStatus === "success" || paymentStatus === "completed") {
+        // Payment completed immediately, increment vote count
+        await Vote.findByIdAndUpdate(vote._id, { paymentStatus: "completed" });
+        await Nominee.findByIdAndUpdate(session.data.nomineeId, {
+          $inc: { voteCount: session.data.numberOfVotes },
+        });
+      }
+      // For "pay_offline" or "pending" status, votes will be incremented via webhook
 
       session.isActive = false;
       return {
