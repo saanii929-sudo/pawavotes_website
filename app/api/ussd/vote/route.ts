@@ -524,7 +524,7 @@ async function handleNomineeCodeEntry(session: any, userInput: string) {
   session.currentStep = "enter_votes";
 
   return {
-    message: `Voting For:\n${nominee.name} (${nomineeCode})\n\nGHS ${pricePerVote.toFixed(2)} per vote\n\nEnter number of votes (1-100):\n\n0. Back`,
+    message: `Voting For:\n${nominee.name} (${nomineeCode})\n\nGHS ${pricePerVote.toFixed(2)} per vote\n\nEnter number of votes:\n\n0. Back`,
     continueSession: true,
   };
 }
@@ -563,16 +563,16 @@ async function handleNomineeSelection(session: any, userInput: string) {
     ? ` (${selectedNominee.nomineeCode})`
     : "";
   return {
-    message: `Voting For:\n${selectedNominee.name}${codeDisplay}\n\nGHS ${pricePerVote.toFixed(2)} per vote\n\nEnter number of votes (1-100):\n\n0. Back`,
+    message: `Voting For:\n${selectedNominee.name}${codeDisplay}\n\nGHS ${pricePerVote.toFixed(2)} per vote\n\nEnter number of votes:\n\n0. Back`,
     continueSession: true,
   };
 }
 
 async function handleVoteQuantity(session: any, userInput: string) {
   const numberOfVotes = parseInt(userInput);
-  if (isNaN(numberOfVotes) || numberOfVotes < 1 || numberOfVotes > 100) {
+  if (isNaN(numberOfVotes) || numberOfVotes < 1) {
     return {
-      message: "Invalid amount. Please enter a number between 1 and 100.",
+      message: "Invalid amount. Please enter a valid number of votes.",
       continueSession: false,
     };
   }
