@@ -14,6 +14,9 @@ const geistMono = Geist_Mono({
 
 
 export const metadata: Metadata = {
+  verification: {
+    google: "z0c-IsbG7lVZ19I_I4t1EuQmOq-GrcYfzIQJjDVzJjw",
+  },
   title: "Pawavotes",
   description: "A simple and transparent voting experience",
   icons: {
