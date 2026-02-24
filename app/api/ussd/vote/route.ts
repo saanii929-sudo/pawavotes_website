@@ -811,6 +811,14 @@ async function initiatePaystackCharge(
       };
     }
 
+    // Format phone number to international format (233XXXXXXXXX)
+    let formattedPhone = phoneNumber.replace(/[\s\-+]/g, "");
+    if (formattedPhone.startsWith("0")) {
+      formattedPhone = "233" + formattedPhone.substring(1);
+    } else if (!formattedPhone.startsWith("233")) {
+      formattedPhone = "233" + formattedPhone;
+    }
+
     const response = await fetch("https://api.paystack.co/charge", {
       method: "POST",
       headers: {
@@ -821,20 +829,24 @@ async function initiatePaystackCharge(
         email,
         amount: amountInKobo,
         mobile_money: {
-          phone: phoneNumber,
+          phone: formattedPhone,
           provider: provider,
         },
         reference,
         currency: "GHS",
+        channel: ["mobile_money"],
       }),
     });
 
     const data = await response.json();
+    console.log("Paystack charge response:", JSON.stringify(data, null, 2));
+    
     return {
       success: data.status === true,
       data,
     };
   } catch (error: any) {
+    console.error("Paystack charge error:", error);
     return {
       success: false,
       error: error.message,

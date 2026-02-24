@@ -180,7 +180,7 @@ const VotingModal = ({
     try {
       const initData = await initializePaystack();
   
-      const email = `${phone}@ussd.pawavotes.com`;
+      const email = `${phone}@pawavotes.com`;
       
       if (!window.PaystackPop) {
         const script = document.createElement("script");
