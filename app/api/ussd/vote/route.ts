@@ -99,11 +99,8 @@ async function handleUssdFlow(
     case "confirm":
       return await handleConfirmation(session, userInput, phoneNumber);
 
-    case "enter_otp":
-      return await handleOtpEntry(session, userInput);
-
-    case "enter_pin":
-      return await handlePinEntry(session, userInput);
+    case "awaiting_payment":
+      return await checkPaymentStatus(session);
 
     default:
       return {
@@ -761,25 +758,19 @@ async function handleConfirmation(
       console.log(`Charge status: ${chargeStatus}`);
       console.log(`Display text: ${displayText}`);
       
-      // Store payment reference in session for OTP/PIN submission
+      // Store payment reference and timestamp in session
       session.data.paymentReference = paymentReference;
       session.data.voteId = vote._id.toString();
+      session.data.paymentInitiatedAt = new Date();
       
       // Handle different charge statuses
       switch (chargeStatus) {
         case 'send_otp':
-          // OTP sent to user's phone - prompt for OTP entry
-          session.currentStep = 'enter_otp';
-          return {
-            message: `OTP Sent!\n\nAn OTP has been sent to ${phoneNumber}.\n\nPlease enter the OTP:\n\n0. Cancel`,
-            continueSession: true,
-          };
-          
         case 'pending':
-          // Awaiting PIN entry
-          session.currentStep = 'enter_pin';
+          // OTP/PIN prompt sent to user's phone - keep session alive
+          session.currentStep = 'awaiting_payment';
           return {
-            message: `Enter PIN\n\nPlease enter your Mobile Money PIN:\n\nFor: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\n0. Cancel`,
+            message: `Payment Prompt Sent!\n\nCheck your phone to approve the payment.\n\nFor: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nPress any key to check status\n0. Cancel`,
             continueSession: true,
           };
           
@@ -813,11 +804,11 @@ async function handleConfirmation(
           };
           
         default:
-          // Default message for unknown status
-          session.isActive = false;
+          // Default - keep session alive
+          session.currentStep = 'awaiting_payment';
           return {
-            message: `Payment Initiated!\n\nPlease complete the payment on your phone.\n\nFor: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you!`,
-            continueSession: false,
+            message: `Payment Initiated!\n\nPlease complete the payment on your phone.\n\nFor: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nPress any key to check status\n0. Cancel`,
+            continueSession: true,
           };
       }
     } else {
@@ -964,159 +955,85 @@ function detectMobileProvider(phoneNumber: string): string | null {
   return "mtn";
 }
 
-async function handleOtpEntry(session: any, userInput: string) {
-  const otp = userInput.trim();
-  
-  if (!otp || otp.length < 4) {
-    return {
-      message: "Invalid OTP. Please enter the OTP sent to your phone:\n\n0. Cancel",
-      continueSession: true,
-    };
-  }
-
+async function checkPaymentStatus(session: any) {
   try {
     const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
     const reference = session.data.paymentReference;
+    const paymentInitiatedAt = new Date(session.data.paymentInitiatedAt);
+    const now = new Date();
+    const elapsedSeconds = (now.getTime() - paymentInitiatedAt.getTime()) / 1000;
 
-    // Submit OTP to Paystack
-    const response = await fetch("https://api.paystack.co/charge/submit_otp", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${paystackSecretKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        otp,
-        reference,
-      }),
-    });
-
-    const data = await response.json();
-    console.log("OTP submission response:", JSON.stringify(data, null, 2));
-
-    if (!data.status) {
+    // Check if 2 minutes (120 seconds) have elapsed
+    if (elapsedSeconds > 120) {
+      session.isActive = false;
       return {
-        message: `OTP Error: ${data.message || 'Invalid OTP'}\n\nPlease try again:\n\n0. Cancel`,
-        continueSession: true,
+        message: `Payment Timeout!\n\nThe payment session has expired.\n\nIf you completed the payment, your vote will be counted once confirmed.\n\nThank you!`,
+        continueSession: false,
       };
     }
 
-    const chargeStatus = data.data?.status;
+    // Check payment status with Paystack
+    const response = await fetch(
+      `https://api.paystack.co/charge/${reference}`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${paystackSecretKey}`,
+        },
+      }
+    );
 
-    if (chargeStatus === "success") {
-      // Payment successful
-      await Vote.findByIdAndUpdate(session.data.voteId, { paymentStatus: "completed" });
-      await Nominee.findByIdAndUpdate(session.data.nomineeId, {
-        $inc: { voteCount: session.data.numberOfVotes },
-      });
-      
-      session.isActive = false;
-      return {
-        message: `Vote Successful!\n\n${session.data.numberOfVotes} vote(s) for ${session.data.nomineeName}\n\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you for voting!`,
-        continueSession: false,
-      };
-    } else if (chargeStatus === "pending" || chargeStatus === "send_pin") {
-      // Now needs PIN
-      session.currentStep = "enter_pin";
-      return {
-        message: `OTP Verified!\n\nPlease enter your Mobile Money PIN:\n\n0. Cancel`,
-        continueSession: true,
-      };
-    } else if (chargeStatus === "failed") {
-      await Vote.findByIdAndUpdate(session.data.voteId, { paymentStatus: "failed" });
-      session.isActive = false;
-      return {
-        message: `Payment Failed!\n\n${data.data?.gateway_response || 'Transaction failed'}\n\nThank you!`,
-        continueSession: false,
-      };
+    const data = await response.json();
+    console.log("Payment status check:", JSON.stringify(data, null, 2));
+
+    if (data.status && data.data) {
+      const chargeStatus = data.data.status;
+
+      if (chargeStatus === "success") {
+        // Payment successful
+        await Vote.findByIdAndUpdate(session.data.voteId, {
+          paymentStatus: "completed",
+        });
+        await Nominee.findByIdAndUpdate(session.data.nomineeId, {
+          $inc: { voteCount: session.data.numberOfVotes },
+        });
+
+        session.isActive = false;
+        return {
+          message: `Vote Successful!\n\n${session.data.numberOfVotes} vote(s) for ${session.data.nomineeName}\n\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you for voting!`,
+          continueSession: false,
+        };
+      } else if (chargeStatus === "failed") {
+        // Payment failed
+        await Vote.findByIdAndUpdate(session.data.voteId, {
+          paymentStatus: "failed",
+        });
+
+        session.isActive = false;
+        return {
+          message: `Payment Failed!\n\n${data.data.gateway_response || "Transaction failed"}\n\nPlease try again.\n\nThank you!`,
+          continueSession: false,
+        };
+      } else {
+        // Still pending - keep waiting
+        const remainingSeconds = Math.floor(120 - elapsedSeconds);
+        return {
+          message: `Waiting for Payment...\n\nPlease complete the payment on your phone.\n\nFor: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nTimeout in ${remainingSeconds}s\n\nPress any key to check\n0. Cancel`,
+          continueSession: true,
+        };
+      }
     } else {
-      // Unknown status
-      session.isActive = false;
+      // Error checking status
       return {
-        message: `Payment processing...\n\nYou will receive confirmation shortly.\n\nThank you!`,
-        continueSession: false,
+        message: `Checking payment...\n\nPlease wait and press any key to check status.\n\n0. Cancel`,
+        continueSession: true,
       };
     }
   } catch (error: any) {
-    console.error("OTP submission error:", error);
+    console.error("Payment status check error:", error);
     return {
-      message: "Error processing OTP. Please try again later.",
-      continueSession: false,
-    };
-  }
-}
-
-async function handlePinEntry(session: any, userInput: string) {
-  const pin = userInput.trim();
-  
-  if (!pin || pin.length < 4) {
-    return {
-      message: "Invalid PIN. Please enter your 4-digit Mobile Money PIN:\n\n0. Cancel",
+      message: `Error checking payment status.\n\nPress any key to retry\n0. Cancel`,
       continueSession: true,
-    };
-  }
-
-  try {
-    const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
-    const reference = session.data.paymentReference;
-
-    // Submit PIN to Paystack
-    const response = await fetch("https://api.paystack.co/charge/submit_pin", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${paystackSecretKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        pin,
-        reference,
-      }),
-    });
-
-    const data = await response.json();
-    console.log("PIN submission response:", JSON.stringify(data, null, 2));
-
-    if (!data.status) {
-      return {
-        message: `PIN Error: ${data.message || 'Invalid PIN'}\n\nPlease try again:\n\n0. Cancel`,
-        continueSession: true,
-      };
-    }
-
-    const chargeStatus = data.data?.status;
-
-    if (chargeStatus === "success") {
-      // Payment successful
-      await Vote.findByIdAndUpdate(session.data.voteId, { paymentStatus: "completed" });
-      await Nominee.findByIdAndUpdate(session.data.nomineeId, {
-        $inc: { voteCount: session.data.numberOfVotes },
-      });
-      
-      session.isActive = false;
-      return {
-        message: `Vote Successful!\n\n${session.data.numberOfVotes} vote(s) for ${session.data.nomineeName}\n\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you for voting!`,
-        continueSession: false,
-      };
-    } else if (chargeStatus === "failed") {
-      await Vote.findByIdAndUpdate(session.data.voteId, { paymentStatus: "failed" });
-      session.isActive = false;
-      return {
-        message: `Payment Failed!\n\n${data.data?.gateway_response || 'Transaction failed'}\n\nThank you!`,
-        continueSession: false,
-      };
-    } else {
-      // Payment processing
-      session.isActive = false;
-      return {
-        message: `Payment processing...\n\nYou will receive confirmation shortly.\n\nThank you!`,
-        continueSession: false,
-      };
-    }
-  } catch (error: any) {
-    console.error("PIN submission error:", error);
-    return {
-      message: "Error processing PIN. Please try again later.",
-      continueSession: false,
     };
   }
 }
