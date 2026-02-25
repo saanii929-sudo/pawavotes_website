@@ -5,6 +5,67 @@ import Award from "@/models/Award";
 import Category from "@/models/Category";
 import Nominee from "@/models/Nominee";
 import Vote from "@/models/Vote";
+import { randomBytes } from "crypto";
+
+// Constants for optimization
+const ITEMS_PER_PAGE = 6; // Increased from 4 for better UX
+const MIN_VOTES = 1;
+const MAX_VOTES = 1000;
+const HIGH_VOTE_THRESHOLD = 100;
+const MAX_ERROR_COUNT = 3;
+const SESSION_TIMEOUT_MS = 120000; // 2 minutes
+const MAX_MESSAGE_LENGTH = 160;
+
+// Helper function for consistent navigation text
+function getNavigationText(step: string): string {
+  if (step === "welcome") {
+    return "0. Exit";
+  }
+  return "0. Back";
+}
+
+// Helper function to compress messages
+function compressMessage(text: string, maxLength = MAX_MESSAGE_LENGTH): string {
+  if (text.length <= maxLength) return text;
+
+  // Apply compression rules
+  text = text
+    .replace(/Ghana Cedis/g, "GHS")
+    .replace(/Enter number of/g, "Enter")
+    .replace(/Select (\w+):/g, "$1:")
+    .replace(/\n\n\n/g, "\n\n") // Max 2 line breaks
+    .replace(/ {2,}/g, " "); // Single spaces only
+
+  // Truncate if still too long
+  if (text.length > maxLength) {
+    text = text.substring(0, maxLength - 3) + "...";
+  }
+
+  return text;
+}
+
+// Helper function to truncate long names
+function truncateName(name: string, maxLength: number): string {
+  if (name.length <= maxLength) return name;
+  return name.substring(0, maxLength - 3) + "...";
+}
+
+// Helper function to handle errors with retry logic
+function handleError(session: any, message: string, continueSession: boolean = true) {
+  session.data.errorCount = (session.data.errorCount || 0) + 1;
+  
+  if (session.data.errorCount > MAX_ERROR_COUNT) {
+    return {
+      message: "Too many errors. Please dial again to restart.",
+      continueSession: false,
+    };
+  }
+  
+  return {
+    message: compressMessage(`${message}\n\n${getNavigationText(session.currentStep)}`),
+    continueSession,
+  };
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -62,21 +123,48 @@ async function handleUssdFlow(
 ) {
   const step = session.currentStep;
 
+  // Check session timeout
+  const sessionAge = Date.now() - new Date(session.lastActivity).getTime();
+  if (sessionAge > SESSION_TIMEOUT_MS && step !== "welcome") {
+    return {
+      message: "Session expired. Please dial again to continue.",
+      continueSession: false,
+    };
+  }
+
+  // Handle pagination
   if (userInput === "#") {
     return handleNextPage(session);
   }
 
+  // Handle back navigation - consistent across all screens
   if (userInput === "0") {
     if (session.data.currentPage && session.data.currentPage > 1) {
       return handlePreviousPage(session);
-    } else if (step !== "welcome") {
+    } else if (step === "welcome") {
+      return {
+        message: "Thank you for using PawaVotes!",
+        continueSession: false,
+      };
+    } else {
       return handleBackNavigation(session);
     }
   }
 
+  // Handle exit command
+  if (userInput === "00") {
+    return {
+      message: "Thank you for using PawaVotes!",
+      continueSession: false,
+    };
+  }
+
   switch (step) {
     case "welcome":
-      return await showWelcome(session);
+      return await showWelcome(session, userInput);
+
+    case "quick_vote_code":
+      return await handleQuickVoteCode(session, userInput);
 
     case "select_award":
       return await handleAwardSelection(session, userInput);
@@ -95,6 +183,9 @@ async function handleUssdFlow(
 
     case "enter_votes":
       return await handleVoteQuantity(session, userInput);
+
+    case "confirm_high_vote":
+      return await handleHighVoteConfirmation(session, userInput);
 
     case "confirm":
       return await handleConfirmation(session, userInput, phoneNumber);
@@ -118,11 +209,13 @@ function handleBackNavigation(session: any) {
 
   const stepFlow: { [key: string]: string } = {
     select_award: "welcome",
+    quick_vote_code: "welcome",
     select_category: "select_award",
     nominee_method: "select_category",
     enter_nominee_code: "nominee_method",
     select_nominee: "nominee_method",
     enter_votes: "nominee_method",
+    confirm_high_vote: "enter_votes",
     confirm: "enter_votes",
     confirm_network: "confirm",
     enter_payment_otp: "confirm",
@@ -134,11 +227,13 @@ function handleBackNavigation(session: any) {
     return { message: "Cannot go back from here.", continueSession: false };
   }
 
+  // Reset error count on back navigation
+  session.data.errorCount = 0;
   session.currentStep = previousStep;
   session.data.currentPage = 1;
   switch (previousStep) {
     case "welcome":
-      return showWelcome(session);
+      return showWelcome(session, "");
 
     case "select_award":
       return showAwardMenu(session);
@@ -148,7 +243,16 @@ function handleBackNavigation(session: any) {
 
     case "nominee_method":
       return {
-        message: `${session.data.categoryName}\n\nVoting Method:\n\n1. Enter Nominee Code\n2. Browse Nominees\n\n0. Back`,
+        message: compressMessage(`${session.data.categoryName}\n\nVoting Method:\n\n1. Enter Nominee Code\n2. Browse Nominees\n\n${getNavigationText("nominee_method")}`),
+        continueSession: true,
+      };
+
+    case "enter_votes":
+      const pricePerVote = session.data.awardCache?.pricing?.votingCost || 0.5;
+      const displayName = truncateName(session.data.nomineeName, 25);
+      const codeDisplay = session.data.nomineeCode ? ` (${session.data.nomineeCode})` : "";
+      return {
+        message: compressMessage(`Vote: ${displayName}${codeDisplay}\nGHS ${pricePerVote.toFixed(2)}/vote\n\nVotes:\n\n${getNavigationText("enter_votes")}`),
         continueSession: true,
       };
 
@@ -215,7 +319,7 @@ function handlePreviousPage(session: any) {
 
 function showAwardMenu(session: any) {
   const awards = session.data.awards || [];
-  const itemsPerPage = 4;
+  const itemsPerPage = ITEMS_PER_PAGE;
   const currentPage = session.data.currentPage || 1;
   const totalPages = Math.ceil(awards.length / itemsPerPage);
 
@@ -227,30 +331,26 @@ function showAwardMenu(session: any) {
     return { message: "No awards available.", continueSession: false };
   }
 
-  let menu = `Welcome to PawaVotes\n\nSelect Event:\n\n`;
+  let menu = `Select Event (${currentPage}/${totalPages}):\n\n`;
   pageAwards.forEach((award: any, index: number) => {
-    const globalIndex = startIndex + index + 1;
-    menu += `${index + 1}. ${award.name}\n`;
+    const truncatedName = truncateName(award.name, 30);
+    menu += `${index + 1}. ${truncatedName}\n`;
   });
 
   if (currentPage < totalPages) {
-    menu += "\n#. Next Page";
+    menu += `\n${itemsPerPage + 1}. Next Page`;
   }
-  if (currentPage > 1) {
-    menu += "\n0. Previous";
-  } else {
-    menu += "\n0. Exit";
-  }
+  menu += `\n\n${getNavigationText("select_award")}`;
 
   session.data.totalPages = totalPages;
   session.data.pageStartIndex = startIndex;
 
-  return { message: menu, continueSession: true };
+  return { message: compressMessage(menu), continueSession: true };
 }
 
 function showCategoryMenu(session: any) {
   const categories = session.data.categories || [];
-  const itemsPerPage = 4;
+  const itemsPerPage = ITEMS_PER_PAGE;
   const currentPage = session.data.currentPage || 1;
   const totalPages = Math.ceil(categories.length / itemsPerPage);
 
@@ -262,29 +362,27 @@ function showCategoryMenu(session: any) {
     return { message: "No categories available.", continueSession: false };
   }
 
-  let menu = `${session.data.awardName}\n\nSelect Category:\n\n`;
+  const awardName = truncateName(session.data.awardName, 25);
+  let menu = `${awardName} (${currentPage}/${totalPages})\n\nCategory:\n\n`;
   pageCategories.forEach((category: any, index: number) => {
-    menu += `${index + 1}. ${category.name}\n`;
+    const catName = truncateName(category.name, 28);
+    menu += `${index + 1}. ${catName}\n`;
   });
 
   if (currentPage < totalPages) {
-    menu += "\n#. Next Page";
+    menu += `\n${itemsPerPage + 1}. Next Page`;
   }
-  if (currentPage > 1) {
-    menu += "\n0. Previous";
-  } else {
-    menu += "\n0. Back";
-  }
+  menu += `\n\n${getNavigationText("select_category")}`;
 
   session.data.totalPages = totalPages;
   session.data.pageStartIndex = startIndex;
 
-  return { message: menu, continueSession: true };
+  return { message: compressMessage(menu), continueSession: true };
 }
 
 function showNomineeMenu(session: any) {
   const nominees = session.data.nominees || [];
-  const itemsPerPage = 4;
+  const itemsPerPage = ITEMS_PER_PAGE;
   const currentPage = session.data.currentPage || 1;
   const totalPages = Math.ceil(nominees.length / itemsPerPage);
 
@@ -296,33 +394,77 @@ function showNomineeMenu(session: any) {
     return { message: "No nominees available.", continueSession: false };
   }
 
-  let menu = `${session.data.categoryName}\n\nSelect Nominee:\n\n`;
+  const catName = truncateName(session.data.categoryName, 25);
+  let menu = `${catName} (${currentPage}/${totalPages})\n\nNominee:\n\n`;
   pageNominees.forEach((nominee: any, index: number) => {
     const code = nominee.nomineeCode ? ` (${nominee.nomineeCode})` : "";
-    menu += `${index + 1}. ${nominee.name}${code}\n`;
+    const nomName = truncateName(nominee.name, 22);
+    menu += `${index + 1}. ${nomName}${code}\n`;
   });
 
   if (currentPage < totalPages) {
-    menu += "\n#. Next Page";
+    menu += `\n${itemsPerPage + 1}. Next Page`;
   }
-  if (currentPage > 1) {
-    menu += "\n0. Previous";
-  } else {
-    menu += "\n0. Back";
-  }
+  menu += `\n\n${getNavigationText("select_nominee")}`;
 
   session.data.totalPages = totalPages;
   session.data.pageStartIndex = startIndex;
 
-  return { message: menu, continueSession: true };
+  return { message: compressMessage(menu), continueSession: true };
 }
 
-async function showWelcome(session: any) {
+async function handleHighVoteConfirmation(session: any, userInput: string) {
+  if (userInput === "1") {
+    // User confirmed high vote
+    const numberOfVotes = session.data.tempVotes;
+    const pricePerVote = session.data.awardCache?.pricing?.votingCost || 0.5;
+    const amount = numberOfVotes * pricePerVote;
+
+    session.data.numberOfVotes = numberOfVotes;
+    session.data.amount = amount;
+    session.data.confirmedHighVote = false; // Reset
+    session.data.tempVotes = null;
+    session.currentStep = "confirm";
+
+    const displayName = truncateName(session.data.nomineeName, 22);
+    const codeDisplay = session.data.nomineeCode ? ` (${session.data.nomineeCode})` : "";
+    
+    return {
+      message: compressMessage(`Confirm Vote\n\nNominee: ${displayName}${codeDisplay}\nVotes: ${numberOfVotes}\nTotal: GHS ${amount.toFixed(2)}\n\n1. Pay\n2. Cancel`),
+      continueSession: true,
+    };
+  } else {
+    // User cancelled, go back to vote entry
+    session.data.confirmedHighVote = false;
+    session.data.tempVotes = null;
+    session.currentStep = "enter_votes";
+    
+    const pricePerVote = session.data.awardCache?.pricing?.votingCost || 0.5;
+    const displayName = truncateName(session.data.nomineeName, 25);
+    const codeDisplay = session.data.nomineeCode ? ` (${session.data.nomineeCode})` : "";
+    
+    return {
+      message: compressMessage(`Vote: ${displayName}${codeDisplay}\nGHS ${pricePerVote.toFixed(2)}/vote\n\nVotes:\n\n${getNavigationText("enter_votes")}`),
+      continueSession: true,
+    };
+  }
+}
+
+async function showWelcome(session: any, userInput?: string) {
+  // Handle quick vote selection
+  if (userInput === "2") {
+    session.currentStep = "quick_vote_code";
+    return {
+      message: compressMessage(`Quick Vote\n\nEnter Nominee Code:\n(e.g., TGMA001)\n\n${getNavigationText("quick_vote_code")}`),
+      continueSession: true,
+    };
+  }
+
   const awards = await Award.find({
     status: { $in: ["published", "active"] },
   })
     .select(
-      "name status votingStartDate votingEndDate votingStartTime votingEndTime settings",
+      "name status votingStartDate votingEndDate votingStartTime votingEndTime settings pricing",
     )
     .lean();
 
@@ -375,11 +517,126 @@ async function showWelcome(session: any) {
     };
   }
 
+  // If only one award, show quick vote option
+  if (activeAwards.length === 1 && !userInput) {
+    session.data.awards = activeAwards;
+    session.data.awardId = activeAwards[0]._id.toString();
+    session.data.awardName = activeAwards[0].name;
+    // Cache award pricing
+    session.data.awardCache = {
+      pricing: activeAwards[0].pricing,
+      votingStartDate: activeAwards[0].votingStartDate,
+      votingEndDate: activeAwards[0].votingEndDate,
+      votingStartTime: activeAwards[0].votingStartTime,
+      votingEndTime: activeAwards[0].votingEndTime,
+    };
+
+    return {
+      message: compressMessage(`Welcome to PawaVotes\n\n1. Browse Events\n2. Quick Vote (Code)\n\n${getNavigationText("welcome")}`),
+      continueSession: true,
+    };
+  }
+
   session.currentStep = "select_award";
   session.data.awards = activeAwards;
   session.data.currentPage = 1;
 
   return showAwardMenu(session);
+}
+
+async function handleQuickVoteCode(session: any, userInput: string) {
+  const nomineeCode = userInput.trim().toUpperCase().replace(/[-_\s]/g, "");
+
+  // Validate code format
+  const CODE_PATTERN = /^[A-Z0-9]{3,10}$/;
+  if (!CODE_PATTERN.test(nomineeCode)) {
+    session.data.errorCount = (session.data.errorCount || 0) + 1;
+    if (session.data.errorCount > MAX_ERROR_COUNT) {
+      return {
+        message: "Too many errors. Please dial again to restart.",
+        continueSession: false,
+      };
+    }
+    return {
+      message: compressMessage(`Invalid format\nExample: TGMA001\n\nTry again:\n\n${getNavigationText("quick_vote_code")}`),
+      continueSession: true,
+    };
+  }
+
+  // Find nominee by code
+  const nominee = await Nominee.findOne({
+    nomineeCode: nomineeCode,
+    status: "published",
+    nominationStatus: "accepted",
+  })
+    .select("name _id categoryId")
+    .lean();
+
+  if (!nominee) {
+    session.data.errorCount = (session.data.errorCount || 0) + 1;
+    if (session.data.errorCount > MAX_ERROR_COUNT) {
+      return {
+        message: "Too many errors. Please dial again to restart.",
+        continueSession: false,
+      };
+    }
+    return {
+      message: compressMessage(`Code "${nomineeCode}" not found\n\nTry again:\n\n${getNavigationText("quick_vote_code")}`),
+      continueSession: true,
+    };
+  }
+
+  // Get category and award info
+  const category = await Category.findById(nominee.categoryId)
+    .select("name awardId")
+    .lean();
+
+  if (!category) {
+    return {
+      message: "Category not found. Please try again.",
+      continueSession: false,
+    };
+  }
+
+  // Get award info and cache pricing
+  const award = await Award.findById(category.awardId)
+    .select("name pricing votingStartDate votingEndDate votingStartTime votingEndTime")
+    .lean();
+
+  if (!award) {
+    return {
+      message: "Event not found. Please try again.",
+      continueSession: false,
+    };
+  }
+
+  // Store in session
+  session.data.awardId = category.awardId.toString();
+  session.data.awardName = award.name;
+  session.data.categoryId = nominee.categoryId.toString();
+  session.data.categoryName = category.name;
+  session.data.nomineeId = nominee._id.toString();
+  session.data.nomineeName = nominee.name;
+  session.data.nomineeCode = nomineeCode;
+  session.data.errorCount = 0; // Reset error count
+
+  // Cache award pricing
+  session.data.awardCache = {
+    pricing: award.pricing,
+    votingStartDate: award.votingStartDate,
+    votingEndDate: award.votingEndDate,
+    votingStartTime: award.votingStartTime,
+    votingEndTime: award.votingEndTime,
+  };
+
+  const pricePerVote = award?.pricing?.votingCost || 0.5;
+  session.currentStep = "enter_votes";
+
+  const displayName = truncateName(nominee.name, 25);
+  return {
+    message: compressMessage(`Vote: ${displayName} (${nomineeCode})\nGHS ${pricePerVote.toFixed(2)}/vote\n\nVotes:\n\n${getNavigationText("enter_votes")}`),
+    continueSession: true,
+  };
 }
 
 async function handleAwardSelection(session: any, userInput: string) {
@@ -395,17 +652,15 @@ async function handleAwardSelection(session: any, userInput: string) {
   const selectedIndex = parseInt(userInput) - 1;
   const pageStartIndex = session.data.pageStartIndex || 0;
   const actualIndex = pageStartIndex + selectedIndex;
+  const itemsPerPage = ITEMS_PER_PAGE;
 
   if (
     isNaN(selectedIndex) ||
     selectedIndex < 0 ||
-    selectedIndex >= 4 ||
+    selectedIndex >= itemsPerPage ||
     actualIndex >= awards.length
   ) {
-    return {
-      message: "Invalid selection. Please enter a valid option number.",
-      continueSession: false,
-    };
+    return handleError(session, `Invalid selection. Enter 1-${Math.min(itemsPerPage, awards.length - pageStartIndex)}`);
   }
 
   const selectedAward = awards[actualIndex];
@@ -413,6 +668,14 @@ async function handleAwardSelection(session: any, userInput: string) {
   session.data.awardId = selectedAward._id.toString();
   session.data.awardName = selectedAward.name;
   session.data.currentPage = 1;
+  session.data.errorCount = 0;
+  session.data.awardCache = {
+    pricing: selectedAward.pricing,
+    votingStartDate: selectedAward.votingStartDate,
+    votingEndDate: selectedAward.votingEndDate,
+    votingStartTime: selectedAward.votingStartTime,
+    votingEndTime: selectedAward.votingEndTime,
+  };
 
   const categories = await Category.find({
     awardId: selectedAward._id,
@@ -440,28 +703,28 @@ async function handleCategorySelection(session: any, userInput: string) {
   const categories = session.data.categories;
   const pageStartIndex = session.data.pageStartIndex || 0;
   const actualIndex = pageStartIndex + selectedIndex;
+  const itemsPerPage = ITEMS_PER_PAGE;
 
   if (
     isNaN(selectedIndex) ||
     selectedIndex < 0 ||
-    selectedIndex >= 4 ||
+    selectedIndex >= itemsPerPage ||
     actualIndex >= categories.length
   ) {
-    return {
-      message: "Invalid selection. Please enter a valid option number.",
-      continueSession: false,
-    };
+    return handleError(session, `Invalid selection. Enter 1-${Math.min(itemsPerPage, categories.length - pageStartIndex)}`);
   }
 
   const selectedCategory = categories[actualIndex];
   session.data.categoryId = selectedCategory._id.toString();
   session.data.categoryName = selectedCategory.name;
   session.data.currentPage = 1;
+  session.data.errorCount = 0; // Reset error count
 
   session.currentStep = "nominee_method";
 
+  const catName = truncateName(selectedCategory.name, 30);
   return {
-    message: `${selectedCategory.name}\n\nVoting Method:\n\n1. Enter Nominee Code\n2. Browse Nominees\n\n0. Back`,
+    message: compressMessage(`${catName}\n\nVoting Method:\n\n1. Enter Nominee Code\n2. Browse Nominees\n\n${getNavigationText("nominee_method")}`),
     continueSession: true,
   };
 }
@@ -470,7 +733,7 @@ async function handleNomineeMethod(session: any, userInput: string) {
   if (userInput === "1") {
     session.currentStep = "enter_nominee_code";
     return {
-      message: `Enter Nominee Code\n(e.g., TGMA001):\n\n0. Back`,
+      message: compressMessage(`Enter Nominee Code\n(e.g., TGMA001):\n\n${getNavigationText("enter_nominee_code")}`),
       continueSession: true,
     };
   } else if (userInput === "2") {
@@ -495,15 +758,18 @@ async function handleNomineeMethod(session: any, userInput: string) {
 
     return showNomineeMenu(session);
   } else {
-    return {
-      message: "Invalid selection. Please enter 1 or 2.",
-      continueSession: false,
-    };
+    return handleError(session, "Invalid selection. Enter 1 or 2");
   }
 }
 
 async function handleNomineeCodeEntry(session: any, userInput: string) {
-  const nomineeCode = userInput.trim().toUpperCase();
+  const nomineeCode = userInput.trim().toUpperCase().replace(/[-_\s]/g, "");
+
+  // Validate code format
+  const CODE_PATTERN = /^[A-Z0-9]{3,10}$/;
+  if (!CODE_PATTERN.test(nomineeCode)) {
+    return handleError(session, `Invalid format\nExample: TGMA001\n\nTry again:`);
+  }
 
   const nominee = await Nominee.findOne({
     nomineeCode: nomineeCode,
@@ -515,25 +781,21 @@ async function handleNomineeCodeEntry(session: any, userInput: string) {
     .lean();
 
   if (!nominee) {
-    return {
-      message: `Nominee code "${nomineeCode}" not found in this category. Please verify and try again.`,
-      continueSession: false,
-    };
+    return handleError(session, `Code "${nomineeCode}" not found\n\nTry again:`);
   }
 
   session.data.nomineeId = nominee._id.toString();
   session.data.nomineeName = nominee.name;
   session.data.nomineeCode = nomineeCode;
+  session.data.errorCount = 0; // Reset error count
 
-  const award = await Award.findById(session.data.awardId)
-    .select("pricing")
-    .lean();
-  const pricePerVote = award?.pricing?.votingCost || 0.5;
-
+  // Use cached pricing if available
+  const pricePerVote = session.data.awardCache?.pricing?.votingCost || 0.5;
   session.currentStep = "enter_votes";
 
+  const displayName = truncateName(nominee.name, 25);
   return {
-    message: `Voting For:\n${nominee.name} (${nomineeCode})\n\nGHS ${pricePerVote.toFixed(2)} per vote\n\nEnter number of votes:\n\n0. Back`,
+    message: compressMessage(`Vote: ${displayName} (${nomineeCode})\nGHS ${pricePerVote.toFixed(2)}/vote\n\nVotes:\n\n${getNavigationText("enter_votes")}`),
     continueSession: true,
   };
 }
@@ -543,63 +805,72 @@ async function handleNomineeSelection(session: any, userInput: string) {
   const nominees = session.data.nominees;
   const pageStartIndex = session.data.pageStartIndex || 0;
   const actualIndex = pageStartIndex + selectedIndex;
+  const itemsPerPage = ITEMS_PER_PAGE;
 
   if (
     isNaN(selectedIndex) ||
     selectedIndex < 0 ||
-    selectedIndex >= 4 ||
+    selectedIndex >= itemsPerPage ||
     actualIndex >= nominees.length
   ) {
-    return {
-      message: "Invalid selection. Please enter a valid option number.",
-      continueSession: false,
-    };
+    return handleError(session, `Invalid selection. Enter 1-${Math.min(itemsPerPage, nominees.length - pageStartIndex)}`);
   }
 
   const selectedNominee = nominees[actualIndex];
   session.data.nomineeId = selectedNominee._id.toString();
   session.data.nomineeName = selectedNominee.name;
   session.data.nomineeCode = selectedNominee.nomineeCode;
+  session.data.errorCount = 0; // Reset error count
 
-  const award = await Award.findById(session.data.awardId)
-    .select("pricing")
-    .lean();
-  const pricePerVote = award?.pricing?.votingCost || 0.5;
-
+  // Use cached pricing if available
+  const pricePerVote = session.data.awardCache?.pricing?.votingCost || 0.5;
   session.currentStep = "enter_votes";
 
-  const codeDisplay = selectedNominee.nomineeCode
-    ? ` (${selectedNominee.nomineeCode})`
-    : "";
+  const displayName = truncateName(selectedNominee.name, 25);
+  const codeDisplay = selectedNominee.nomineeCode ? ` (${selectedNominee.nomineeCode})` : "";
+  
   return {
-    message: `Voting For:\n${selectedNominee.name}${codeDisplay}\n\nGHS ${pricePerVote.toFixed(2)} per vote\n\nEnter number of votes:\n\n0. Back`,
+    message: compressMessage(`Vote: ${displayName}${codeDisplay}\nGHS ${pricePerVote.toFixed(2)}/vote\n\nVotes:\n\n${getNavigationText("enter_votes")}`),
     continueSession: true,
   };
 }
 
 async function handleVoteQuantity(session: any, userInput: string) {
   const numberOfVotes = parseInt(userInput);
-  if (isNaN(numberOfVotes) || numberOfVotes < 1) {
+  
+  if (isNaN(numberOfVotes) || numberOfVotes < MIN_VOTES) {
+    return handleError(session, `Invalid amount. Enter ${MIN_VOTES}-${MAX_VOTES} votes`);
+  }
+  
+  if (numberOfVotes > MAX_VOTES) {
+    return handleError(session, `Maximum ${MAX_VOTES} votes per transaction`);
+  }
+  
+  // Use cached pricing
+  const pricePerVote = session.data.awardCache?.pricing?.votingCost || 0.5;
+  const amount = numberOfVotes * pricePerVote;
+
+  // Check for high vote threshold
+  if (numberOfVotes > HIGH_VOTE_THRESHOLD && !session.data.confirmedHighVote) {
+    session.data.confirmedHighVote = true;
+    session.data.tempVotes = numberOfVotes;
+    session.currentStep = "confirm_high_vote";
     return {
-      message: "Invalid amount. Please enter a valid number of votes.",
-      continueSession: false,
+      message: compressMessage(`Confirm ${numberOfVotes} votes?\n(GHS ${amount.toFixed(2)})\n\n1. Yes\n2. No`),
+      continueSession: true,
     };
   }
-  const award = await Award.findById(session.data.awardId)
-    .select("pricing")
-    .lean();
-  const pricePerVote = award?.pricing?.votingCost || 0.5;
-  const amount = numberOfVotes * pricePerVote;
 
   session.data.numberOfVotes = numberOfVotes;
   session.data.amount = amount;
+  session.data.errorCount = 0; // Reset error count
   session.currentStep = "confirm";
 
-  const codeDisplay = session.data.nomineeCode
-    ? ` (${session.data.nomineeCode})`
-    : "";
+  const displayName = truncateName(session.data.nomineeName, 22);
+  const codeDisplay = session.data.nomineeCode ? ` (${session.data.nomineeCode})` : "";
+  
   return {
-    message: `Confirm Vote\n\nNominee: ${session.data.nomineeName}${codeDisplay}\nVotes: ${numberOfVotes}\nAmount: GHS ${amount.toFixed(2)}\n\n1. Confirm & Pay\n2. Cancel`,
+    message: compressMessage(`Confirm Vote\n\nNominee: ${displayName}${codeDisplay}\nVotes: ${numberOfVotes}\nTotal: GHS ${amount.toFixed(2)}\n\n1. Pay\n2. Cancel`),
     continueSession: true,
   };
 }
@@ -738,7 +1009,7 @@ async function handleConfirmation(
     }
 
     // Network detected - proceed with payment
-    const paymentReference = `USSD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const paymentReference = `USSD-${Date.now()}-${randomBytes(6).toString('hex')}`;
     const dummyEmail = `${phoneNumber}@ussd.pawavotes.com`;
 
     let vote;
@@ -1083,7 +1354,7 @@ async function processPayment(
   provider: string,
 ) {
   try {
-    const paymentReference = `USSD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const paymentReference = `USSD-${Date.now()}-${randomBytes(6).toString('hex')}`;
     const dummyEmail = `${phoneNumber}@ussd.pawavotes.com`;
 
     let vote;
