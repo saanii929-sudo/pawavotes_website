@@ -1,22 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomBytes } from "crypto";
 import connectDB from "@/lib/mongodb";
 import UssdSession from "@/models/UssdSession";
 import Award from "@/models/Award";
 import Category from "@/models/Category";
 import Nominee from "@/models/Nominee";
 import Vote from "@/models/Vote";
-import { randomBytes } from "crypto";
 
-// Constants for optimization
-const ITEMS_PER_PAGE = 6; // Increased from 4 for better UX
+const MAX_MESSAGE_LENGTH = 160;
+const MAX_ERROR_COUNT = 3;
+const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
+const ITEMS_PER_PAGE = 5;
 const MIN_VOTES = 1;
 const MAX_VOTES = 1000;
 const HIGH_VOTE_THRESHOLD = 100;
-const MAX_ERROR_COUNT = 3;
-const SESSION_TIMEOUT_MS = 120000; // 2 minutes
-const MAX_MESSAGE_LENGTH = 160;
 
-// Helper function for consistent navigation text
 function getNavigationText(step: string): string {
   if (step === "welcome") {
     return "0. Exit";
@@ -24,19 +22,16 @@ function getNavigationText(step: string): string {
   return "0. Back";
 }
 
-// Helper function to compress messages
 function compressMessage(text: string, maxLength = MAX_MESSAGE_LENGTH): string {
   if (text.length <= maxLength) return text;
 
-  // Apply compression rules
   text = text
     .replace(/Ghana Cedis/g, "GHS")
     .replace(/Enter number of/g, "Enter")
     .replace(/Select (\w+):/g, "$1:")
-    .replace(/\n\n\n/g, "\n\n") // Max 2 line breaks
-    .replace(/ {2,}/g, " "); // Single spaces only
+    .replace(/\n\n\n/g, "\n\n")
+    .replace(/ {2,}/g, " ");
 
-  // Truncate if still too long
   if (text.length > maxLength) {
     text = text.substring(0, maxLength - 3) + "...";
   }
@@ -44,27 +39,67 @@ function compressMessage(text: string, maxLength = MAX_MESSAGE_LENGTH): string {
   return text;
 }
 
-// Helper function to truncate long names
 function truncateName(name: string, maxLength: number): string {
   if (name.length <= maxLength) return name;
   return name.substring(0, maxLength - 3) + "...";
 }
 
-// Helper function to handle errors with retry logic
-function handleError(session: any, message: string, continueSession: boolean = true) {
+function handleError(
+  session: any,
+  message: string,
+  continueSession: boolean = true,
+) {
   session.data.errorCount = (session.data.errorCount || 0) + 1;
-  
+
   if (session.data.errorCount > MAX_ERROR_COUNT) {
     return {
       message: "Too many errors. Please dial again to restart.",
       continueSession: false,
     };
   }
-  
+
   return {
-    message: compressMessage(`${message}\n\n${getNavigationText(session.currentStep)}`),
+    message: compressMessage(
+      `${message}\n\n${getNavigationText(session.currentStep)}`,
+    ),
     continueSession,
   };
+}
+
+function formatPhoneForPaystack(phoneNumber: string): string {
+  let cleaned = phoneNumber.replace(/[\s\-+]/g, "");
+  if (cleaned.startsWith("233")) {
+    cleaned = cleaned.substring(3);
+  }
+  if (cleaned.startsWith("0")) {
+    cleaned = cleaned.substring(1);
+  }
+
+  return "233" + cleaned;
+}
+
+function detectMobileProvider(phoneNumber: string): string | null {
+  const cleanNumber = phoneNumber.replace(/[\s\-+]/g, "");
+  let prefix = "";
+
+  if (cleanNumber.startsWith("233")) {
+    prefix = cleanNumber.substring(3, 5);
+  } else if (cleanNumber.startsWith("0")) {
+    prefix = cleanNumber.substring(1, 3);
+  } else {
+    prefix = cleanNumber.substring(0, 2);
+  }
+
+  const mtnPrefixes = ["24", "25", "53", "54", "55", "59", "23", "28"];
+  const telecelPrefixes = ["20", "50"];
+  const airtelTigoPrefixes = ["26", "27", "56", "57"];
+
+  if (mtnPrefixes.includes(prefix)) return "mtn";
+  if (telecelPrefixes.includes(prefix)) return "vod";
+  if (airtelTigoPrefixes.includes(prefix)) return "tgo";
+
+  console.warn(`Unknown network prefix: ${prefix} for ${phoneNumber}`);
+  return null;
 }
 
 export async function POST(req: NextRequest) {
@@ -72,7 +107,7 @@ export async function POST(req: NextRequest) {
     await connectDB();
 
     const body = await req.json();
-    const { sessionID, userID, newSession, msisdn, userData, network } = body;
+    const { sessionID, userID, newSession, msisdn, userData } = body;
     const sessionId = sessionID;
     const phoneNumber = msisdn;
     const text = userData || "";
@@ -106,6 +141,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(arkeselResponse);
   } catch (error: any) {
+    console.error("USSD POST error:", error);
     return NextResponse.json({
       sessionID: "",
       userID: "CP9VG7Y5TN_dNri2",
@@ -122,8 +158,6 @@ async function handleUssdFlow(
   phoneNumber: string,
 ) {
   const step = session.currentStep;
-
-  // Check session timeout
   const sessionAge = Date.now() - new Date(session.lastActivity).getTime();
   if (sessionAge > SESSION_TIMEOUT_MS && step !== "welcome") {
     return {
@@ -131,13 +165,9 @@ async function handleUssdFlow(
       continueSession: false,
     };
   }
-
-  // Handle pagination
   if (userInput === "#") {
     return handleNextPage(session);
   }
-
-  // Handle back navigation - consistent across all screens
   if (userInput === "0") {
     if (session.data.currentPage && session.data.currentPage > 1) {
       return handlePreviousPage(session);
@@ -151,7 +181,6 @@ async function handleUssdFlow(
     }
   }
 
-  // Handle exit command
   if (userInput === "00") {
     return {
       message: "Thank you for using PawaVotes!",
@@ -162,40 +191,28 @@ async function handleUssdFlow(
   switch (step) {
     case "welcome":
       return await showWelcome(session, userInput);
-
     case "quick_vote_code":
       return await handleQuickVoteCode(session, userInput);
-
     case "select_award":
       return await handleAwardSelection(session, userInput);
-
     case "select_category":
       return await handleCategorySelection(session, userInput);
-
     case "nominee_method":
       return await handleNomineeMethod(session, userInput);
-
     case "enter_nominee_code":
       return await handleNomineeCodeEntry(session, userInput);
-
     case "select_nominee":
       return await handleNomineeSelection(session, userInput);
-
     case "enter_votes":
       return await handleVoteQuantity(session, userInput);
-
     case "confirm_high_vote":
       return await handleHighVoteConfirmation(session, userInput);
-
     case "confirm":
       return await handleConfirmation(session, userInput, phoneNumber);
-
     case "confirm_network":
       return await handleNetworkConfirmation(session, userInput, phoneNumber);
-
     case "enter_payment_otp":
       return await handlePaymentOTP(session, userInput);
-
     default:
       return {
         message: "Invalid session. Please try again.",
@@ -203,6 +220,7 @@ async function handleUssdFlow(
       };
   }
 }
+
 
 function handleBackNavigation(session: any) {
   console.log(`USSD: Back navigation from step: ${session.currentStep}`);
@@ -227,10 +245,10 @@ function handleBackNavigation(session: any) {
     return { message: "Cannot go back from here.", continueSession: false };
   }
 
-  // Reset error count on back navigation
   session.data.errorCount = 0;
   session.currentStep = previousStep;
   session.data.currentPage = 1;
+
   switch (previousStep) {
     case "welcome":
       return showWelcome(session, "");
@@ -241,20 +259,28 @@ function handleBackNavigation(session: any) {
     case "select_category":
       return showCategoryMenu(session);
 
-    case "nominee_method":
+    case "nominee_method": {
       return {
-        message: compressMessage(`${session.data.categoryName}\n\nVoting Method:\n\n1. Enter Nominee Code\n2. Browse Nominees\n\n${getNavigationText("nominee_method")}`),
+        message: compressMessage(
+          `${session.data.categoryName}\n\nVoting Method:\n\n1. Enter Nominee Code\n2. Browse Nominees\n\n${getNavigationText("nominee_method")}`,
+        ),
         continueSession: true,
       };
+    }
 
-    case "enter_votes":
+    case "enter_votes": {
       const pricePerVote = session.data.awardCache?.pricing?.votingCost || 0.5;
       const displayName = truncateName(session.data.nomineeName, 25);
-      const codeDisplay = session.data.nomineeCode ? ` (${session.data.nomineeCode})` : "";
+      const codeDisplay = session.data.nomineeCode
+        ? ` (${session.data.nomineeCode})`
+        : "";
       return {
-        message: compressMessage(`Vote: ${displayName}${codeDisplay}\nGHS ${pricePerVote.toFixed(2)}/vote\n\nVotes:\n\n${getNavigationText("enter_votes")}`),
+        message: compressMessage(
+          `Vote: ${displayName}${codeDisplay}\nGHS ${pricePerVote.toFixed(2)}/vote\n\nVotes:\n\n${getNavigationText("enter_votes")}`,
+        ),
         continueSession: true,
       };
+    }
 
     default:
       return { message: "Error navigating back.", continueSession: false };
@@ -333,8 +359,7 @@ function showAwardMenu(session: any) {
 
   let menu = `Select Event (${currentPage}/${totalPages}):\n\n`;
   pageAwards.forEach((award: any, index: number) => {
-    const truncatedName = truncateName(award.name, 30);
-    menu += `${index + 1}. ${truncatedName}\n`;
+    menu += `${index + 1}. ${truncateName(award.name, 30)}\n`;
   });
 
   if (currentPage < totalPages) {
@@ -365,8 +390,7 @@ function showCategoryMenu(session: any) {
   const awardName = truncateName(session.data.awardName, 25);
   let menu = `${awardName} (${currentPage}/${totalPages})\n\nCategory:\n\n`;
   pageCategories.forEach((category: any, index: number) => {
-    const catName = truncateName(category.name, 28);
-    menu += `${index + 1}. ${catName}\n`;
+    menu += `${index + 1}. ${truncateName(category.name, 28)}\n`;
   });
 
   if (currentPage < totalPages) {
@@ -398,8 +422,7 @@ function showNomineeMenu(session: any) {
   let menu = `${catName} (${currentPage}/${totalPages})\n\nNominee:\n\n`;
   pageNominees.forEach((nominee: any, index: number) => {
     const code = nominee.nomineeCode ? ` (${nominee.nomineeCode})` : "";
-    const nomName = truncateName(nominee.name, 22);
-    menu += `${index + 1}. ${nomName}${code}\n`;
+    menu += `${index + 1}. ${truncateName(nominee.name, 22)}${code}\n`;
   });
 
   if (currentPage < totalPages) {
@@ -413,49 +436,13 @@ function showNomineeMenu(session: any) {
   return { message: compressMessage(menu), continueSession: true };
 }
 
-async function handleHighVoteConfirmation(session: any, userInput: string) {
-  if (userInput === "1") {
-    // User confirmed high vote
-    const numberOfVotes = session.data.tempVotes;
-    const pricePerVote = session.data.awardCache?.pricing?.votingCost || 0.5;
-    const amount = numberOfVotes * pricePerVote;
-
-    session.data.numberOfVotes = numberOfVotes;
-    session.data.amount = amount;
-    session.data.confirmedHighVote = false; // Reset
-    session.data.tempVotes = null;
-    session.currentStep = "confirm";
-
-    const displayName = truncateName(session.data.nomineeName, 22);
-    const codeDisplay = session.data.nomineeCode ? ` (${session.data.nomineeCode})` : "";
-    
-    return {
-      message: compressMessage(`Confirm Vote\n\nNominee: ${displayName}${codeDisplay}\nVotes: ${numberOfVotes}\nTotal: GHS ${amount.toFixed(2)}\n\n1. Pay\n2. Cancel`),
-      continueSession: true,
-    };
-  } else {
-    // User cancelled, go back to vote entry
-    session.data.confirmedHighVote = false;
-    session.data.tempVotes = null;
-    session.currentStep = "enter_votes";
-    
-    const pricePerVote = session.data.awardCache?.pricing?.votingCost || 0.5;
-    const displayName = truncateName(session.data.nomineeName, 25);
-    const codeDisplay = session.data.nomineeCode ? ` (${session.data.nomineeCode})` : "";
-    
-    return {
-      message: compressMessage(`Vote: ${displayName}${codeDisplay}\nGHS ${pricePerVote.toFixed(2)}/vote\n\nVotes:\n\n${getNavigationText("enter_votes")}`),
-      continueSession: true,
-    };
-  }
-}
-
 async function showWelcome(session: any, userInput?: string) {
-  // Handle quick vote selection
   if (userInput === "2") {
     session.currentStep = "quick_vote_code";
     return {
-      message: compressMessage(`Quick Vote\n\nEnter Nominee Code:\n(e.g., TGMA001)\n\n${getNavigationText("quick_vote_code")}`),
+      message: compressMessage(
+        `Quick Vote\n\nEnter Nominee Code:\n(e.g., TGMA001)\n\n${getNavigationText("quick_vote_code")}`,
+      ),
       continueSession: true,
     };
   }
@@ -477,7 +464,7 @@ async function showWelcome(session: any, userInput?: string) {
   }
 
   const now = new Date();
-  const activeAwards = [];
+  const activeAwards: any[] = [];
 
   for (const award of awards) {
     let isActive = false;
@@ -487,26 +474,25 @@ async function showWelcome(session: any, userInput?: string) {
       const end = new Date(award.votingEndDate);
 
       if (award.votingStartTime) {
-        const [hours, minutes] = award.votingStartTime.split(":");
-        start.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        const [h, m] = award.votingStartTime.split(":");
+        start.setHours(parseInt(h), parseInt(m), 0, 0);
       } else {
         start.setHours(0, 0, 0, 0);
       }
 
       if (award.votingEndTime) {
-        const [hours, minutes] = award.votingEndTime.split(":");
-        end.setHours(parseInt(hours), parseInt(minutes), 59, 999);
+        const [h, m] = award.votingEndTime.split(":");
+        end.setHours(parseInt(h), parseInt(m), 59, 999);
       } else {
         end.setHours(23, 59, 59, 999);
       }
+
       isActive = now >= start && now <= end;
     } else {
       isActive = true;
     }
 
-    if (isActive) {
-      activeAwards.push(award);
-    }
+    if (isActive) activeAwards.push(award);
   }
 
   if (activeAwards.length === 0) {
@@ -517,12 +503,10 @@ async function showWelcome(session: any, userInput?: string) {
     };
   }
 
-  // If only one award, show quick vote option
   if (activeAwards.length === 1 && !userInput) {
     session.data.awards = activeAwards;
     session.data.awardId = activeAwards[0]._id.toString();
     session.data.awardName = activeAwards[0].name;
-    // Cache award pricing
     session.data.awardCache = {
       pricing: activeAwards[0].pricing,
       votingStartDate: activeAwards[0].votingStartDate,
@@ -532,7 +516,9 @@ async function showWelcome(session: any, userInput?: string) {
     };
 
     return {
-      message: compressMessage(`Welcome to PawaVotes\n\n1. Browse Events\n2. Quick Vote (Code)\n\n${getNavigationText("welcome")}`),
+      message: compressMessage(
+        `Welcome to PawaVotes\n\n1. Browse Events\n2. Quick Vote (Code)\n\n${getNavigationText("welcome")}`,
+      ),
       continueSession: true,
     };
   }
@@ -545,9 +531,11 @@ async function showWelcome(session: any, userInput?: string) {
 }
 
 async function handleQuickVoteCode(session: any, userInput: string) {
-  const nomineeCode = userInput.trim().toUpperCase().replace(/[-_\s]/g, "");
+  const nomineeCode = userInput
+    .trim()
+    .toUpperCase()
+    .replace(/[-_\s]/g, "");
 
-  // Validate code format
   const CODE_PATTERN = /^[A-Z0-9]{3,10}$/;
   if (!CODE_PATTERN.test(nomineeCode)) {
     session.data.errorCount = (session.data.errorCount || 0) + 1;
@@ -558,14 +546,15 @@ async function handleQuickVoteCode(session: any, userInput: string) {
       };
     }
     return {
-      message: compressMessage(`Invalid format\nExample: TGMA001\n\nTry again:\n\n${getNavigationText("quick_vote_code")}`),
+      message: compressMessage(
+        `Invalid format\nExample: TGMA001\n\nTry again:\n\n${getNavigationText("quick_vote_code")}`,
+      ),
       continueSession: true,
     };
   }
 
-  // Find nominee by code
   const nominee = await Nominee.findOne({
-    nomineeCode: nomineeCode,
+    nomineeCode,
     status: "published",
     nominationStatus: "accepted",
   })
@@ -581,12 +570,13 @@ async function handleQuickVoteCode(session: any, userInput: string) {
       };
     }
     return {
-      message: compressMessage(`Code "${nomineeCode}" not found\n\nTry again:\n\n${getNavigationText("quick_vote_code")}`),
+      message: compressMessage(
+        `Code "${nomineeCode}" not found\n\nTry again:\n\n${getNavigationText("quick_vote_code")}`,
+      ),
       continueSession: true,
     };
   }
 
-  // Get category and award info
   const category = await Category.findById(nominee.categoryId)
     .select("name awardId")
     .lean();
@@ -598,9 +588,10 @@ async function handleQuickVoteCode(session: any, userInput: string) {
     };
   }
 
-  // Get award info and cache pricing
   const award = await Award.findById(category.awardId)
-    .select("name pricing votingStartDate votingEndDate votingStartTime votingEndTime")
+    .select(
+      "name pricing votingStartDate votingEndDate votingStartTime votingEndTime",
+    )
     .lean();
 
   if (!award) {
@@ -610,7 +601,6 @@ async function handleQuickVoteCode(session: any, userInput: string) {
     };
   }
 
-  // Store in session
   session.data.awardId = category.awardId.toString();
   session.data.awardName = award.name;
   session.data.categoryId = nominee.categoryId.toString();
@@ -618,9 +608,7 @@ async function handleQuickVoteCode(session: any, userInput: string) {
   session.data.nomineeId = nominee._id.toString();
   session.data.nomineeName = nominee.name;
   session.data.nomineeCode = nomineeCode;
-  session.data.errorCount = 0; // Reset error count
-
-  // Cache award pricing
+  session.data.errorCount = 0;
   session.data.awardCache = {
     pricing: award.pricing,
     votingStartDate: award.votingStartDate,
@@ -634,7 +622,9 @@ async function handleQuickVoteCode(session: any, userInput: string) {
 
   const displayName = truncateName(nominee.name, 25);
   return {
-    message: compressMessage(`Vote: ${displayName} (${nomineeCode})\nGHS ${pricePerVote.toFixed(2)}/vote\n\nVotes:\n\n${getNavigationText("enter_votes")}`),
+    message: compressMessage(
+      `Vote: ${displayName} (${nomineeCode})\nGHS ${pricePerVote.toFixed(2)}/vote\n\nVotes:\n\n${getNavigationText("enter_votes")}`,
+    ),
     continueSession: true,
   };
 }
@@ -660,7 +650,10 @@ async function handleAwardSelection(session: any, userInput: string) {
     selectedIndex >= itemsPerPage ||
     actualIndex >= awards.length
   ) {
-    return handleError(session, `Invalid selection. Enter 1-${Math.min(itemsPerPage, awards.length - pageStartIndex)}`);
+    return handleError(
+      session,
+      `Invalid selection. Enter 1-${Math.min(itemsPerPage, awards.length - pageStartIndex)}`,
+    );
   }
 
   const selectedAward = awards[actualIndex];
@@ -711,20 +704,24 @@ async function handleCategorySelection(session: any, userInput: string) {
     selectedIndex >= itemsPerPage ||
     actualIndex >= categories.length
   ) {
-    return handleError(session, `Invalid selection. Enter 1-${Math.min(itemsPerPage, categories.length - pageStartIndex)}`);
+    return handleError(
+      session,
+      `Invalid selection. Enter 1-${Math.min(itemsPerPage, categories.length - pageStartIndex)}`,
+    );
   }
 
   const selectedCategory = categories[actualIndex];
   session.data.categoryId = selectedCategory._id.toString();
   session.data.categoryName = selectedCategory.name;
   session.data.currentPage = 1;
-  session.data.errorCount = 0; // Reset error count
+  session.data.errorCount = 0;
 
   session.currentStep = "nominee_method";
 
-  const catName = truncateName(selectedCategory.name, 30);
   return {
-    message: compressMessage(`${catName}\n\nVoting Method:\n\n1. Enter Nominee Code\n2. Browse Nominees\n\n${getNavigationText("nominee_method")}`),
+    message: compressMessage(
+      `${truncateName(selectedCategory.name, 30)}\n\nVoting Method:\n\n1. Enter Nominee Code\n2. Browse Nominees\n\n${getNavigationText("nominee_method")}`,
+    ),
     continueSession: true,
   };
 }
@@ -733,7 +730,9 @@ async function handleNomineeMethod(session: any, userInput: string) {
   if (userInput === "1") {
     session.currentStep = "enter_nominee_code";
     return {
-      message: compressMessage(`Enter Nominee Code\n(e.g., TGMA001):\n\n${getNavigationText("enter_nominee_code")}`),
+      message: compressMessage(
+        `Enter Nominee Code\n(e.g., TGMA001):\n\n${getNavigationText("enter_nominee_code")}`,
+      ),
       continueSession: true,
     };
   } else if (userInput === "2") {
@@ -763,16 +762,21 @@ async function handleNomineeMethod(session: any, userInput: string) {
 }
 
 async function handleNomineeCodeEntry(session: any, userInput: string) {
-  const nomineeCode = userInput.trim().toUpperCase().replace(/[-_\s]/g, "");
+  const nomineeCode = userInput
+    .trim()
+    .toUpperCase()
+    .replace(/[-_\s]/g, "");
 
-  // Validate code format
   const CODE_PATTERN = /^[A-Z0-9]{3,10}$/;
   if (!CODE_PATTERN.test(nomineeCode)) {
-    return handleError(session, `Invalid format\nExample: TGMA001\n\nTry again:`);
+    return handleError(
+      session,
+      `Invalid format\nExample: TGMA001\n\nTry again:`,
+    );
   }
 
   const nominee = await Nominee.findOne({
-    nomineeCode: nomineeCode,
+    nomineeCode,
     categoryId: session.data.categoryId,
     status: "published",
     nominationStatus: "accepted",
@@ -781,21 +785,25 @@ async function handleNomineeCodeEntry(session: any, userInput: string) {
     .lean();
 
   if (!nominee) {
-    return handleError(session, `Code "${nomineeCode}" not found\n\nTry again:`);
+    return handleError(
+      session,
+      `Code "${nomineeCode}" not found\n\nTry again:`,
+    );
   }
 
   session.data.nomineeId = nominee._id.toString();
   session.data.nomineeName = nominee.name;
   session.data.nomineeCode = nomineeCode;
-  session.data.errorCount = 0; // Reset error count
+  session.data.errorCount = 0;
 
-  // Use cached pricing if available
   const pricePerVote = session.data.awardCache?.pricing?.votingCost || 0.5;
   session.currentStep = "enter_votes";
 
   const displayName = truncateName(nominee.name, 25);
   return {
-    message: compressMessage(`Vote: ${displayName} (${nomineeCode})\nGHS ${pricePerVote.toFixed(2)}/vote\n\nVotes:\n\n${getNavigationText("enter_votes")}`),
+    message: compressMessage(
+      `Vote: ${displayName} (${nomineeCode})\nGHS ${pricePerVote.toFixed(2)}/vote\n\nVotes:\n\n${getNavigationText("enter_votes")}`,
+    ),
     continueSession: true,
   };
 }
@@ -813,66 +821,122 @@ async function handleNomineeSelection(session: any, userInput: string) {
     selectedIndex >= itemsPerPage ||
     actualIndex >= nominees.length
   ) {
-    return handleError(session, `Invalid selection. Enter 1-${Math.min(itemsPerPage, nominees.length - pageStartIndex)}`);
+    return handleError(
+      session,
+      `Invalid selection. Enter 1-${Math.min(itemsPerPage, nominees.length - pageStartIndex)}`,
+    );
   }
 
   const selectedNominee = nominees[actualIndex];
   session.data.nomineeId = selectedNominee._id.toString();
   session.data.nomineeName = selectedNominee.name;
   session.data.nomineeCode = selectedNominee.nomineeCode;
-  session.data.errorCount = 0; // Reset error count
+  session.data.errorCount = 0;
 
-  // Use cached pricing if available
   const pricePerVote = session.data.awardCache?.pricing?.votingCost || 0.5;
   session.currentStep = "enter_votes";
 
   const displayName = truncateName(selectedNominee.name, 25);
-  const codeDisplay = selectedNominee.nomineeCode ? ` (${selectedNominee.nomineeCode})` : "";
-  
+  const codeDisplay = selectedNominee.nomineeCode
+    ? ` (${selectedNominee.nomineeCode})`
+    : "";
+
   return {
-    message: compressMessage(`Vote: ${displayName}${codeDisplay}\nGHS ${pricePerVote.toFixed(2)}/vote\n\nVotes:\n\n${getNavigationText("enter_votes")}`),
+    message: compressMessage(
+      `Vote: ${displayName}${codeDisplay}\nGHS ${pricePerVote.toFixed(2)}/vote\n\nVotes:\n\n${getNavigationText("enter_votes")}`,
+    ),
     continueSession: true,
   };
 }
 
 async function handleVoteQuantity(session: any, userInput: string) {
   const numberOfVotes = parseInt(userInput);
-  
+
   if (isNaN(numberOfVotes) || numberOfVotes < MIN_VOTES) {
-    return handleError(session, `Invalid amount. Enter ${MIN_VOTES}-${MAX_VOTES} votes`);
+    return handleError(
+      session,
+      `Invalid amount. Enter ${MIN_VOTES}-${MAX_VOTES} votes`,
+    );
   }
-  
+
   if (numberOfVotes > MAX_VOTES) {
     return handleError(session, `Maximum ${MAX_VOTES} votes per transaction`);
   }
-  
-  // Use cached pricing
+
   const pricePerVote = session.data.awardCache?.pricing?.votingCost || 0.5;
   const amount = numberOfVotes * pricePerVote;
 
-  // Check for high vote threshold
   if (numberOfVotes > HIGH_VOTE_THRESHOLD && !session.data.confirmedHighVote) {
     session.data.confirmedHighVote = true;
     session.data.tempVotes = numberOfVotes;
     session.currentStep = "confirm_high_vote";
     return {
-      message: compressMessage(`Confirm ${numberOfVotes} votes?\n(GHS ${amount.toFixed(2)})\n\n1. Yes\n2. No`),
+      message: compressMessage(
+        `Confirm ${numberOfVotes} votes?\n(GHS ${amount.toFixed(2)})\n\n1. Yes\n2. No`,
+      ),
       continueSession: true,
     };
   }
 
   session.data.numberOfVotes = numberOfVotes;
   session.data.amount = amount;
-  session.data.errorCount = 0; // Reset error count
+  session.data.errorCount = 0;
   session.currentStep = "confirm";
 
   const displayName = truncateName(session.data.nomineeName, 22);
-  const codeDisplay = session.data.nomineeCode ? ` (${session.data.nomineeCode})` : "";
-  
+  const codeDisplay = session.data.nomineeCode
+    ? ` (${session.data.nomineeCode})`
+    : "";
+
   return {
-    message: compressMessage(`Confirm Vote\n\nNominee: ${displayName}${codeDisplay}\nVotes: ${numberOfVotes}\nTotal: GHS ${amount.toFixed(2)}\n\n1. Pay\n2. Cancel`),
+    message: compressMessage(
+      `Confirm Vote\n\nNominee: ${displayName}${codeDisplay}\nVotes: ${numberOfVotes}\nTotal: GHS ${amount.toFixed(2)}\n\n1. Pay\n2. Cancel`,
+    ),
     continueSession: true,
   };
+}
+
+async function handleHighVoteConfirmation(session: any, userInput: string) {
+  if (userInput === "1") {
+    const numberOfVotes = session.data.tempVotes;
+    const pricePerVote = session.data.awardCache?.pricing?.votingCost || 0.5;
+    const amount = numberOfVotes * pricePerVote;
+
+    session.data.numberOfVotes = numberOfVotes;
+    session.data.amount = amount;
+    session.data.confirmedHighVote = false;
+    session.data.tempVotes = null;
+    session.currentStep = "confirm";
+
+    const displayName = truncateName(session.data.nomineeName, 22);
+    const codeDisplay = session.data.nomineeCode
+      ? ` (${session.data.nomineeCode})`
+      : "";
+
+    return {
+      message: compressMessage(
+        `Confirm Vote\n\nNominee: ${displayName}${codeDisplay}\nVotes: ${numberOfVotes}\nTotal: GHS ${amount.toFixed(2)}\n\n1. Pay\n2. Cancel`,
+      ),
+      continueSession: true,
+    };
+  } else {
+    session.data.confirmedHighVote = false;
+    session.data.tempVotes = null;
+    session.currentStep = "enter_votes";
+
+    const pricePerVote = session.data.awardCache?.pricing?.votingCost || 0.5;
+    const displayName = truncateName(session.data.nomineeName, 25);
+    const codeDisplay = session.data.nomineeCode
+      ? ` (${session.data.nomineeCode})`
+      : "";
+
+    return {
+      message: compressMessage(
+        `Vote: ${displayName}${codeDisplay}\nGHS ${pricePerVote.toFixed(2)}/vote\n\nVotes:\n\n${getNavigationText("enter_votes")}`,
+      ),
+      continueSession: true,
+    };
+  }
 }
 
 async function handleConfirmation(
@@ -924,67 +988,25 @@ async function handleConfirmation(
         const stageEnd = new Date(activeStage.endDate);
 
         if (activeStage.startTime) {
-          const [hours, minutes] = activeStage.startTime.split(":");
-          stageStart.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+          const [h, m] = activeStage.startTime.split(":");
+          stageStart.setHours(parseInt(h), parseInt(m), 0, 0);
         } else {
           stageStart.setHours(0, 0, 0, 0);
         }
 
         if (activeStage.endTime) {
-          const [hours, minutes] = activeStage.endTime.split(":");
-          stageEnd.setHours(parseInt(hours), parseInt(minutes), 59, 999);
+          const [h, m] = activeStage.endTime.split(":");
+          stageEnd.setHours(parseInt(h), parseInt(m), 59, 999);
         } else {
           stageEnd.setHours(23, 59, 59, 999);
         }
 
         isVotingOpen = now >= stageStart && now <= stageEnd;
       } else {
-        if (award.votingStartDate && award.votingEndDate) {
-          const start = new Date(award.votingStartDate);
-          const end = new Date(award.votingEndDate);
-
-          if (award.votingStartTime) {
-            const [hours, minutes] = award.votingStartTime.split(":");
-            start.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-          } else {
-            start.setHours(0, 0, 0, 0);
-          }
-
-          if (award.votingEndTime) {
-            const [hours, minutes] = award.votingEndTime.split(":");
-            end.setHours(parseInt(hours), parseInt(minutes), 59, 999);
-          } else {
-            end.setHours(23, 59, 59, 999);
-          }
-
-          isVotingOpen = now >= start && now <= end;
-        } else {
-          isVotingOpen = true;
-        }
+        isVotingOpen = checkAwardVotingWindow(award, now);
       }
-    } catch (error) {
-      if (award.votingStartDate && award.votingEndDate) {
-        const start = new Date(award.votingStartDate);
-        const end = new Date(award.votingEndDate);
-
-        if (award.votingStartTime) {
-          const [hours, minutes] = award.votingStartTime.split(":");
-          start.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-        } else {
-          start.setHours(0, 0, 0, 0);
-        }
-
-        if (award.votingEndTime) {
-          const [hours, minutes] = award.votingEndTime.split(":");
-          end.setHours(parseInt(hours), parseInt(minutes), 59, 999);
-        } else {
-          end.setHours(23, 59, 59, 999);
-        }
-
-        isVotingOpen = now >= start && now <= end;
-      } else {
-        isVotingOpen = true;
-      }
+    } catch {
+      isVotingOpen = checkAwardVotingWindow(award, now);
     }
 
     if (!isVotingOpen) {
@@ -996,11 +1018,9 @@ async function handleConfirmation(
       };
     }
 
-    // Check if network provider can be detected
     const detectedProvider = detectMobileProvider(phoneNumber);
-    
+
     if (!detectedProvider) {
-      // Network not detected - ask user to confirm
       session.currentStep = "confirm_network";
       return {
         message: `Confirm your network:\n\n1. MTN\n2. Telecel\n3. AirtelTigo\n\n0. Cancel`,
@@ -1008,232 +1028,13 @@ async function handleConfirmation(
       };
     }
 
-    // Network detected - proceed with payment
-    const paymentReference = `USSD-${Date.now()}-${randomBytes(6).toString('hex')}`;
-    const dummyEmail = `${phoneNumber}@ussd.pawavotes.com`;
-
-    let vote;
-    try {
-      vote = await Vote.create({
-        awardId: session.data.awardId,
-        categoryId: session.data.categoryId,
-        nomineeId: session.data.nomineeId,
-        voterEmail: dummyEmail,
-        voterPhone: phoneNumber,
-        numberOfVotes: session.data.numberOfVotes,
-        amount: session.data.amount,
-        paymentReference,
-        paymentMethod: "ussd",
-        paymentStatus: "pending",
-      });
-    } catch (voteError: any) {
-      return {
-        message: "Error creating vote record. Please try again.",
-        continueSession: false,
-      };
-    }
-
-    const paystackResponse = await initiatePaystackCharge(
-      dummyEmail,
-      session.data.amount,
-      phoneNumber,
-      paymentReference,
-    );
-
-    if (paystackResponse.success) {
-      const chargeStatus = paystackResponse.data?.data?.status;
-      const displayText = paystackResponse.data?.data?.display_text;
-
-      console.log(`Charge status: ${chargeStatus}`);
-      console.log(`Display text: ${displayText}`);
-
-      // Handle different charge statuses
-      switch (chargeStatus) {
-        case "send_otp":
-          session.currentStep = "enter_payment_otp";
-          session.data.paymentReference = paymentReference;
-          session.data.otpAttempts = 0;
-          return {
-            message: `OTP sent to your phone\n\nEnter OTP:\n\n0. Cancel`,
-            continueSession: true,
-          };
-
-        case "pending":
-          session.currentStep = "enter_payment_otp";
-          session.data.paymentReference = paymentReference;
-          session.data.otpAttempts = 0;
-          return {
-            message: `OTP sent to your phone\n\nEnter OTP:\n\n0. Cancel`,
-            continueSession: true,
-          };
-
-        case "pay_offline":
-          session.isActive = false;
-          const provider = detectMobileProvider(phoneNumber);
-          let offlineInstructions = "";
-          
-          switch (provider) {
-            case "mtn":
-              offlineInstructions = `Dial *170# > My Approvals\nApprove GHS ${session.data.amount.toFixed(2)}`;
-              break;
-            case "vod":
-              offlineInstructions = `Dial *110# > Pending Payments\nApprove GHS ${session.data.amount.toFixed(2)}`;
-              break;
-            case "tgo":
-              offlineInstructions = `Check your phone for approval request\nApprove GHS ${session.data.amount.toFixed(2)}`;
-              break;
-            default:
-              offlineInstructions = `Check your phone to approve payment\nAmount: GHS ${session.data.amount.toFixed(2)}`;
-          }
-
-          return {
-            message: `Payment Initiated!\n\n${offlineInstructions}\n\nFor: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\n\nThank you!`,
-            continueSession: false,
-          };
-
-        case "success":
-          await Vote.findByIdAndUpdate(vote._id, {
-            paymentStatus: "completed",
-          });
-          await Nominee.findByIdAndUpdate(session.data.nomineeId, {
-            $inc: { voteCount: session.data.numberOfVotes },
-          });
-          session.isActive = false;
-          return {
-            message: `Vote Successful!\n\n${session.data.numberOfVotes} vote(s) for ${session.data.nomineeName}\n\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you for voting!`,
-            continueSession: false,
-          };
-
-        case "failed":
-          await Vote.findByIdAndUpdate(vote._id, { paymentStatus: "failed" });
-          session.isActive = false;
-          return {
-            message: `Payment Failed!\n\n${displayText || "Unable to process payment. Please try again."}\n\nThank you!`,
-            continueSession: false,
-          };
-
-        default:
-          session.isActive = false;
-          return {
-            message: `Vote Submitted!\n\nPlease complete the payment on your phone.\n\nFor: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you!`,
-            continueSession: false,
-          };
-      }
-    } else {
-      const isTestMode =
-        process.env.PAYSTACK_SECRET_KEY?.startsWith("sk_test_");
-
-      if (isTestMode) {
-        const updatedVote = await Vote.findByIdAndUpdate(
-          vote._id,
-          { paymentStatus: "completed" },
-          { new: true },
-        );
-        await Nominee.findByIdAndUpdate(session.data.nomineeId, {
-          $inc: { voteCount: session.data.numberOfVotes },
-        });
-
-        session.isActive = false;
-        return {
-          message: `TEST MODE: Vote recorded successfully!\n\nNominee: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nNote: Using test keys. Mobile money requires live Paystack keys.\n\nThank you for using PawaVotes!`,
-          continueSession: false,
-        };
-      }
-      await Vote.findByIdAndUpdate(vote._id, { paymentStatus: "failed" });
-      return {
-        message:
-          "Payment initiation failed. Please try again later or contact support.",
-        continueSession: false,
-      };
-    }
+    return await processPayment(session, phoneNumber, detectedProvider);
   } catch (error: any) {
+    console.error("handleConfirmation error:", error);
     return {
       message:
         "An error occurred while processing your vote. Please try again.",
       continueSession: false,
-    };
-  }
-}
-
-async function initiatePaystackCharge(
-  email: string,
-  amount: number,
-  phoneNumber: string,
-  reference: string,
-) {
-  try {
-    const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
-    const amountInKobo = Math.round(amount * 100);
-    const provider = detectMobileProvider(phoneNumber);
-
-    if (!provider) {
-      return {
-        success: false,
-        error: "Unsupported mobile network",
-      };
-    }
-
-    let formattedPhone = phoneNumber.replace(/[\s\-+]/g, "");
-
-    if (formattedPhone.startsWith("0")) {
-      formattedPhone = formattedPhone.substring(1);
-    }
-
-    if (formattedPhone.startsWith("233")) {
-      formattedPhone = formattedPhone.substring(3);
-    }
-
-    if (!formattedPhone.startsWith("0")) {
-      formattedPhone = "0" + formattedPhone;
-    }
-
-    console.log(
-      `Original phone: ${phoneNumber}, Formatted phone: ${formattedPhone}, Provider: ${provider}`,
-    );
-
-    const chargeRequest = {
-      email,
-      amount: amountInKobo,
-      currency: "GHS",
-      reference,
-      metadata: {
-        phoneNumber: formattedPhone,
-        payment_method: "stk_push",
-        direct_charge: true,
-      },
-      mobile_money: {
-        phone: formattedPhone,
-        provider: provider,
-      },
-    };
-
-    console.log(
-      "Paystack charge request:",
-      JSON.stringify(chargeRequest, null, 2),
-    );
-
-    const response = await fetch("https://api.paystack.co/charge", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${paystackSecretKey}`,
-        "Content-Type": "application/json",
-        "Cache-Control": "no-cache",
-      },
-      body: JSON.stringify(chargeRequest),
-    });
-
-    const data = await response.json();
-    console.log("Paystack charge response:", JSON.stringify(data, null, 2));
-
-    return {
-      success: data.status === true,
-      data,
-    };
-  } catch (error: any) {
-    console.error("Paystack charge error:", error);
-    return {
-      success: false,
-      error: error.message,
     };
   }
 }
@@ -1299,7 +1100,9 @@ async function handlePaymentOTP(session: any, userInput: string) {
 
     session.isActive = false;
     return {
-      message: `Vote Successful!\n\n${session.data.numberOfVotes} vote(s) for ${session.data.nomineeName}\n\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you!`,
+      message: compressMessage(
+        `Vote Successful!\n\n${session.data.numberOfVotes} vote(s) for ${session.data.nomineeName}\n\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you!`,
+      ),
       continueSession: false,
     };
   } else {
@@ -1319,45 +1122,16 @@ async function handlePaymentOTP(session: any, userInput: string) {
   }
 }
 
-async function submitPaystackOTP(otp: string, reference: string) {
-  try {
-    const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
-
-    const response = await fetch("https://api.paystack.co/charge/submit_otp", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${paystackSecretKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ otp, reference }),
-    });
-
-    const data = await response.json();
-    console.log("Paystack OTP submission response:", JSON.stringify(data, null, 2));
-
-    return {
-      success: data.status === true && data.data?.status === "success",
-      data,
-    };
-  } catch (error: any) {
-    console.error("Paystack OTP submission error:", error);
-    return {
-      success: false,
-      error: error.message,
-    };
-  }
-}
-
 async function processPayment(
   session: any,
   phoneNumber: string,
   provider: string,
 ) {
   try {
-    const paymentReference = `USSD-${Date.now()}-${randomBytes(6).toString('hex')}`;
+    const paymentReference = `USSD-${Date.now()}-${randomBytes(6).toString("hex")}`;
     const dummyEmail = `${phoneNumber}@ussd.pawavotes.com`;
 
-    let vote;
+    let vote: any;
     try {
       vote = await Vote.create({
         awardId: session.data.awardId,
@@ -1372,13 +1146,14 @@ async function processPayment(
         paymentStatus: "pending",
       });
     } catch (voteError: any) {
+      console.error("Vote creation error:", voteError);
       return {
         message: "Error creating vote record. Please try again.",
         continueSession: false,
       };
     }
 
-    const paystackResponse = await initiatePaystackChargeWithProvider(
+    const paystackResponse = await initiatePaystackCharge(
       dummyEmail,
       session.data.amount,
       phoneNumber,
@@ -1390,19 +1165,10 @@ async function processPayment(
       const chargeStatus = paystackResponse.data?.data?.status;
       const displayText = paystackResponse.data?.data?.display_text;
 
-      console.log(`Charge status: ${chargeStatus}`);
-      console.log(`Display text: ${displayText}`);
+      console.log(`Charge status: ${chargeStatus}, Display: ${displayText}`);
 
       switch (chargeStatus) {
         case "send_otp":
-          session.currentStep = "enter_payment_otp";
-          session.data.paymentReference = paymentReference;
-          session.data.otpAttempts = 0;
-          return {
-            message: `OTP sent to your phone\n\nEnter OTP:\n\n0. Cancel`,
-            continueSession: true,
-          };
-
         case "pending":
           session.currentStep = "enter_payment_otp";
           session.data.paymentReference = paymentReference;
@@ -1412,28 +1178,19 @@ async function processPayment(
             continueSession: true,
           };
 
-        case "pay_offline":
+        case "pay_offline": {
           session.isActive = false;
-          let offlineInstructions = "";
-          
-          switch (provider) {
-            case "mtn":
-              offlineInstructions = `Dial *170# > My Approvals\nApprove GHS ${session.data.amount.toFixed(2)}`;
-              break;
-            case "vod":
-              offlineInstructions = `Dial *110# > Pending Payments\nApprove GHS ${session.data.amount.toFixed(2)}`;
-              break;
-            case "tgo":
-              offlineInstructions = `Check your phone for approval request\nApprove GHS ${session.data.amount.toFixed(2)}`;
-              break;
-            default:
-              offlineInstructions = `Check your phone to approve payment\nAmount: GHS ${session.data.amount.toFixed(2)}`;
-          }
-
+          const offlineInstructions = getOfflineInstructions(
+            provider,
+            session.data.amount,
+          );
           return {
-            message: `Payment Initiated!\n\n${offlineInstructions}\n\nFor: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\n\nThank you!`,
-            continueSession: true,
+            message: compressMessage(
+              `Payment Initiated!\n\n${offlineInstructions}\n\nFor: ${truncateName(session.data.nomineeName, 20)}\nVotes: ${session.data.numberOfVotes}\n\nThank you!`,
+            ),
+            continueSession: false,
           };
+        }
 
         case "success":
           await Vote.findByIdAndUpdate(vote._id, {
@@ -1444,7 +1201,9 @@ async function processPayment(
           });
           session.isActive = false;
           return {
-            message: `Vote Successful!\n\n${session.data.numberOfVotes} vote(s) for ${session.data.nomineeName}\n\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you for voting!`,
+            message: compressMessage(
+              `Vote Successful!\n\n${session.data.numberOfVotes} vote(s) for ${session.data.nomineeName}\n\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you for voting!`,
+            ),
             continueSession: false,
           };
 
@@ -1452,18 +1211,39 @@ async function processPayment(
           await Vote.findByIdAndUpdate(vote._id, { paymentStatus: "failed" });
           session.isActive = false;
           return {
-            message: `Payment Failed!\n\n${displayText || "Unable to process payment. Please try again."}\n\nThank you!`,
+            message: compressMessage(
+              `Payment Failed!\n\n${displayText || "Unable to process payment. Please try again."}\n\nThank you!`,
+            ),
             continueSession: false,
           };
 
         default:
           session.isActive = false;
           return {
-            message: `Vote Submitted!\n\nPlease complete the payment on your phone.\n\nFor: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you!`,
+            message: compressMessage(
+              `Vote Submitted!\n\nPlease complete the payment on your phone.\n\nFor: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you!`,
+            ),
             continueSession: false,
           };
       }
     } else {
+      const isTestMode =
+        process.env.PAYSTACK_SECRET_KEY?.startsWith("sk_test_");
+
+      if (isTestMode) {
+        await Vote.findByIdAndUpdate(vote._id, { paymentStatus: "completed" });
+        await Nominee.findByIdAndUpdate(session.data.nomineeId, {
+          $inc: { voteCount: session.data.numberOfVotes },
+        });
+        session.isActive = false;
+        return {
+          message: compressMessage(
+            `TEST MODE: Vote recorded!\n\nNominee: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nNote: Live keys needed for real MoMo.\n\nThank you!`,
+          ),
+          continueSession: false,
+        };
+      }
+
       await Vote.findByIdAndUpdate(vote._id, { paymentStatus: "failed" });
       return {
         message:
@@ -1472,6 +1252,7 @@ async function processPayment(
       };
     }
   } catch (error: any) {
+    console.error("processPayment error:", error);
     return {
       message:
         "An error occurred while processing your vote. Please try again.",
@@ -1480,7 +1261,7 @@ async function processPayment(
   }
 }
 
-async function initiatePaystackChargeWithProvider(
+async function initiatePaystackCharge(
   email: string,
   amount: number,
   phoneNumber: string,
@@ -1490,23 +1271,10 @@ async function initiatePaystackChargeWithProvider(
   try {
     const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
     const amountInKobo = Math.round(amount * 100);
-
-    let formattedPhone = phoneNumber.replace(/[\s\-+]/g, "");
-
-    if (formattedPhone.startsWith("0")) {
-      formattedPhone = formattedPhone.substring(1);
-    }
-
-    if (formattedPhone.startsWith("233")) {
-      formattedPhone = formattedPhone.substring(3);
-    }
-
-    if (!formattedPhone.startsWith("0")) {
-      formattedPhone = "0" + formattedPhone;
-    }
+    const formattedPhone = formatPhoneForPaystack(phoneNumber);
 
     console.log(
-      `Original phone: ${phoneNumber}, Formatted phone: ${formattedPhone}, Provider: ${provider}`,
+      `Original: ${phoneNumber} → Formatted: ${formattedPhone}, Provider: ${provider}`,
     );
 
     const chargeRequest = {
@@ -1521,7 +1289,7 @@ async function initiatePaystackChargeWithProvider(
       },
       mobile_money: {
         phone: formattedPhone,
-        provider: provider,
+        provider,
       },
     };
 
@@ -1543,46 +1311,72 @@ async function initiatePaystackChargeWithProvider(
     const data = await response.json();
     console.log("Paystack charge response:", JSON.stringify(data, null, 2));
 
-    return {
-      success: data.status === true,
-      data,
-    };
+    return { success: data.status === true, data };
   } catch (error: any) {
     console.error("Paystack charge error:", error);
-    return {
-      success: false,
-      error: error.message,
-    };
+    return { success: false, error: error.message };
   }
 }
 
-function detectMobileProvider(phoneNumber: string): string | null {
-  const cleanNumber = phoneNumber.replace(/[\s\-+]/g, "");
-  let prefix = "";
+async function submitPaystackOTP(otp: string, reference: string) {
+  try {
+    const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
 
-  if (cleanNumber.startsWith("233")) {
-    prefix = cleanNumber.substring(3, 5);
-  } else if (cleanNumber.startsWith("0")) {
-    prefix = cleanNumber.substring(1, 3);
+    const response = await fetch("https://api.paystack.co/charge/submit_otp", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${paystackSecretKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ otp, reference }),
+    });
+
+    const data = await response.json();
+    console.log("Paystack OTP response:", JSON.stringify(data, null, 2));
+
+    return {
+      success: data.status === true && data.data?.status === "success",
+      data,
+    };
+  } catch (error: any) {
+    console.error("Paystack OTP error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+function getOfflineInstructions(provider: string, amount: number): string {
+  const amountStr = `GHS ${amount.toFixed(2)}`;
+  switch (provider) {
+    case "mtn":
+      return `Dial *170# > My Approvals\nApprove ${amountStr}`;
+    case "vod":
+      return `Dial *110# > Pending Payments\nApprove ${amountStr}`;
+    case "tgo":
+      return `Check your phone for approval\nApprove ${amountStr}`;
+    default:
+      return `Check your phone to approve\nAmount: ${amountStr}`;
+  }
+}
+
+function checkAwardVotingWindow(award: any, now: Date): boolean {
+  if (!award.votingStartDate || !award.votingEndDate) return true;
+
+  const start = new Date(award.votingStartDate);
+  const end = new Date(award.votingEndDate);
+
+  if (award.votingStartTime) {
+    const [h, m] = award.votingStartTime.split(":");
+    start.setHours(parseInt(h), parseInt(m), 0, 0);
   } else {
-    prefix = cleanNumber.substring(0, 2);
+    start.setHours(0, 0, 0, 0);
   }
-  
-  // Updated prefix lists with additional ranges
-  const mtnPrefixes = ["24", "25", "53", "54", "55", "59", "23", "28"];
-  const telecelPrefixes = ["20", "50"];
-  const airtelTigoPrefixes = ["26", "27", "56", "57"];
 
-  if (mtnPrefixes.includes(prefix)) {
-    return "mtn";
-  } else if (telecelPrefixes.includes(prefix)) {
-    return "vod";
-  } else if (airtelTigoPrefixes.includes(prefix)) {
-    return "tgo";
+  if (award.votingEndTime) {
+    const [h, m] = award.votingEndTime.split(":");
+    end.setHours(parseInt(h), parseInt(m), 59, 999);
+  } else {
+    end.setHours(23, 59, 59, 999);
   }
-  
-  // Log undetected numbers for analysis
-  console.warn(`Unknown network prefix: ${prefix} for ${phoneNumber}`);
-  
-  return null; // Return null instead of defaulting to "mtn"
+
+  return now >= start && now <= end;
 }
