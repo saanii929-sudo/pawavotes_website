@@ -779,7 +779,6 @@ async function handleConfirmation(
       // Handle different charge statuses
       switch (chargeStatus) {
         case "send_otp":
-          // Keep session alive for OTP entry
           session.currentStep = "enter_payment_otp";
           session.data.paymentReference = paymentReference;
           session.data.otpAttempts = 0;
@@ -789,7 +788,6 @@ async function handleConfirmation(
           };
 
         case "pending":
-          // Keep session alive for OTP entry
           session.currentStep = "enter_payment_otp";
           session.data.paymentReference = paymentReference;
           session.data.otpAttempts = 0;
@@ -799,7 +797,6 @@ async function handleConfirmation(
           };
 
         case "pay_offline":
-          // Requires *170# approval - provide network-specific instructions
           session.isActive = false;
           const provider = detectMobileProvider(phoneNumber);
           let offlineInstructions = "";
@@ -824,7 +821,6 @@ async function handleConfirmation(
           };
 
         case "success":
-          // Payment completed immediately
           await Vote.findByIdAndUpdate(vote._id, {
             paymentStatus: "completed",
           });
@@ -838,7 +834,6 @@ async function handleConfirmation(
           };
 
         case "failed":
-          // Payment failed
           await Vote.findByIdAndUpdate(vote._id, { paymentStatus: "failed" });
           session.isActive = false;
           return {
@@ -847,7 +842,6 @@ async function handleConfirmation(
           };
 
         default:
-          // Default - end session
           session.isActive = false;
           return {
             message: `Vote Submitted!\n\nPlease complete the payment on your phone.\n\nFor: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you!`,
@@ -908,20 +902,16 @@ async function initiatePaystackCharge(
       };
     }
 
-    // Format phone number - try without country code prefix
     let formattedPhone = phoneNumber.replace(/[\s\-+]/g, "");
 
-    // Remove leading zero if present
     if (formattedPhone.startsWith("0")) {
       formattedPhone = formattedPhone.substring(1);
     }
 
-    // Remove 233 prefix if present - some providers work better without it
     if (formattedPhone.startsWith("233")) {
       formattedPhone = formattedPhone.substring(3);
     }
 
-    // Add back the 0 prefix (local format: 0XXXXXXXXX)
     if (!formattedPhone.startsWith("0")) {
       formattedPhone = "0" + formattedPhone;
     }
@@ -930,7 +920,6 @@ async function initiatePaystackCharge(
       `Original phone: ${phoneNumber}, Formatted phone: ${formattedPhone}, Provider: ${provider}`,
     );
 
-    // Prepare charge request matching working implementation
     const chargeRequest = {
       email,
       amount: amountInKobo,
@@ -998,10 +987,7 @@ async function handleNetworkConfirmation(
     };
   }
 
-  // Store confirmed network in session
   session.data.confirmedNetwork = selectedProvider;
-
-  // Proceed with payment using confirmed network
   return await processPayment(session, phoneNumber, selectedProvider);
 }
 
@@ -1032,7 +1018,6 @@ async function handlePaymentOTP(session: any, userInput: string) {
   );
 
   if (result.success) {
-    // Update vote and nominee
     await Vote.findOneAndUpdate(
       { paymentReference: session.data.paymentReference },
       { paymentStatus: "completed" },
@@ -1176,7 +1161,7 @@ async function processPayment(
 
           return {
             message: `Payment Initiated!\n\n${offlineInstructions}\n\nFor: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\n\nThank you!`,
-            continueSession: false,
+            continueSession: true,
           };
 
         case "success":
