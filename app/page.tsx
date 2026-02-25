@@ -6,6 +6,7 @@ import { UserCheck, Shield, FileSearch, Plus, Minus } from "lucide-react";
 import FAQSection from "@/components/FaqSection";
 import HeroSection from "@/components/HeroSection";
 import ChatbotWidget from "@/components/chatbot-widget";
+import HowItWorks from "@/components/HowItWorks";
 const fadeUp = {
   hidden: { opacity: 0, y: 40 },
   visible: {
@@ -29,80 +30,8 @@ export default function Home() {
       {/* HERO */}
       <HeroSection />
 
-      {/* HOW IT WORKS */}
-      <motion.section
-        variants={fadeUp}
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true, amount: 0.2 }}
-        className="bg-[#006726] relative px-6 py-20 text-white md:px-16"
-      >
-        <div className="absolute inset-0 opacity-20">
-          <Image
-            src="/images/brutalist-52.png"
-            alt="Brutal 52"
-            width={150}
-            height={150}
-            className="absolute top-0 left-0 text-white"
-          />
-          <Image
-            src="/images/brutalist-94.png"
-            alt="Brutal 94"
-            width={150}
-            height={150}
-            className="absolute bottom-0 left-0"
-          />
-          <Image
-            src="/images/brutalist-59.png"
-            alt="Brutal 59"
-            width={150}
-            height={150}
-            className="absolute top-0 right-0"
-          />
-          <Image
-            src="/images/brutalist-100.png"
-            alt="Brutal 100"
-            width={150}
-            height={150}
-            className="absolute bottom-0 right-0"
-          />
-        </div>
-        <h2 className="mb-3 text-center text-3xl font-bold">
-          How Pawavotes Works
-        </h2>
-        <p className="mb-12 text-center text-white/80">
-          A simple, secure process built for transparent digital voting.
-        </p>
-
-        <div className="mx-auto grid max-w-6xl grid-cols-1 gap-8 md:grid-cols-2">
-          <div className="rounded-xl bg-green-600" />
-
-          <div className="space-y-6">
-            {[
-              "Sign up and verify identity",
-              "Verify voter eligibility",
-              "Cast votes securely",
-              "View results & reports",
-            ].map((step, i) => (
-              <motion.div
-                key={i}
-                variants={fadeUp}
-                initial="hidden"
-                whileInView="visible"
-                transition={{ delay: i * 0.15 }}
-                viewport={{ once: true }}
-                className="flex items-center gap-4 rounded-xl bg-green-600 p-5"
-              >
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-green-700 font-bold">
-                  {String(i + 1).padStart(2, "0")}
-                </div>
-                <p className="font-medium">{step}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </motion.section>
-
+      <HowItWorks />
+      
       <section className="bg-white px-6 py-28 md:px-16">
         {/* Heading */}
         <motion.div
@@ -267,7 +196,7 @@ export default function Home() {
               whileTap={{ scale: 0.97 }}
               className="inline-flex items-center justify-center px-10 py-4 rounded-lg bg-green-600 hover:bg-green-500 transition font-semibold"
             >
-              Contact Us
+              <a href="/contact-us">Contact Us</a>
             </motion.button>
           </div>
         </div>
