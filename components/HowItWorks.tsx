@@ -12,10 +12,10 @@ import {
 import { useRef, useState } from "react";
 
 const steps = [
-  { label: "Sign up and verify identity" },
-  { label: "Verify voter eligibility" },
-  { label: "Cast votes securely" },
-  { label: "View results & reports"},
+  { label: "Create award/election and add nominees" },
+  { label: "Share voting link or credentials with voters" },
+  { label: "Voters cast votes securely (Web/USSD/Mobile)" },
+  { label: "View real-time results and analytics" },
 ];
 
 const fadeUp: Variants = {

@@ -9,9 +9,18 @@ export default function FAQSection() {
       answer:
         "No. Each voter can only vote once per position or category. Pawavotes enforces strict one-person-one-vote rules using identity verification, unique voter records, and anti-duplicate safeguards to prevent multiple submissions.",
     },
-    { question: "How are voters verified?", answer: "No. Each voter can only vote once per position or category. Pawavotes enforces strict one-person-one-vote rules using identity verification, unique voter records, and anti-duplicate safeguards to prevent multiple submissions." },
-    { question: "When are results released?", answer: "No. Each voter can only vote once per position or category. Pawavotes enforces strict one-person-one-vote rules using identity verification, unique voter records, and anti-duplicate safeguards to prevent multiple submissions." },
-    { question: "Can elections be audited?", answer: "No. Each voter can only vote once per position or category. Pawavotes enforces strict one-person-one-vote rules using identity verification, unique voter records, and anti-duplicate safeguards to prevent multiple submissions." },
+    { 
+      question: "How are voters verified?", 
+      answer: "For public voting (awards), voters are verified through mobile money payment authentication and phone number validation. For institutional elections, voters receive unique credentials (voter ID and password) via email or SMS, ensuring only authorized individuals can participate. The system tracks each voter to prevent duplicate voting." 
+    },
+    { 
+      question: "When are results released?", 
+      answer: "Results are available in real-time through the leaderboard for public awards. For institutional elections, results are released immediately after the voting period ends and can be viewed in the results dashboard. Organizers have full control over when to publish results to voters and the public." 
+    },
+    { 
+      question: "Can elections be audited?", 
+      answer: "Yes. Pawavotes provides comprehensive audit trails including vote timestamps, payment records, voter activity logs, and detailed analytics. Organizers can export voting data, view real-time statistics, and generate reports for transparency and verification purposes. All transactions are securely logged for accountability." 
+    },
   ];
 
   const [openIndex, setOpenIndex] = useState(0);
