@@ -99,6 +99,12 @@ async function handleUssdFlow(
     case "confirm":
       return await handleConfirmation(session, userInput, phoneNumber);
 
+    case "confirm_network":
+      return await handleNetworkConfirmation(session, userInput, phoneNumber);
+
+    case "enter_payment_otp":
+      return await handlePaymentOTP(session, userInput);
+
     default:
       return {
         message: "Invalid session. Please try again.",
@@ -118,6 +124,8 @@ function handleBackNavigation(session: any) {
     select_nominee: "nominee_method",
     enter_votes: "nominee_method",
     confirm: "enter_votes",
+    confirm_network: "confirm",
+    enter_payment_otp: "confirm",
   };
 
   const previousStep = stepFlow[session.currentStep];
@@ -717,6 +725,19 @@ async function handleConfirmation(
       };
     }
 
+    // Check if network provider can be detected
+    const detectedProvider = detectMobileProvider(phoneNumber);
+    
+    if (!detectedProvider) {
+      // Network not detected - ask user to confirm
+      session.currentStep = "confirm_network";
+      return {
+        message: `Confirm your network:\n\n1. MTN\n2. Telecel\n3. AirtelTigo\n\n0. Cancel`,
+        continueSession: true,
+      };
+    }
+
+    // Network detected - proceed with payment
     const paymentReference = `USSD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const dummyEmail = `${phoneNumber}@ussd.pawavotes.com`;
 
@@ -758,27 +779,47 @@ async function handleConfirmation(
       // Handle different charge statuses
       switch (chargeStatus) {
         case "send_otp":
-          // OTP/PIN prompt will be sent to user's phone automatically by Paystack
-          // Just end the session and let Paystack handle it
-          session.isActive = false;
+          // Keep session alive for OTP entry
+          session.currentStep = "enter_payment_otp";
+          session.data.paymentReference = paymentReference;
+          session.data.otpAttempts = 0;
           return {
-            message: `Vote Submitted!\n\nCheck your phone to complete payment.\n\nFor: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you!`,
-            continueSession: false,
-          }
+            message: `OTP sent to your phone\n\nEnter OTP:\n\n0. Cancel`,
+            continueSession: true,
+          };
+
         case "pending":
-          // OTP/PIN prompt will be sent to user's phone automatically by Paystack
-          // Just end the session and let Paystack handle it
-          session.isActive = false;
+          // Keep session alive for OTP entry
+          session.currentStep = "enter_payment_otp";
+          session.data.paymentReference = paymentReference;
+          session.data.otpAttempts = 0;
           return {
-            message: `Vote Submitted!\n\nCheck your phone to complete payment.\n\nFor: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you!`,
-            continueSession: false,
+            message: `OTP sent to your phone\n\nEnter OTP:\n\n0. Cancel`,
+            continueSession: true,
           };
 
         case "pay_offline":
-          // Requires *170# approval
+          // Requires *170# approval - provide network-specific instructions
           session.isActive = false;
+          const provider = detectMobileProvider(phoneNumber);
+          let offlineInstructions = "";
+          
+          switch (provider) {
+            case "mtn":
+              offlineInstructions = `Dial *170# > My Approvals\nApprove GHS ${session.data.amount.toFixed(2)}`;
+              break;
+            case "vod":
+              offlineInstructions = `Dial *110# > Pending Payments\nApprove GHS ${session.data.amount.toFixed(2)}`;
+              break;
+            case "tgo":
+              offlineInstructions = `Check your phone for approval request\nApprove GHS ${session.data.amount.toFixed(2)}`;
+              break;
+            default:
+              offlineInstructions = `Check your phone to approve payment\nAmount: GHS ${session.data.amount.toFixed(2)}`;
+          }
+
           return {
-            message: `Payment Initiated!\n\nTo complete:\nDial *170# > My Approvals\nApprove GHS ${session.data.amount.toFixed(2)}\n\nFor: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\n\nThank you!`,
+            message: `Payment Initiated!\n\n${offlineInstructions}\n\nFor: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\n\nThank you!`,
             continueSession: false,
           };
 
@@ -937,6 +978,328 @@ async function initiatePaystackCharge(
   }
 }
 
+async function handleNetworkConfirmation(
+  session: any,
+  userInput: string,
+  phoneNumber: string,
+) {
+  const networkMap: { [key: string]: string } = {
+    "1": "mtn",
+    "2": "vod",
+    "3": "tgo",
+  };
+
+  const selectedProvider = networkMap[userInput];
+
+  if (!selectedProvider) {
+    return {
+      message: "Invalid selection. Please enter 1, 2, or 3.",
+      continueSession: false,
+    };
+  }
+
+  // Store confirmed network in session
+  session.data.confirmedNetwork = selectedProvider;
+
+  // Proceed with payment using confirmed network
+  return await processPayment(session, phoneNumber, selectedProvider);
+}
+
+async function handlePaymentOTP(session: any, userInput: string) {
+  const otpInput = userInput.trim();
+
+  if (!otpInput || otpInput.length < 4) {
+    return {
+      message: "Invalid OTP. Enter 4-6 digit code:\n\n0. Cancel",
+      continueSession: true,
+    };
+  }
+
+  const otpAttempts = (session.data.otpAttempts || 0) + 1;
+  session.data.otpAttempts = otpAttempts;
+
+  if (otpAttempts > 3) {
+    session.isActive = false;
+    return {
+      message: "Too many attempts. Please try voting again.",
+      continueSession: false,
+    };
+  }
+
+  const result = await submitPaystackOTP(
+    otpInput,
+    session.data.paymentReference,
+  );
+
+  if (result.success) {
+    // Update vote and nominee
+    await Vote.findOneAndUpdate(
+      { paymentReference: session.data.paymentReference },
+      { paymentStatus: "completed" },
+    );
+    await Nominee.findByIdAndUpdate(session.data.nomineeId, {
+      $inc: { voteCount: session.data.numberOfVotes },
+    });
+
+    session.isActive = false;
+    return {
+      message: `Vote Successful!\n\n${session.data.numberOfVotes} vote(s) for ${session.data.nomineeName}\n\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you!`,
+      continueSession: false,
+    };
+  } else {
+    const attemptsLeft = 3 - otpAttempts;
+    if (attemptsLeft > 0) {
+      return {
+        message: `Invalid OTP. Try again (${attemptsLeft} left):\n\n0. Cancel`,
+        continueSession: true,
+      };
+    } else {
+      session.isActive = false;
+      return {
+        message: "Too many attempts. Please try voting again.",
+        continueSession: false,
+      };
+    }
+  }
+}
+
+async function submitPaystackOTP(otp: string, reference: string) {
+  try {
+    const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
+
+    const response = await fetch("https://api.paystack.co/charge/submit_otp", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${paystackSecretKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ otp, reference }),
+    });
+
+    const data = await response.json();
+    console.log("Paystack OTP submission response:", JSON.stringify(data, null, 2));
+
+    return {
+      success: data.status === true && data.data?.status === "success",
+      data,
+    };
+  } catch (error: any) {
+    console.error("Paystack OTP submission error:", error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+}
+
+async function processPayment(
+  session: any,
+  phoneNumber: string,
+  provider: string,
+) {
+  try {
+    const paymentReference = `USSD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const dummyEmail = `${phoneNumber}@ussd.pawavotes.com`;
+
+    let vote;
+    try {
+      vote = await Vote.create({
+        awardId: session.data.awardId,
+        categoryId: session.data.categoryId,
+        nomineeId: session.data.nomineeId,
+        voterEmail: dummyEmail,
+        voterPhone: phoneNumber,
+        numberOfVotes: session.data.numberOfVotes,
+        amount: session.data.amount,
+        paymentReference,
+        paymentMethod: "ussd",
+        paymentStatus: "pending",
+      });
+    } catch (voteError: any) {
+      return {
+        message: "Error creating vote record. Please try again.",
+        continueSession: false,
+      };
+    }
+
+    const paystackResponse = await initiatePaystackChargeWithProvider(
+      dummyEmail,
+      session.data.amount,
+      phoneNumber,
+      paymentReference,
+      provider,
+    );
+
+    if (paystackResponse.success) {
+      const chargeStatus = paystackResponse.data?.data?.status;
+      const displayText = paystackResponse.data?.data?.display_text;
+
+      console.log(`Charge status: ${chargeStatus}`);
+      console.log(`Display text: ${displayText}`);
+
+      switch (chargeStatus) {
+        case "send_otp":
+          session.currentStep = "enter_payment_otp";
+          session.data.paymentReference = paymentReference;
+          session.data.otpAttempts = 0;
+          return {
+            message: `OTP sent to your phone\n\nEnter OTP:\n\n0. Cancel`,
+            continueSession: true,
+          };
+
+        case "pending":
+          session.currentStep = "enter_payment_otp";
+          session.data.paymentReference = paymentReference;
+          session.data.otpAttempts = 0;
+          return {
+            message: `OTP sent to your phone\n\nEnter OTP:\n\n0. Cancel`,
+            continueSession: true,
+          };
+
+        case "pay_offline":
+          session.isActive = false;
+          let offlineInstructions = "";
+          
+          switch (provider) {
+            case "mtn":
+              offlineInstructions = `Dial *170# > My Approvals\nApprove GHS ${session.data.amount.toFixed(2)}`;
+              break;
+            case "vod":
+              offlineInstructions = `Dial *110# > Pending Payments\nApprove GHS ${session.data.amount.toFixed(2)}`;
+              break;
+            case "tgo":
+              offlineInstructions = `Check your phone for approval request\nApprove GHS ${session.data.amount.toFixed(2)}`;
+              break;
+            default:
+              offlineInstructions = `Check your phone to approve payment\nAmount: GHS ${session.data.amount.toFixed(2)}`;
+          }
+
+          return {
+            message: `Payment Initiated!\n\n${offlineInstructions}\n\nFor: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\n\nThank you!`,
+            continueSession: false,
+          };
+
+        case "success":
+          await Vote.findByIdAndUpdate(vote._id, {
+            paymentStatus: "completed",
+          });
+          await Nominee.findByIdAndUpdate(session.data.nomineeId, {
+            $inc: { voteCount: session.data.numberOfVotes },
+          });
+          session.isActive = false;
+          return {
+            message: `Vote Successful!\n\n${session.data.numberOfVotes} vote(s) for ${session.data.nomineeName}\n\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you for voting!`,
+            continueSession: false,
+          };
+
+        case "failed":
+          await Vote.findByIdAndUpdate(vote._id, { paymentStatus: "failed" });
+          session.isActive = false;
+          return {
+            message: `Payment Failed!\n\n${displayText || "Unable to process payment. Please try again."}\n\nThank you!`,
+            continueSession: false,
+          };
+
+        default:
+          session.isActive = false;
+          return {
+            message: `Vote Submitted!\n\nPlease complete the payment on your phone.\n\nFor: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you!`,
+            continueSession: false,
+          };
+      }
+    } else {
+      await Vote.findByIdAndUpdate(vote._id, { paymentStatus: "failed" });
+      return {
+        message:
+          "Payment initiation failed. Please try again later or contact support.",
+        continueSession: false,
+      };
+    }
+  } catch (error: any) {
+    return {
+      message:
+        "An error occurred while processing your vote. Please try again.",
+      continueSession: false,
+    };
+  }
+}
+
+async function initiatePaystackChargeWithProvider(
+  email: string,
+  amount: number,
+  phoneNumber: string,
+  reference: string,
+  provider: string,
+) {
+  try {
+    const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
+    const amountInKobo = Math.round(amount * 100);
+
+    let formattedPhone = phoneNumber.replace(/[\s\-+]/g, "");
+
+    if (formattedPhone.startsWith("0")) {
+      formattedPhone = formattedPhone.substring(1);
+    }
+
+    if (formattedPhone.startsWith("233")) {
+      formattedPhone = formattedPhone.substring(3);
+    }
+
+    if (!formattedPhone.startsWith("0")) {
+      formattedPhone = "0" + formattedPhone;
+    }
+
+    console.log(
+      `Original phone: ${phoneNumber}, Formatted phone: ${formattedPhone}, Provider: ${provider}`,
+    );
+
+    const chargeRequest = {
+      email,
+      amount: amountInKobo,
+      currency: "GHS",
+      reference,
+      metadata: {
+        phoneNumber: formattedPhone,
+        payment_method: "stk_push",
+        direct_charge: true,
+      },
+      mobile_money: {
+        phone: formattedPhone,
+        provider: provider,
+      },
+    };
+
+    console.log(
+      "Paystack charge request:",
+      JSON.stringify(chargeRequest, null, 2),
+    );
+
+    const response = await fetch("https://api.paystack.co/charge", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${paystackSecretKey}`,
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+      },
+      body: JSON.stringify(chargeRequest),
+    });
+
+    const data = await response.json();
+    console.log("Paystack charge response:", JSON.stringify(data, null, 2));
+
+    return {
+      success: data.status === true,
+      data,
+    };
+  } catch (error: any) {
+    console.error("Paystack charge error:", error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+}
+
 function detectMobileProvider(phoneNumber: string): string | null {
   const cleanNumber = phoneNumber.replace(/[\s\-+]/g, "");
   let prefix = "";
@@ -948,7 +1311,9 @@ function detectMobileProvider(phoneNumber: string): string | null {
   } else {
     prefix = cleanNumber.substring(0, 2);
   }
-  const mtnPrefixes = ["24", "25", "53", "54", "55", "59"];
+  
+  // Updated prefix lists with additional ranges
+  const mtnPrefixes = ["24", "25", "53", "54", "55", "59", "23", "28"];
   const telecelPrefixes = ["20", "50"];
   const airtelTigoPrefixes = ["26", "27", "56", "57"];
 
@@ -959,5 +1324,9 @@ function detectMobileProvider(phoneNumber: string): string | null {
   } else if (airtelTigoPrefixes.includes(prefix)) {
     return "tgo";
   }
-  return "mtn";
+  
+  // Log undetected numbers for analysis
+  console.warn(`Unknown network prefix: ${prefix} for ${phoneNumber}`);
+  
+  return null; // Return null instead of defaulting to "mtn"
 }
