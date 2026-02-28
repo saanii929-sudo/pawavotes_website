@@ -64,7 +64,7 @@ export default function ImageUpload({
       const data = await response.json();
 
       if (response.ok) {
-        toast.success('Image uploaded successfully!', { id: loadingToast });
+        toast.success('Image uploaded successfully!', { id: loadingToast, duration: 3000 });
         onUploadComplete(data.url);
       } else {
         toast.error(data.error || 'Upload failed', { id: loadingToast });

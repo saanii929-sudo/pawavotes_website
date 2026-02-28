@@ -79,7 +79,7 @@ export default function VoterLoginPage() {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        toast.success('Login successful!', { id: loadingToast });
+        toast.success('Login successful!', { id: loadingToast, duration: 3000 });
 
         // Store voter data
         localStorage.setItem('voterToken', token.trim().toUpperCase());

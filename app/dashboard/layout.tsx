@@ -95,7 +95,7 @@ export default function DashboardLayout({
       <Toaster
         position="top-right"
         toastOptions={{
-          duration: 3000,
+          duration: 4000,
           style: {
             background: '#fff',
             color: '#363636',
@@ -104,12 +104,14 @@ export default function DashboardLayout({
             fontSize: '14px',
           },
           success: {
+            duration: 4000,
             iconTheme: {
               primary: '#16a34a',
               secondary: '#fff',
             },
           },
           error: {
+            duration: 4000,
             iconTheme: {
               primary: '#dc2626',
               secondary: '#fff',

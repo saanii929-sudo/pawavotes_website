@@ -44,6 +44,7 @@ export default function ForgotPasswordPage() {
       if (response.ok && data.success) {
         toast.success("Password reset link sent to your email!", {
           id: loadingToast,
+          duration: 4000,
         });
         setEmailSent(true);
       } else {

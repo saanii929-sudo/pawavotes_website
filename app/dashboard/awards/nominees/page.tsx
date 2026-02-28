@@ -449,22 +449,22 @@ const AwardsManagementSystem = () => {
             : award
         ));
         
-        toast.success("Nomination link generated!");
+        toast.success("Nomination link generated!", { duration: 4000 });
       } else {
-        toast.error(data.error || "Failed to generate nomination link");
+        toast.error(data.error || "Failed to generate nomination link", { duration: 4000 });
       }
     } catch (error) {
       console.error("Generate link error:", error);
-      toast.error("Failed to generate nomination link");
+      toast.error("Failed to generate nomination link", { duration: 4000 });
     }
   };
 
   const handleCopyNominationLink = async () => {
     try {
       await navigator.clipboard.writeText(nominationLink);
-      toast.success("Nomination link copied to clipboard!");
+      toast.success("Nomination link copied to clipboard!", { duration: 3000 });
     } catch (error) {
-      toast.error("Failed to copy link");
+      toast.error("Failed to copy link", { duration: 3000 });
     }
   };
 

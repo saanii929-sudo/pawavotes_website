@@ -67,6 +67,7 @@ export default function SuperAdminLogin() {
       if (response.ok && data.success) {
         toast.success("Login successful! Redirecting...", {
           id: loadingToast,
+          duration: 3000,
         });
 
         localStorage.setItem("token", data.token);
