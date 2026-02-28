@@ -34,14 +34,14 @@ export async function GET(
       })
         .populate('nomineeId', 'name image bio')
         .populate('categoryId', 'name')
-        .populate('awardId', 'name organizationName pricing')
+        .populate('awardId', 'name organizationName pricing votingStartDate votingEndDate votingStartTime votingEndTime status settings')
         .lean();
     } else {
       // Public request (no authentication)
       campaign = await NomineeCampaign.findById(id)
         .populate('nomineeId', 'name image bio')
         .populate('categoryId', 'name')
-        .populate('awardId', 'name organizationName pricing')
+        .populate('awardId', 'name organizationName pricing votingStartDate votingEndDate votingStartTime votingEndTime status settings')
         .lean();
     }
 

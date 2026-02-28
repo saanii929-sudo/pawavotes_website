@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect } from "react";
-import { Plus, Search, MoreVertical, X, Upload, ChevronDown, ChevronLeft, Info, Edit2, Trash2, Download } from "lucide-react";
+import { Plus, Search, MoreVertical, X, Upload, ChevronDown, ChevronLeft, Info, Edit2, Trash2, Download, Link as LinkIcon, Copy } from "lucide-react";
 import Image from "next/image";
 import toast from "react-hot-toast";
 import ImageUpload from '@/components/ImageUpload';
@@ -12,7 +12,10 @@ interface Award {
   organizationName: string;
   status: string;
   categories: number;
-  settings?: { showResults: boolean };
+  settings?: { 
+    showResults?: boolean;
+    nominationLinkGenerated?: boolean;
+  };
   banner?: string;
   pricing?: {
     votingCost: number;
@@ -46,6 +49,8 @@ const AwardsManagementSystem = () => {
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [showActionMenu, setShowActionMenu] = useState<string | null>(null);
   const [downloadingZip, setDownloadingZip] = useState(false);
+  const [nominationLinkGenerated, setNominationLinkGenerated] = useState(false);
+  const [nominationLink, setNominationLink] = useState("");
   const [nominees, setNominees] = useState<Nominee[]>([]);
   const [selectedAward, setSelectedAward] = useState<Award | null>(null);
   const [awards, setAwards] = useState<Award[]>([]);
@@ -73,7 +78,19 @@ const AwardsManagementSystem = () => {
   useEffect(() => { 
     if (selectedAward) { 
       fetchCategories(selectedAward._id); 
-      fetchNominees(selectedAward._id); 
+      fetchNominees(selectedAward._id);
+      // Check if nomination link was already generated for this award
+      console.log('Selected Award Settings:', selectedAward.settings);
+      console.log('Nomination Link Generated:', selectedAward.settings?.nominationLinkGenerated);
+      if (selectedAward.settings?.nominationLinkGenerated) {
+        const baseUrl = window.location.origin;
+        const link = `${baseUrl}/nominate/${selectedAward._id}`;
+        setNominationLink(link);
+        setNominationLinkGenerated(true);
+      } else {
+        setNominationLinkGenerated(false);
+        setNominationLink("");
+      }
     } 
   }, [selectedAward, searchQuery, selectedCategoryFilter]);
 
@@ -102,6 +119,8 @@ const AwardsManagementSystem = () => {
       });
       if (response.ok) { 
         const data = await response.json(); 
+        console.log('Fetched awards:', data.data);
+        console.log('First award settings:', data.data[0]?.settings);
         setAwards(data.data); 
       } else { 
         toast.error("Failed to fetch awards"); 
@@ -197,9 +216,6 @@ const AwardsManagementSystem = () => {
       }
       return acc;
     }, []);
-    
-    console.log('Grouped nominees count:', grouped.length);
-    console.log('Grouped nominees:', grouped);
     
     return grouped;
   }, [nominees]);
@@ -386,6 +402,69 @@ const AwardsManagementSystem = () => {
       toast.error("Failed to download nominees", { id: loadingToast });
     } finally {
       setDownloadingZip(false);
+    }
+  };
+
+  const handleGenerateNominationLink = async () => {
+    if (!selectedAward) return;
+    
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`/api/awards/${selectedAward._id}/generate-nomination-link`, {
+        method: 'POST',
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+      console.log('Generate link API response:', data);
+
+      if (data.success) {
+        setNominationLink(data.nominationLink);
+        setNominationLinkGenerated(true);
+        
+        // Update the local award object to reflect the change
+        const updatedSettings = {
+          showResults: selectedAward.settings?.showResults ?? false,
+          nominationLinkGenerated: true
+        };
+        
+        setSelectedAward({
+          ...selectedAward,
+          settings: updatedSettings
+        });
+        
+        // Also update the awards list to persist the change
+        setAwards(awards.map(award => 
+          award._id === selectedAward._id 
+            ? { 
+                ...award, 
+                settings: {
+                  showResults: award.settings?.showResults ?? false,
+                  nominationLinkGenerated: true
+                }
+              }
+            : award
+        ));
+        
+        toast.success("Nomination link generated!");
+      } else {
+        toast.error(data.error || "Failed to generate nomination link");
+      }
+    } catch (error) {
+      console.error("Generate link error:", error);
+      toast.error("Failed to generate nomination link");
+    }
+  };
+
+  const handleCopyNominationLink = async () => {
+    try {
+      await navigator.clipboard.writeText(nominationLink);
+      toast.success("Nomination link copied to clipboard!");
+    } catch (error) {
+      toast.error("Failed to copy link");
     }
   };
 
@@ -610,6 +689,26 @@ const AwardsManagementSystem = () => {
                   </>
                 )}
               </button>
+
+              {!nominationLinkGenerated ? (
+                <button 
+                  onClick={handleGenerateNominationLink}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors w-full sm:w-auto"
+                  title="Generate public nomination link"
+                >
+                  <LinkIcon size={18} />
+                  <span className="text-xs sm:text-sm">Generate Link</span>
+                </button>
+              ) : (
+                <button 
+                  onClick={handleCopyNominationLink}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors w-full sm:w-auto"
+                  title="Copy nomination link to clipboard"
+                >
+                  <Copy size={18} />
+                  <span className="text-xs sm:text-sm">Copy Link</span>
+                </button>
+              )}
             </div>
 
             <div className="divide-y divide-gray-200 overflow-x-auto">

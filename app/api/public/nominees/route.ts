@@ -30,11 +30,14 @@ export async function GET(req: NextRequest) {
     }
 
     if (search) {
-      query.name = { $regex: search, $options: 'i' };
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { nomineeCode: { $regex: search, $options: 'i' } }
+      ];
     }
 
     const nominees = await Nominee.find(query)
-      .select('name image bio voteCount categoryId')
+      .select('name nomineeCode image bio voteCount categoryId')
       .sort({ voteCount: -1, name: 1 })
       .lean();
 

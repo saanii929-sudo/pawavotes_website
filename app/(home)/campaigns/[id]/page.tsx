@@ -37,8 +37,16 @@ interface Campaign {
     _id: string;
     name: string;
     organizationName: string;
+    votingStartDate?: string;
+    votingEndDate?: string;
+    votingStartTime?: string;
+    votingEndTime?: string;
+    status?: string;
     pricing?: {
       votingCost?: number;
+    };
+    settings?: {
+      allowPublicVoting?: boolean;
     };
   };
   campaignName: string;
@@ -147,7 +155,61 @@ export default function PublicCampaignPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // Check if voting is currently open
+  const isVotingOpen = () => {
+    if (!campaign?.awardId) return false;
+    
+    // Check if public voting is allowed
+    if (!campaign.awardId.settings?.allowPublicVoting) return false;
+
+    const now = new Date();
+    
+    // Check voting period
+    if (campaign.awardId.votingStartDate && campaign.awardId.votingEndDate) {
+      const startDate = new Date(campaign.awardId.votingStartDate);
+      const endDate = new Date(campaign.awardId.votingEndDate);
+      
+      // Add time if available
+      if (campaign.awardId.votingStartTime) {
+        const [hours, minutes] = campaign.awardId.votingStartTime.split(':');
+        startDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+      }
+      
+      if (campaign.awardId.votingEndTime) {
+        const [hours, minutes] = campaign.awardId.votingEndTime.split(':');
+        endDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+      }
+      
+      return now >= startDate && now <= endDate;
+    }
+    
+    return false;
+  };
+
+  // Check if voting has ended
+  const hasVotingEnded = () => {
+    if (!campaign?.awardId?.votingEndDate) return false;
+    
+    const now = new Date();
+    const endDate = new Date(campaign.awardId.votingEndDate);
+    
+    if (campaign.awardId.votingEndTime) {
+      const [hours, minutes] = campaign.awardId.votingEndTime.split(':');
+      endDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+    }
+    
+    return now > endDate;
+  };
+
   const handleVote = () => {
+    if (!isVotingOpen()) {
+      if (hasVotingEnded()) {
+        toast.error("Voting has ended for this award");
+      } else {
+        toast.error("Voting is not currently open for this award");
+      }
+      return;
+    }
     setShowVotingModal(true);
   };
 
@@ -229,13 +291,25 @@ export default function PublicCampaignPage() {
             {campaign.categoryId.name}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4">
-            <button
-              onClick={handleVote}
-              className="bg-white text-green-600 hover:bg-green-50 px-6 sm:px-8 py-3 sm:py-4 rounded-lg font-bold text-base sm:text-lg flex items-center gap-2 transition-colors"
-            >
-              <Heart size={20} />
-              Vote Now
-            </button>
+            {isVotingOpen() ? (
+              <button
+                onClick={handleVote}
+                className="bg-white text-green-600 hover:bg-green-50 px-6 sm:px-8 py-3 sm:py-4 rounded-lg font-bold text-base sm:text-lg flex items-center gap-2 transition-colors"
+              >
+                <Heart size={20} />
+                Vote Now
+              </button>
+            ) : hasVotingEnded() ? (
+              <div className="bg-red-100 text-red-700 px-6 sm:px-8 py-3 sm:py-4 rounded-lg font-bold text-base sm:text-lg flex items-center gap-2">
+                <Calendar size={20} />
+                Voting Ended
+              </div>
+            ) : (
+              <div className="bg-gray-100 text-gray-700 px-6 sm:px-8 py-3 sm:py-4 rounded-lg font-bold text-base sm:text-lg flex items-center gap-2">
+                <Calendar size={20} />
+                Voting Not Started
+              </div>
+            )}
             <button
               onClick={handleCopyLink}
               className="bg-white/10 hover:bg-white/20 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-lg font-medium flex items-center gap-2 transition-colors"
@@ -373,13 +447,25 @@ export default function PublicCampaignPage() {
                   </div>
                 </div>
 
-                <button
-                  onClick={handleVote}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors"
-                >
-                  <Heart size={20} />
-                  Support This Campaign
-                </button>
+                {isVotingOpen() ? (
+                  <button
+                    onClick={handleVote}
+                    className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <Heart size={20} />
+                    Support This Campaign
+                  </button>
+                ) : hasVotingEnded() ? (
+                  <div className="w-full bg-red-100 text-red-700 py-3 rounded-lg font-bold flex items-center justify-center gap-2">
+                    <Calendar size={20} />
+                    Voting Ended
+                  </div>
+                ) : (
+                  <div className="w-full bg-gray-100 text-gray-700 py-3 rounded-lg font-bold flex items-center justify-center gap-2">
+                    <Calendar size={20} />
+                    Voting Not Started
+                  </div>
+                )}
               </div>
             )}
 

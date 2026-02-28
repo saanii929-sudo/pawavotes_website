@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
     console.log('💾 Token saved to database');
 
     // Create reset URL
-    const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
+    const resetUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
 
     // In development, log the reset URL
     if (process.env.NODE_ENV === 'development') {

@@ -16,7 +16,7 @@ async function sendVoterCredentials(
   startDate: Date,
   endDate: Date
 ) {
-  const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/election/login`;
+  const loginUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/election/login`;
 
   // Format dates
   const formatDate = (date: Date) => {

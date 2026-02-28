@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Award from '@/models/Award';
 import Category from '@/models/Category';
+import mongoose from 'mongoose';
 
 export async function GET(req: NextRequest) {
   try {
@@ -16,13 +17,19 @@ export async function GET(req: NextRequest) {
       'settings.allowPublicVoting': true,
     };
 
-    // Search by award name, code, or ID
+    // Search by award name, code, or ID (only if valid ObjectId)
     if (search) {
-      query.$or = [
+      const searchConditions: any[] = [
         { name: { $regex: search, $options: 'i' } },
         { code: { $regex: search, $options: 'i' } },
-        { _id: search },
       ];
+      
+      // Only search by _id if the search term is a valid ObjectId
+      if (mongoose.Types.ObjectId.isValid(search) && search.length === 24) {
+        searchConditions.push({ _id: search });
+      }
+      
+      query.$or = searchConditions;
     }
 
     const awards = await Award.find(query)

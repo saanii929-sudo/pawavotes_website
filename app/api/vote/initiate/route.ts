@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
         email: voterEmail,
         amount: Math.round(amount * 100), // Convert to pesewas
         reference: paymentReference,
-        callback_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/vote/callback`,
+        callback_url: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/vote/callback`,
         metadata: {
           awardId,
           categoryId,

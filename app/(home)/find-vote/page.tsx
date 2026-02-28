@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Calendar, Users, Heart, ChevronLeft, X } from "lucide-react";
 import toast from "react-hot-toast";
@@ -72,12 +72,99 @@ interface Category {
 interface Nominee {
   _id: string;
   name: string;
+  nomineeCode?: string;
   categoryId: string;
   categoryName?: string;
   image?: string;
   bio?: string;
   voteCount?: number;
 }
+
+// Separate search input component to prevent focus loss
+const SearchInput = React.memo(({ 
+  value, 
+  onChange, 
+  onClear, 
+  placeholder 
+}: { 
+  value: string; 
+  onChange: (value: string) => void; 
+  onClear: () => void; 
+  placeholder: string;
+}) => {
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  
+  return (
+    <div className="mb-4 sm:mb-6 relative">
+      <input
+        ref={inputRef}
+        type="text"
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 pr-10 text-sm sm:text-base"
+        suppressHydrationWarning
+      />
+      {value ? (
+        <button
+          onClick={onClear}
+          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+        >
+          <X size={18} />
+        </button>
+      ) : (
+        <Search
+          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+          size={18}
+        />
+      )}
+    </div>
+  );
+});
+
+SearchInput.displayName = 'SearchInput';
+
+// Nominee search input component
+const NomineeSearchInput = React.memo(({ 
+  value, 
+  onChange, 
+  onClear 
+}: { 
+  value: string; 
+  onChange: (value: string) => void; 
+  onClear: () => void; 
+}) => {
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  
+  return (
+    <div className="mb-6 relative">
+      <input
+        ref={inputRef}
+        type="text"
+        placeholder="Search by nominee name or code..."
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 pr-10"
+        suppressHydrationWarning
+      />
+      {value ? (
+        <button
+          onClick={onClear}
+          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+        >
+          <X size={20} />
+        </button>
+      ) : (
+        <Search
+          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+          size={20}
+        />
+      )}
+    </div>
+  );
+});
+
+NomineeSearchInput.displayName = 'NomineeSearchInput';
 
 const PublicVotingPlatform = () => {
   const router = useRouter();
@@ -98,7 +185,10 @@ const PublicVotingPlatform = () => {
   const [nomineeSearchQuery, setNomineeSearchQuery] = useState("");
   const [activeStage, setActiveStage] = useState<Stage | null>(null);
 
-  const maxVotes = Math.max(...nominees.map((n) => n.voteCount || 0), 1);
+  const maxVotes = useMemo(() => 
+    Math.max(...nominees.map((n) => n.voteCount || 0), 1),
+    [nominees]
+  );
 
   // Check if nominations are open
   const isNominationOpen = () => {
@@ -228,20 +318,7 @@ const PublicVotingPlatform = () => {
     fetchAwards();
   }, []);
 
-  // Debounced search for awards
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (searchQuery.trim()) {
-        fetchAwards(searchQuery);
-      } else {
-        fetchAwards();
-      }
-    }, 500); // 500ms debounce
-
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
-
-  const fetchAwards = async (search?: string) => {
+  const fetchAwards = useCallback(async (search?: string) => {
     try {
       setLoading(true);
       const url = search 
@@ -279,9 +356,22 @@ const PublicVotingPlatform = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchCategories = async (awardId: string) => {
+  // Debounced search for awards
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery.trim()) {
+        fetchAwards(searchQuery);
+      } else {
+        fetchAwards();
+      }
+    }, 500); // 500ms debounce
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, fetchAwards]);
+
+  const fetchCategories = useCallback(async (awardId: string) => {
     try {
       setLoading(true);
       const response = await fetch(`/api/public/categories?awardId=${awardId}`);
@@ -298,9 +388,9 @@ const PublicVotingPlatform = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchActiveStage = async (awardId: string) => {
+  const fetchActiveStage = useCallback(async (awardId: string) => {
     try {
       console.log('Fetching active stage for award:', awardId);
       const response = await fetch(`/api/stages?awardId=${awardId}`);
@@ -322,9 +412,9 @@ const PublicVotingPlatform = () => {
       // Don't show error toast, just fall back to award datetime
       setActiveStage(null);
     }
-  };
+  }, []);
 
-  const fetchNominees = async (categoryId: string) => {
+  const fetchNominees = useCallback(async (categoryId: string) => {
     try {
       setLoading(true);
       
@@ -394,29 +484,36 @@ const PublicVotingPlatform = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeStage]);
   
-  const handleClearAwardSearch = () => {
+  const handleClearAwardSearch = useCallback(() => {
     setSearchQuery("");
     fetchAwards(); // Fetch all awards when clearing search
-  };
+  }, [fetchAwards]);
 
-  const handleClearCategorySearch = () => {
+  const handleClearCategorySearch = useCallback(() => {
     setCategorySearchQuery("");
-  };
+  }, []);
 
-  const handleClearNomineeSearch = () => {
+  const handleClearNomineeSearch = useCallback(() => {
     setNomineeSearchQuery("");
-  };
+  }, []);
 
   // Filter categories based on search
-  const filteredCategories = categories.filter(category =>
-    category.name.toLowerCase().includes(categorySearchQuery.toLowerCase())
+  const filteredCategories = useMemo(() => 
+    categories.filter(category =>
+      category.name.toLowerCase().includes(categorySearchQuery.toLowerCase())
+    ),
+    [categories, categorySearchQuery]
   );
 
-  // Filter nominees based on search
-  const filteredNominees = nominees.filter(nominee =>
-    nominee.name.toLowerCase().includes(nomineeSearchQuery.toLowerCase())
+  // Filter nominees based on search (by name or nominee code)
+  const filteredNominees = useMemo(() => 
+    nominees.filter(nominee =>
+      nominee.name.toLowerCase().includes(nomineeSearchQuery.toLowerCase()) ||
+      (nominee.nomineeCode && nominee.nomineeCode.toLowerCase().includes(nomineeSearchQuery.toLowerCase()))
+    ),
+    [nominees, nomineeSearchQuery]
   );
 
   const EventCard = ({
@@ -563,28 +660,12 @@ const PublicVotingPlatform = () => {
             )}
 
             {/* Search Categories */}
-            <div className="mb-4 sm:mb-6 relative">
-              <input
-                type="text"
-                placeholder="Search by category..."
-                value={categorySearchQuery}
-                onChange={(e) => setCategorySearchQuery(e.target.value)}
-                className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 pr-10 text-sm sm:text-base"
-              />
-              {categorySearchQuery ? (
-                <button
-                  onClick={handleClearCategorySearch}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  <X size={18} />
-                </button>
-              ) : (
-                <Search
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-                  size={18}
-                />
-              )}
-            </div>
+            <SearchInput
+              value={categorySearchQuery}
+              onChange={setCategorySearchQuery}
+              onClear={handleClearCategorySearch}
+              placeholder="Search by category..."
+            />
 
             {/* Categories Grid */}
             {loading ? (
@@ -658,11 +739,7 @@ const PublicVotingPlatform = () => {
     </div>
   );
 
-  const CategoryNomineesView = ({
-    status = "open",
-  }: {
-    status?: "open" | "voting" | "closed";
-  }) => (
+  const CategoryNomineesView = () => (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         {/* Back Button */}
@@ -696,21 +773,6 @@ const PublicVotingPlatform = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
           <div className="lg:col-span-2">
-            <div className="mb-4">
-              {isAwardClosed() ? (
-                <span className="bg-red-600 text-white px-4 py-1 rounded-full text-sm font-medium">
-                  CLOSED - Voting Has Ended
-                </span>
-              ) : isVotingOpen() ? (
-                <span className="bg-green-600 text-white px-4 py-1 rounded-full text-sm font-medium">
-                  VOTING OPEN
-                </span>
-              ) : (
-                <span className="bg-gray-600 text-white px-4 py-1 rounded-full text-sm font-medium">
-                  VOTING NOT STARTED
-                </span>
-              )}
-            </div>
 
             <p className="text-xs text-green-600 font-medium mb-2">
               {selectedAward?.organizationName} • {selectedAward?.name}
@@ -757,28 +819,11 @@ const PublicVotingPlatform = () => {
             </h2>
 
             {/* Search */}
-            <div className="mb-6 relative">
-              <input
-                type="text"
-                placeholder="Search by nominee..."
-                value={nomineeSearchQuery}
-                onChange={(e) => setNomineeSearchQuery(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 pr-10"
-              />
-              {nomineeSearchQuery ? (
-                <button
-                  onClick={handleClearNomineeSearch}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  <X size={20} />
-                </button>
-              ) : (
-                <Search
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-                  size={20}
-                />
-              )}
-            </div>
+            <NomineeSearchInput
+              value={nomineeSearchQuery}
+              onChange={setNomineeSearchQuery}
+              onClear={handleClearNomineeSearch}
+            />
 
             {/* Nominees Grid */}
             {loading ? (
@@ -841,9 +886,14 @@ const PublicVotingPlatform = () => {
                       <p className="text-xs text-gray-500 mb-1">
                         {nominee.categoryName}
                       </p>
-                      <h3 className="font-medium text-sm text-gray-900 mb-2 truncate">
+                      <h3 className="font-medium text-sm text-gray-900 mb-1 truncate">
                         {nominee.name}
                       </h3>
+                      {nominee.nomineeCode && (
+                        <p className="text-xs text-green-600 font-medium mb-2">
+                          {nominee.nomineeCode}
+                        </p>
+                      )}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1 text-xs text-gray-600">
                           <Users size={12} />
@@ -1061,7 +1111,7 @@ const PublicVotingPlatform = () => {
       <PublicNav />
 
       {currentScreen === "events" && (
-        <>
+        <div key="events-screen">
           {/* Hero Section */}
           <div className="bg-white py-8 sm:py-12 md:py-16">
             <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
@@ -1141,11 +1191,11 @@ const PublicVotingPlatform = () => {
               </div>
             )}
           </div>
-        </>
+        </div>
       )}
-      {currentScreen === "eventDetail" && <EventDetailView />}
-      {currentScreen === "categoryNominees" && <CategoryNomineesView />}
-      {currentScreen === "results" && <ResultsView />}
+      {currentScreen === "eventDetail" && EventDetailView()}
+      {currentScreen === "categoryNominees" && CategoryNomineesView()}
+      {currentScreen === "results" && ResultsView()}
     </div>
   );
 };

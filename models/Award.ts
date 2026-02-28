@@ -52,6 +52,7 @@ export interface IAward extends Document {
     requireEmailVerification: boolean;
     maxVotesPerUser: number;
     showResults: boolean;
+    nominationLinkGenerated?: boolean;
   };
   createdAt: Date;
   updatedAt: Date;
@@ -217,6 +218,10 @@ const AwardSchema: Schema = new Schema(
         default: 1,
       },
       showResults: {
+        type: Boolean,
+        default: false,
+      },
+      nominationLinkGenerated: {
         type: Boolean,
         default: false,
       },

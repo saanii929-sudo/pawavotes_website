@@ -74,7 +74,7 @@ async function sendVoterCredentials(
   startDate: Date,
   endDate: Date
 ): Promise<boolean> {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://pawavotes.com';
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
   const loginUrl = `${baseUrl}/election/login`;
   const formatDate = (date: Date) => {
     return new Date(date).toLocaleString('en-GB', {

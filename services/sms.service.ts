@@ -122,7 +122,7 @@ export async function sendVoterCredentialsSms(
   startDate?: Date,
   endDate?: Date,
 ): Promise<boolean> {
-  const loginUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const loginUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
   const formatDate = (date: Date) => {
     return new Date(date).toLocaleString("en-GB", {
       day: "2-digit",
