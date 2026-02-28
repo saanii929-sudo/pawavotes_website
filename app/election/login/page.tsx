@@ -79,17 +79,16 @@ export default function VoterLoginPage() {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        toast.success('Login successful!', { id: loadingToast, duration: 3000 });
-
         // Store voter data
         localStorage.setItem('voterToken', token.trim().toUpperCase());
         localStorage.setItem('voterData', JSON.stringify(data.data));
         localStorage.setItem('voterTokenTimestamp', Date.now().toString());
 
+        // Dismiss the loading toast
+        toast.dismiss(loadingToast);
+
         // Redirect to election page with token
-        setTimeout(() => {
-          router.push(`/election?token=${token.trim().toUpperCase()}`);
-        }, 500);
+        router.push(`/election?token=${token.trim().toUpperCase()}`);
       } else {
         toast.error(data.error || 'Invalid credentials', {
           id: loadingToast,

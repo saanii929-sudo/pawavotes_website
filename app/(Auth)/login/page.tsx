@@ -100,23 +100,19 @@ export default function LoginPage() {
       }
 
       if (response.ok && data.success) {
-        toast.success("Login successful! Redirecting...", {
-          id: loadingToast,
-          duration: 3000,
-        });
-
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
         localStorage.setItem("tokenTimestamp", Date.now().toString());
+
+        // Dismiss the loading toast
+        toast.dismiss(loadingToast);
 
         // Redirect based on eventType
         const redirectPath = data.user.eventType === 'election' 
           ? '/election-dashboard' 
           : '/dashboard';
 
-        setTimeout(() => {
-          router.push(redirectPath);
-        }, 500);
+        router.push(redirectPath);
       } else {
         toast.error(
           data.error || "Login failed. Please check your credentials.",

@@ -65,18 +65,14 @@ export default function SuperAdminLogin() {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        toast.success("Login successful! Redirecting...", {
-          id: loadingToast,
-          duration: 3000,
-        });
-
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
         localStorage.setItem("tokenTimestamp", Date.now().toString());
 
-        setTimeout(() => {
-          router.push("/superadmin");
-        }, 500);
+        // Dismiss the loading toast
+        toast.dismiss(loadingToast);
+
+        router.push("/superadmin");
       } else {
         toast.error(
           data.error || "Login failed. Please check your credentials.",
