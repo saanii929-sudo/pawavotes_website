@@ -89,6 +89,7 @@ export class LeaderboardService {
       nomineeName: ranking.nomineeName,
       rank: ranking.rank,
       voteCount: ranking.voteCount,
+      supporterCount: ranking.voteCount, // For historical data, use voteCount as fallback
       lastVoteAt: ranking.lastVoteAt,
     }));
   }
