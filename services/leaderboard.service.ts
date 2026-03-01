@@ -8,6 +8,8 @@ export interface LeaderboardEntry {
   nomineeId: string;
   nomineeName: string;
   nomineeImage?: string;
+  categoryId?: string;
+  categoryName?: string;
   rank: number;
   voteCount: number;
   supporterCount: number;
@@ -35,8 +37,9 @@ export class LeaderboardService {
       {
         $group: {
           _id: '$nomineeId',
+          categoryId: { $first: '$categoryId' },
           voteCount: { $sum: '$numberOfVotes' },
-          supporterCount: { $sum: 1 }, // Count unique vote transactions (supporters)
+          supporterCount: { $sum: 1 },
           lastVoteAt: { $max: '$createdAt' },
         },
       },
@@ -50,10 +53,21 @@ export class LeaderboardService {
       },
       { $unwind: '$nominee' },
       {
+        $lookup: {
+          from: 'categories',
+          localField: 'categoryId',
+          foreignField: '_id',
+          as: 'category',
+        },
+      },
+      { $unwind: { path: '$category', preserveNullAndEmptyArrays: true } },
+      {
         $project: {
           nomineeId: '$_id',
           nomineeName: '$nominee.name',
           nomineeImage: '$nominee.image',
+          categoryId: '$categoryId',
+          categoryName: '$category.name',
           voteCount: 1,
           supporterCount: 1,
           lastVoteAt: 1,
@@ -64,6 +78,7 @@ export class LeaderboardService {
     return results.map((entry, index) => ({
       ...entry,
       nomineeId: entry.nomineeId.toString(),
+      categoryId: entry.categoryId?.toString(),
       rank: index + 1,
     }));
   }
@@ -159,8 +174,9 @@ export class LeaderboardService {
       {
         $group: {
           _id: '$nomineeId',
+          categoryId: { $first: '$categoryId' },
           voteCount: { $sum: '$numberOfVotes' },
-          supporterCount: { $sum: 1 }, // Count unique vote transactions (supporters)
+          supporterCount: { $sum: 1 },
           lastVoteAt: { $max: '$createdAt' },
         },
       },
@@ -174,10 +190,21 @@ export class LeaderboardService {
       },
       { $unwind: '$nominee' },
       {
+        $lookup: {
+          from: 'categories',
+          localField: 'categoryId',
+          foreignField: '_id',
+          as: 'category',
+        },
+      },
+      { $unwind: { path: '$category', preserveNullAndEmptyArrays: true } },
+      {
         $project: {
           nomineeId: '$_id',
           nomineeName: '$nominee.name',
           nomineeImage: '$nominee.image',
+          categoryId: '$categoryId',
+          categoryName: '$category.name',
           voteCount: 1,
           supporterCount: 1,
           lastVoteAt: 1,
@@ -189,6 +216,7 @@ export class LeaderboardService {
     return results.map((entry, index) => ({
       ...entry,
       nomineeId: entry.nomineeId.toString(),
+      categoryId: entry.categoryId?.toString(),
       rank: index + 1,
     }));
   }

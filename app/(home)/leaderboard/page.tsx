@@ -74,12 +74,10 @@ function LeaderboardContent() {
       fetchAwardDetails();
       fetchCategories();
       fetchStages();
-      fetchResults(true); // Initial load with loading state
-
-      // Set up interval for real-time updates
+      fetchResults(true);
       const interval = setInterval(() => {
-        fetchResults(false); // Background updates without loading state
-      }, 5000); // Update every 5 seconds
+        fetchResults(false);
+      }, 5000);
 
       return () => clearInterval(interval);
     }
@@ -258,7 +256,7 @@ function LeaderboardContent() {
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-2">
             <h1 className="text-4xl font-bold text-gray-900">🏆 {awardName}</h1>
-            {selectedStage && selectedStage !== "all" && selectedStage !== "current" && (
+            {stages.length > 0 && selectedStage && selectedStage !== "all" && selectedStage !== "current" && (
               <div
                 className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${
                   stages.find((s) => s._id === selectedStage)?.status === "active"
@@ -272,7 +270,13 @@ function LeaderboardContent() {
                 {stages.find((s) => s._id === selectedStage)?.name}
               </div>
             )}
-            {(!selectedStage || selectedStage === "all" || selectedStage === "current") && (
+            {stages.length > 0 && (!selectedStage || selectedStage === "all" || selectedStage === "current") && (
+              <div className="flex items-center gap-2 bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-medium">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                Live
+              </div>
+            )}
+            {stages.length === 0 && (
               <div className="flex items-center gap-2 bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-medium">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                 Live
@@ -291,8 +295,8 @@ function LeaderboardContent() {
 
         {/* Filters */}
         <div className="bg-white rounded-xl shadow-sm p-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Stage Filter */}
+          <div className={`grid grid-cols-1 ${stages.length > 0 ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-4`}>
+            {/* Stage Filter - Only show if stages exist */}
             {stages.length > 0 && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -471,15 +475,6 @@ function GridView({
             <div className="flex items-center justify-center gap-2 mb-2">
               {getRankIcon(result.rank)}
             </div>
-            {result.rank <= 3 && (
-              <span className="text-white font-bold text-lg">
-                {result.rank === 1
-                  ? "🥇 Champion"
-                  : result.rank === 2
-                    ? "🥈 Runner-up"
-                    : "🥉 Third Place"}
-              </span>
-            )}
           </div>
 
           <div className="p-6">
@@ -509,18 +504,6 @@ function GridView({
                 </div>
                 <span className="text-2xl font-bold text-green-600 transition-all duration-500">
                   {result.totalVotes.toLocaleString()}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between p-4 bg-linear-to-r from-purple-50 to-purple-100 rounded-lg transition-all duration-300 hover:shadow-md">
-                <div className="flex items-center gap-2">
-                  <Users className="w-5 h-5 text-purple-600" />
-                  <span className="text-sm font-medium text-gray-700">
-                    Supporters
-                  </span>
-                </div>
-                <span className="text-2xl font-bold text-purple-600 transition-all duration-500">
-                  {result.voteCount.toLocaleString()}
                 </span>
               </div>
             </div>
