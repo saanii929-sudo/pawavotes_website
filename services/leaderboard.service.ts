@@ -10,6 +10,7 @@ export interface LeaderboardEntry {
   nomineeImage?: string;
   rank: number;
   voteCount: number;
+  supporterCount: number;
   lastVoteAt?: Date;
 }
 
@@ -35,6 +36,7 @@ export class LeaderboardService {
         $group: {
           _id: '$nomineeId',
           voteCount: { $sum: '$numberOfVotes' },
+          supporterCount: { $sum: 1 }, // Count unique vote transactions (supporters)
           lastVoteAt: { $max: '$createdAt' },
         },
       },
@@ -53,6 +55,7 @@ export class LeaderboardService {
           nomineeName: '$nominee.name',
           nomineeImage: '$nominee.image',
           voteCount: 1,
+          supporterCount: 1,
           lastVoteAt: 1,
         },
       },
@@ -156,6 +159,7 @@ export class LeaderboardService {
         $group: {
           _id: '$nomineeId',
           voteCount: { $sum: '$numberOfVotes' },
+          supporterCount: { $sum: 1 }, // Count unique vote transactions (supporters)
           lastVoteAt: { $max: '$createdAt' },
         },
       },
@@ -174,6 +178,7 @@ export class LeaderboardService {
           nomineeName: '$nominee.name',
           nomineeImage: '$nominee.image',
           voteCount: 1,
+          supporterCount: 1,
           lastVoteAt: 1,
         },
       },

@@ -147,8 +147,34 @@ export default function HowItWorks() {
     <motion.section
       ref={sectionRef}
       style={{ filter: `brightness(${1 + bgLightness.get() * 0.01})` }}
-      className="bg-[#006726] relative px-6 py-20 text-white md:px-16 overflow-hidden"
+      className="bg-[#006726] relative px-6 pb-20 text-white md:px-16 overflow-hidden"
     >
+        <div className="max-w-7xl mx-auto py-10 pb-10 lg:pb-20 ">
+          <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-8">
+            <div className="flex items-center gap-3">
+              <div className="bg-white/20 p-3 rounded-full">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-white/90 text-sm font-medium">Quick Vote via USSD</p>
+                <p className="text-white/70 text-xs">Dial from any mobile phone</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-3 bg-white/10 backdrop-blur-sm border-2 border-white/30 rounded-xl px-6 py-3">
+              <span className="text-white font-bold text-2xl md:text-3xl tracking-widest">*928*121#</span>
+            </div>
+
+            <div className="hidden md:flex items-center gap-2 text-white/80 text-sm">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <span>Fast & Easy</span>
+            </div>
+          </div>
+        </div>
       <div className="absolute inset-0 opacity-20 pointer-events-none">
         <CornerImage
           src="/images/brutalist-52.png"

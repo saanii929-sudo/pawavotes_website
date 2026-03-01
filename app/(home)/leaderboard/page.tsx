@@ -168,7 +168,7 @@ function LeaderboardContent() {
             },
             totalVotes: item.voteCount || 0,
             totalAmount: 0,
-            voteCount: item.voteCount || 0,
+            voteCount: item.supporterCount || 0, // Number of unique supporters
             rank: index + 1,
           }));
 
