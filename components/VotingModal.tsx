@@ -450,15 +450,30 @@ const VotingModal = ({
                 </div>
               )}
               {allowBulkVoting && activeTab === "bulk" && selectedPackage && (
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-gray-600">Price per Vote:</span>
-                  <span className="font-semibold text-gray-900">
-                    GHS{" "}
-                    {(selectedPackage.amount / selectedPackage.votes).toFixed(
-                      2,
-                    )}
-                  </span>
-                </div>
+                <>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-gray-600">Regular Price per Vote:</span>
+                    <span className="font-semibold text-gray-400 line-through">
+                      GHS {votingCost.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-gray-600">Bulk Price per Vote:</span>
+                    <span className="font-semibold text-green-600">
+                      GHS{" "}
+                      {(selectedPackage.amount / selectedPackage.votes).toFixed(
+                        2,
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between mb-2 bg-green-100 -mx-2 px-2 py-1 rounded">
+                    <span className="text-xs font-medium text-green-700">You Save:</span>
+                    <span className="text-sm font-bold text-green-700">
+                      GHS{" "}
+                      {((votingCost * selectedPackage.votes) - selectedPackage.amount).toFixed(2)}
+                    </span>
+                  </div>
+                </>
               )}
               <div className="border-t border-green-200 pt-2 mt-2">
                 <div className="flex items-center justify-between">

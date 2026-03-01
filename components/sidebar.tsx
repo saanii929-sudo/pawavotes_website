@@ -32,6 +32,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUI } from "@/context/ui-context";
+import { hr } from "framer-motion/client";
 
 const menu = [
   {
@@ -88,11 +89,7 @@ const menu = [
   {
     name: "Events",
     icon: Calendar,
-    children: [
-      { name: "All Events", href: "/dashboard/events", icon: CalendarDays },
-      { name: "Schedules", href: "/dashboard/events/schedules", icon: Clock },
-      { name: "Voting Sessions", href: "/dashboard/events/voting", icon: Vote },
-    ],
+    href: "/dashboard/events",
   },
   {
     name: "Organization",

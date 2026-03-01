@@ -711,7 +711,7 @@ const AwardsManagementSystem = () => {
               )}
             </div>
 
-            <div className="divide-y divide-gray-200 overflow-x-auto">
+            <div className="divide-y divide-gray-200">
               {loadingNominees ? (
                 <div className="text-center py-20">
                   <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mb-4"></div>
@@ -723,7 +723,7 @@ const AwardsManagementSystem = () => {
                 </div>
               ) : (
                 groupedNominees.map((nominee, index) => (
-                  <div key={`${nominee.name}-${index}`} className="p-3 sm:p-4 hover:bg-gray-50 transition-colors">
+                  <div key={`${nominee.name}-${index}`} className="p-3 sm:p-4 hover:bg-gray-50 transition-colors relative">
                     {/* Mobile View */}
                     <div className="flex lg:hidden flex-col gap-3">
                       <div className="flex items-start justify-between gap-2">
@@ -759,7 +759,7 @@ const AwardsManagementSystem = () => {
                           </button>
                           
                           {showActionMenu === `${nominee.name}-${index}` && (
-                            <div className={`absolute ${index >= groupedNominees.length - 2 ? 'bottom-full mb-2' : 'top-full mt-2'} right-0 w-32 bg-white rounded-lg shadow-lg border border-gray-200 z-10`}>
+                            <div className={`absolute ${index >= groupedNominees.length - 2 ? 'bottom-full mb-2' : 'top-full mt-2'} right-0 w-32 bg-white rounded-lg shadow-lg border border-gray-200 z-50`}>
                               <button 
                                 onClick={() => handleEditNominee({
                                   _id: nominee.categories[0].nomineeId,
@@ -867,7 +867,7 @@ const AwardsManagementSystem = () => {
                           </button>
                           
                           {showActionMenu === `${nominee.name}-${index}` && (
-                            <div className="absolute right-0 mt-2 w-32 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                            <div className="absolute right-0 mt-2 w-32 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
                               <button 
                                 onClick={() => handleEditNominee({
                                   _id: nominee.categories[0].nomineeId,

@@ -639,22 +639,33 @@ const AwardPage = () => {
               >
                 Discard Progress
               </button>
-              {currentStep < 4 ? (
-                <button
-                  onClick={handleNext}
-                  className="bg-green-100 text-green-700 hover:bg-green-200 px-6 py-2 rounded-lg flex items-center gap-2 transition-colors"
-                >
-                  Next
-                  <ChevronRight size={16} />
-                </button>
-              ) : (
-                <button
-                  onClick={handleDone}
-                  className="bg-green-600 hover:bg-green-700 text-white px-8 py-2 rounded-lg transition-colors"
-                >
-                  {editingAwardId ? "Update" : "Done"}
-                </button>
-              )}
+              <div className="flex items-center gap-3">
+                {currentStep > 1 && (
+                  <button
+                    onClick={() => setCurrentStep(currentStep - 1)}
+                    className="bg-gray-100 text-gray-700 hover:bg-gray-200 px-6 py-2 rounded-lg flex items-center gap-2 transition-colors"
+                  >
+                    <ChevronLeft size={16} />
+                    Previous
+                  </button>
+                )}
+                {currentStep < 4 ? (
+                  <button
+                    onClick={handleNext}
+                    className="bg-green-100 text-green-700 hover:bg-green-200 px-6 py-2 rounded-lg flex items-center gap-2 transition-colors"
+                  >
+                    Next
+                    <ChevronRight size={16} />
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleDone}
+                    className="bg-green-600 hover:bg-green-700 text-white px-8 py-2 rounded-lg transition-colors"
+                  >
+                    {editingAwardId ? "Update" : "Done"}
+                  </button>
+                )}
+              </div>
             </div>
           </motion.div>
         )}

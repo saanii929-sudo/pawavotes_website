@@ -169,12 +169,16 @@ export default function HeroSection() {
                   <a href="/">{label}</a>
                 ) : label === "Events" ? (
                   <a href="/find-vote">{label}</a>
+                ) : label === "Ticketing" ? (
+                  <span className="cursor-default opacity-70">{label}</span>
                 ) : (
                   label
                 )}
               </span>
-              {/* Underline hover bar */}
-              <span className="absolute -bottom-1 left-0 h-0.5 w-0 bg-green-400 transition-all duration-300 group-hover:w-full" />
+              {/* Underline hover bar - only show for clickable items */}
+              {label !== "Ticketing" && (
+                <span className="absolute -bottom-1 left-0 h-0.5 w-0 bg-green-400 transition-all duration-300 group-hover:w-full" />
+              )}
             </motion.li>
           ))}
         </ul>
@@ -236,9 +240,9 @@ export default function HeroSection() {
                     initial={{ opacity: 0, x: 30 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.1 + i * 0.1, duration: 0.4 }}
-                    className="hover:text-green-300 transition-colors"
+                    className={`transition-colors ${href ? 'hover:text-green-300' : 'opacity-70 cursor-default'}`}
                   >
-                    {href ? <a href={href}>{label}</a> : label}
+                    {href ? <a href={href}>{label}</a> : <span>{label}</span>}
                   </motion.li>
                 ))}
               </ul>
