@@ -115,6 +115,7 @@ export async function POST(req: NextRequest) {
     console.log(`USSD Request - SessionID: ${sessionId}, Phone: ${phoneNumber}, Text: ${text}, NewSession: ${newSession}`);
 
     let session = await UssdSession.findOne({ sessionId });
+    let shouldResetSession = false;
 
     // Check if there's an existing active session for this phone number with a different sessionID
     if (!session && newSession === true) {
@@ -134,6 +135,10 @@ export async function POST(req: NextRequest) {
         existingSession.markModified('lastActivity');
         await existingSession.save();
         session = existingSession;
+        // Don't reset - continue from where user left off
+      } else {
+        // No existing session to migrate, will create new one
+        shouldResetSession = true;
       }
     }
 
@@ -147,6 +152,15 @@ export async function POST(req: NextRequest) {
         isActive: true,
         lastActivity: new Date(),
       });
+    } else if (newSession === true && shouldResetSession) {
+      // Reset existing session to welcome
+      console.log(`Resetting session ${sessionId} to welcome`);
+      session.currentStep = "welcome";
+      session.data = {};
+      session.isActive = true;
+      session.lastActivity = new Date();
+      session.markModified('data');
+      session.markModified('lastActivity');
     } else {
       console.log(`Existing session found - Step: ${session.currentStep}, LastActivity: ${session.lastActivity}`);
       // Update lastActivity BEFORE processing to avoid timeout issues
@@ -154,7 +168,18 @@ export async function POST(req: NextRequest) {
       session.markModified('lastActivity');
     }
 
-    const userInput = text.split("*").pop() || "";
+    // For new sessions, ignore the USSD code in the text
+    let userInput = "";
+    if (newSession === true) {
+      // New session - user just dialed the code, no input yet
+      userInput = "";
+    } else {
+      // Continuing session - extract the last input
+      userInput = text.split("*").pop() || "";
+    }
+
+    console.log(`Processing with userInput: "${userInput}", Step: ${session.currentStep}`);
+
     const response = await handleUssdFlow(session, userInput, phoneNumber);
     await session.save();
 
