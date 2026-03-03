@@ -9,7 +9,7 @@ import Vote from "@/models/Vote";
 
 const MAX_MESSAGE_LENGTH = 160;
 const MAX_ERROR_COUNT = 3;
-const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
+const SESSION_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
 const ITEMS_PER_PAGE = 5;
 const MIN_VOTES = 1;
 const MAX_VOTES = 1000;
@@ -112,9 +112,12 @@ export async function POST(req: NextRequest) {
     const phoneNumber = msisdn;
     const text = userData || "";
 
+    console.log(`USSD Request - SessionID: ${sessionId}, Phone: ${phoneNumber}, Text: ${text}, NewSession: ${newSession}`);
+
     let session = await UssdSession.findOne({ sessionId });
 
     if (!session || newSession === true) {
+      console.log(`Creating new session for ${sessionId}`);
       session = await UssdSession.create({
         sessionId,
         phoneNumber,
@@ -124,7 +127,10 @@ export async function POST(req: NextRequest) {
         lastActivity: new Date(),
       });
     } else {
+      console.log(`Existing session found - Step: ${session.currentStep}, LastActivity: ${session.lastActivity}`);
+      // Update lastActivity BEFORE processing to avoid timeout issues
       session.lastActivity = new Date();
+      session.markModified('lastActivity');
     }
 
     const userInput = text.split("*").pop() || "";
@@ -158,13 +164,21 @@ async function handleUssdFlow(
   phoneNumber: string,
 ) {
   const step = session.currentStep;
-  const sessionAge = Date.now() - new Date(session.lastActivity).getTime();
+  const now = Date.now();
+  const lastActivityTime = new Date(session.lastActivity).getTime();
+  const sessionAge = now - lastActivityTime;
+  
+  console.log(`handleUssdFlow - Step: ${step}, SessionAge: ${sessionAge}ms (${(sessionAge/1000).toFixed(1)}s), Timeout: ${SESSION_TIMEOUT_MS}ms`);
+  console.log(`LastActivity: ${session.lastActivity}, Now: ${new Date(now)}`);
+  
   if (sessionAge > SESSION_TIMEOUT_MS && step !== "welcome") {
+    console.log(`Session expired! Age: ${sessionAge}ms > Timeout: ${SESSION_TIMEOUT_MS}ms`);
     return {
       message: "Session expired. Please dial again to continue.",
       continueSession: false,
     };
   }
+  
   if (userInput === "#") {
     return handleNextPage(session);
   }

@@ -72,8 +72,8 @@ const UssdSessionSchema: Schema = new Schema(
   }
 );
 
-// Auto-expire sessions after 5 minutes of inactivity
-UssdSessionSchema.index({ lastActivity: 1 }, { expireAfterSeconds: 300 });
+// Auto-expire sessions after 15 minutes of inactivity
+UssdSessionSchema.index({ lastActivity: 1 }, { expireAfterSeconds: 900 });
 
 // Delete cached model before redefining
 if (mongoose.models.UssdSession) {
