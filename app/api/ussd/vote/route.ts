@@ -1073,6 +1073,16 @@ async function handlePaymentOTP(session: any, userInput: string) {
     };
   }
 
+  // Check if payment reference exists
+  if (!session.data.paymentReference) {
+    console.error("Payment reference missing from session:", session.data);
+    session.isActive = false;
+    return {
+      message: "Session error. Please try voting again.",
+      continueSession: false,
+    };
+  }
+
   const otpAttempts = (session.data.otpAttempts || 0) + 1;
   session.data.otpAttempts = otpAttempts;
 
@@ -1083,6 +1093,8 @@ async function handlePaymentOTP(session: any, userInput: string) {
       continueSession: false,
     };
   }
+
+  console.log(`Attempting OTP submission with reference: ${session.data.paymentReference}`);
 
   const result = await submitPaystackOTP(
     otpInput,
@@ -1200,8 +1212,10 @@ async function processPayment(
 
     console.log(`Charge status: ${chargeStatus}, Display: ${displayText}`);
 
-    // Store payment reference for later use
+    // Store payment reference for later use - CRITICAL for OTP flow
     session.data.paymentReference = paymentReference;
+    console.log(`Stored payment reference in session: ${paymentReference}`);
+    console.log(`Session data after storing reference:`, JSON.stringify(session.data, null, 2));
 
     switch (chargeStatus) {
       case "send_otp":
@@ -1211,6 +1225,7 @@ async function processPayment(
         session.data.otpAttempts = 0;
         
         const otpMessage = displayText || "OTP sent to your phone";
+        console.log(`Returning OTP prompt. Session will be saved with reference: ${session.data.paymentReference}`);
         return {
           message: compressMessage(`${otpMessage}\n\nEnter OTP:\n\n0. Cancel`),
           continueSession: true,
