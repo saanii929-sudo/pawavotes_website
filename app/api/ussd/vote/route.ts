@@ -1066,6 +1066,10 @@ async function handleNetworkConfirmation(
 async function handlePaymentOTP(session: any, userInput: string) {
   const otpInput = userInput.trim();
 
+  console.log(`handlePaymentOTP called with OTP: ${otpInput}`);
+  console.log(`Session data at OTP entry:`, JSON.stringify(session.data, null, 2));
+  console.log(`Payment reference from session: ${session.data.paymentReference}`);
+
   if (!otpInput || otpInput.length < 4) {
     return {
       message: "Invalid OTP. Enter 4-6 digit code:\n\n0. Cancel",

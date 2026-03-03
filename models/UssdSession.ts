@@ -18,6 +18,17 @@ export interface IUssdSession extends Document {
     numberOfVotes?: number;
     amount?: number;
     email?: string;
+    paymentReference?: string;
+    otpAttempts?: number;
+    confirmedNetwork?: string;
+    confirmedHighVote?: boolean;
+    tempVotes?: number;
+    currentPage?: number;
+    totalPages?: number;
+    pageStartIndex?: number;
+    errorCount?: number;
+    awardCache?: any;
+    [key: string]: any; // Allow additional dynamic fields
   };
   isActive: boolean;
   lastActivity: Date;
@@ -44,19 +55,8 @@ const UssdSessionSchema: Schema = new Schema(
       default: 'welcome',
     },
     data: {
-      awards: [Schema.Types.Mixed],
-      categories: [Schema.Types.Mixed],
-      nominees: [Schema.Types.Mixed],
-      awardId: String,
-      awardName: String,
-      categoryId: String,
-      categoryName: String,
-      nomineeId: String,
-      nomineeName: String,
-      nomineeCode: String,
-      numberOfVotes: Number,
-      amount: Number,
-      email: String,
+      type: Schema.Types.Mixed,
+      default: {},
     },
     isActive: {
       type: Boolean,
