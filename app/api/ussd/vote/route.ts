@@ -1142,7 +1142,7 @@ async function processPayment(
         numberOfVotes: session.data.numberOfVotes,
         amount: session.data.amount,
         paymentReference,
-        paymentMethod: "ussd",
+        paymentMethod: "mobile_money",
         paymentStatus: "pending",
       });
     } catch (voteError: any) {
@@ -1161,76 +1161,18 @@ async function processPayment(
       provider,
     );
 
-    if (paystackResponse.success) {
-      const chargeStatus = paystackResponse.data?.data?.status;
-      const displayText = paystackResponse.data?.data?.display_text;
+    if (!paystackResponse.success) {
+      // Handle Paystack API errors
+      await Vote.findByIdAndUpdate(vote._id, { paymentStatus: "failed" });
+      
+      const errorMessage = paystackResponse.error || "Payment initiation failed";
+      console.error("Paystack charge failed:", errorMessage);
 
-      console.log(`Charge status: ${chargeStatus}, Display: ${displayText}`);
-
-      switch (chargeStatus) {
-        case "send_otp":
-        case "pending":
-          session.currentStep = "enter_payment_otp";
-          session.data.paymentReference = paymentReference;
-          session.data.otpAttempts = 0;
-          return {
-            message: `OTP sent to your phone\n\nEnter OTP:\n\n0. Cancel`,
-            continueSession: true,
-          };
-
-        case "pay_offline": {
-          session.isActive = false;
-          const offlineInstructions = getOfflineInstructions(
-            provider,
-            session.data.amount,
-          );
-          return {
-            message: compressMessage(
-              `Payment Initiated!\n\n${offlineInstructions}\n\nFor: ${truncateName(session.data.nomineeName, 20)}\nVotes: ${session.data.numberOfVotes}\n\nThank you!`,
-            ),
-            continueSession: false,
-          };
-        }
-
-        case "success":
-          await Vote.findByIdAndUpdate(vote._id, {
-            paymentStatus: "completed",
-          });
-          await Nominee.findByIdAndUpdate(session.data.nomineeId, {
-            $inc: { voteCount: session.data.numberOfVotes },
-          });
-          session.isActive = false;
-          return {
-            message: compressMessage(
-              `Vote Successful!\n\n${session.data.numberOfVotes} vote(s) for ${session.data.nomineeName}\n\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you for voting!`,
-            ),
-            continueSession: false,
-          };
-
-        case "failed":
-          await Vote.findByIdAndUpdate(vote._id, { paymentStatus: "failed" });
-          session.isActive = false;
-          return {
-            message: compressMessage(
-              `Payment Failed!\n\n${displayText || "Unable to process payment. Please try again."}\n\nThank you!`,
-            ),
-            continueSession: false,
-          };
-
-        default:
-          session.isActive = false;
-          return {
-            message: compressMessage(
-              `Vote Submitted!\n\nPlease complete the payment on your phone.\n\nFor: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you!`,
-            ),
-            continueSession: false,
-          };
-      }
-    } else {
-      const isTestMode =
-        process.env.PAYSTACK_SECRET_KEY?.startsWith("sk_test_");
-
+      // Check if we're in test mode
+      const isTestMode = process.env.PAYSTACK_SECRET_KEY?.startsWith("sk_test_");
+      
       if (isTestMode) {
+        // In test mode, allow vote to proceed with warning
         await Vote.findByIdAndUpdate(vote._id, { paymentStatus: "completed" });
         await Nominee.findByIdAndUpdate(session.data.nomineeId, {
           $inc: { voteCount: session.data.numberOfVotes },
@@ -1238,18 +1180,103 @@ async function processPayment(
         session.isActive = false;
         return {
           message: compressMessage(
-            `TEST MODE: Vote recorded!\n\nNominee: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nNote: Live keys needed for real MoMo.\n\nThank you!`,
+            `TEST MODE: Vote recorded!\n\nNominee: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nNote: ${errorMessage}\n\nThank you!`,
           ),
           continueSession: false,
         };
       }
 
-      await Vote.findByIdAndUpdate(vote._id, { paymentStatus: "failed" });
       return {
-        message:
-          "Payment initiation failed. Please try again later or contact support.",
+        message: compressMessage(
+          `Payment Failed\n\n${errorMessage}\n\nPlease try again or contact support.`,
+        ),
         continueSession: false,
       };
+    }
+
+    const chargeData = paystackResponse.data?.data;
+    const chargeStatus = chargeData?.status;
+    const displayText = chargeData?.display_text || chargeData?.message;
+
+    console.log(`Charge status: ${chargeStatus}, Display: ${displayText}`);
+
+    // Store payment reference for later use
+    session.data.paymentReference = paymentReference;
+
+    switch (chargeStatus) {
+      case "send_otp":
+      case "pending": {
+        // OTP required - wait for user to enter OTP
+        session.currentStep = "enter_payment_otp";
+        session.data.otpAttempts = 0;
+        
+        const otpMessage = displayText || "OTP sent to your phone";
+        return {
+          message: compressMessage(`${otpMessage}\n\nEnter OTP:\n\n0. Cancel`),
+          continueSession: true,
+        };
+      }
+
+      case "pay_offline": {
+        // User needs to approve on their phone
+        session.isActive = false;
+        const offlineInstructions = getOfflineInstructions(
+          provider,
+          session.data.amount,
+        );
+        
+        return {
+          message: compressMessage(
+            `Payment Initiated!\n\n${offlineInstructions}\n\nFor: ${truncateName(session.data.nomineeName, 20)}\nVotes: ${session.data.numberOfVotes}\n\nRef: ${paymentReference.substring(0, 15)}...\n\nThank you!`,
+          ),
+          continueSession: false,
+        };
+      }
+
+      case "success": {
+        // Payment successful immediately
+        await Vote.findByIdAndUpdate(vote._id, {
+          paymentStatus: "completed",
+        });
+        await Nominee.findByIdAndUpdate(session.data.nomineeId, {
+          $inc: { voteCount: session.data.numberOfVotes },
+        });
+        session.isActive = false;
+        
+        return {
+          message: compressMessage(
+            `Vote Successful!\n\n${session.data.numberOfVotes} vote(s) for ${truncateName(session.data.nomineeName, 20)}\n\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you for voting!`,
+          ),
+          continueSession: false,
+        };
+      }
+
+      case "failed": {
+        // Payment failed
+        await Vote.findByIdAndUpdate(vote._id, { paymentStatus: "failed" });
+        session.isActive = false;
+        
+        const failureMessage = displayText || "Unable to process payment";
+        return {
+          message: compressMessage(
+            `Payment Failed!\n\n${failureMessage}\n\nPlease try again.`,
+          ),
+          continueSession: false,
+        };
+      }
+
+      default: {
+        // Unknown status - ask user to complete on phone
+        console.warn(`Unknown charge status: ${chargeStatus}`);
+        session.isActive = false;
+        
+        return {
+          message: compressMessage(
+            `Vote Submitted!\n\nPlease complete the payment on your phone.\n\nFor: ${truncateName(session.data.nomineeName, 20)}\nVotes: ${session.data.numberOfVotes}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nRef: ${paymentReference.substring(0, 15)}...\n\nThank you!`,
+          ),
+          continueSession: false,
+        };
+      }
     }
   } catch (error: any) {
     console.error("processPayment error:", error);
@@ -1270,6 +1297,12 @@ async function initiatePaystackCharge(
 ) {
   try {
     const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
+    
+    if (!paystackSecretKey) {
+      console.error("PAYSTACK_SECRET_KEY is not configured");
+      return { success: false, error: "Payment configuration error" };
+    }
+
     const amountInKobo = Math.round(amount * 100);
     const formattedPhone = formatPhoneForPaystack(phoneNumber);
 
@@ -1277,19 +1310,34 @@ async function initiatePaystackCharge(
       `Original: ${phoneNumber} → Formatted: ${formattedPhone}, Provider: ${provider}`,
     );
 
-    const chargeRequest = {
+    // Paystack charge request following official documentation
+    const chargeRequest: any = {
       email,
-      amount: amountInKobo,
+      amount: amountInKobo.toString(),
       currency: "GHS",
       reference,
-      metadata: {
-        phoneNumber: formattedPhone,
-        payment_method: "stk_push",
-        direct_charge: true,
-      },
       mobile_money: {
         phone: formattedPhone,
-        provider,
+        provider: provider,
+      },
+      metadata: {
+        custom_fields: [
+          {
+            display_name: "Phone Number",
+            variable_name: "phone_number",
+            value: formattedPhone,
+          },
+          {
+            display_name: "Payment Method",
+            variable_name: "payment_method",
+            value: "mobile_money",
+          },
+          {
+            display_name: "Provider",
+            variable_name: "provider",
+            value: provider,
+          },
+        ],
       },
     };
 
@@ -1303,13 +1351,21 @@ async function initiatePaystackCharge(
       headers: {
         Authorization: `Bearer ${paystackSecretKey}`,
         "Content-Type": "application/json",
-        "Cache-Control": "no-cache",
       },
       body: JSON.stringify(chargeRequest),
     });
 
     const data = await response.json();
     console.log("Paystack charge response:", JSON.stringify(data, null, 2));
+
+    if (!response.ok) {
+      console.error("Paystack API error:", data);
+      return { 
+        success: false, 
+        error: data.message || "Payment service error",
+        data 
+      };
+    }
 
     return { success: data.status === true, data };
   } catch (error: any) {
@@ -1322,17 +1378,38 @@ async function submitPaystackOTP(otp: string, reference: string) {
   try {
     const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
 
+    if (!paystackSecretKey) {
+      console.error("PAYSTACK_SECRET_KEY is not configured");
+      return { success: false, error: "Payment configuration error" };
+    }
+
+    const otpRequest = {
+      otp: otp,
+      reference: reference,
+    };
+
+    console.log("Submitting OTP for reference:", reference);
+
     const response = await fetch("https://api.paystack.co/charge/submit_otp", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${paystackSecretKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ otp, reference }),
+      body: JSON.stringify(otpRequest),
     });
 
     const data = await response.json();
     console.log("Paystack OTP response:", JSON.stringify(data, null, 2));
+
+    if (!response.ok) {
+      console.error("Paystack OTP submission error:", data);
+      return { 
+        success: false, 
+        error: data.message || "OTP verification failed",
+        data 
+      };
+    }
 
     return {
       success: data.status === true && data.data?.status === "success",
@@ -1340,6 +1417,47 @@ async function submitPaystackOTP(otp: string, reference: string) {
     };
   } catch (error: any) {
     console.error("Paystack OTP error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+async function checkPaystackChargeStatus(reference: string) {
+  try {
+    const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
+
+    if (!paystackSecretKey) {
+      console.error("PAYSTACK_SECRET_KEY is not configured");
+      return { success: false, error: "Payment configuration error" };
+    }
+
+    console.log("Checking charge status for reference:", reference);
+
+    const response = await fetch(
+      `https://api.paystack.co/charge/${reference}`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${paystackSecretKey}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    const data = await response.json();
+    console.log("Paystack charge status response:", JSON.stringify(data, null, 2));
+
+    if (!response.ok) {
+      console.error("Paystack charge status error:", data);
+      return { 
+        success: false, 
+        error: data.message || "Failed to check charge status",
+        data 
+      };
+    }
+
+    return { success: data.status === true, data };
+  } catch (error: any) {
+    console.error("Paystack charge status check error:", error);
     return { success: false, error: error.message };
   }
 }
