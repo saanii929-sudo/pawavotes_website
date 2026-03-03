@@ -1249,6 +1249,7 @@ async function processPayment(
 
     // Store payment reference for later use - CRITICAL for OTP flow
     session.data.paymentReference = paymentReference;
+    session.markModified('data');
     console.log(`Stored payment reference in session: ${paymentReference}`);
     console.log(`Session data after storing reference:`, JSON.stringify(session.data, null, 2));
 
@@ -1258,6 +1259,7 @@ async function processPayment(
         // OTP required - wait for user to enter OTP
         session.currentStep = "enter_payment_otp";
         session.data.otpAttempts = 0;
+        session.markModified('data');
         
         const otpMessage = displayText || "OTP sent to your phone";
         console.log(`Returning OTP prompt. Session will be saved with reference: ${session.data.paymentReference}`);
