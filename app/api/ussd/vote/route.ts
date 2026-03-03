@@ -451,6 +451,7 @@ function showNomineeMenu(session: any) {
 }
 
 async function showWelcome(session: any, userInput?: string) {
+  // Handle Quick Vote option
   if (userInput === "2") {
     session.currentStep = "quick_vote_code";
     return {
@@ -517,6 +518,7 @@ async function showWelcome(session: any, userInput?: string) {
     };
   }
 
+  // If only one award and no user input (first time), show welcome menu
   if (activeAwards.length === 1 && !userInput) {
     session.data.awards = activeAwards;
     session.data.awardId = activeAwards[0]._id.toString();
@@ -537,6 +539,7 @@ async function showWelcome(session: any, userInput?: string) {
     };
   }
 
+  // If user selected "1" (Browse Events) or multiple awards exist, show award selection
   session.currentStep = "select_award";
   session.data.awards = activeAwards;
   session.data.currentPage = 1;
