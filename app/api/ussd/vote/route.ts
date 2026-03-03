@@ -116,6 +116,26 @@ export async function POST(req: NextRequest) {
 
     let session = await UssdSession.findOne({ sessionId });
 
+    // Check if there's an existing active session for this phone number with a different sessionID
+    if (!session && newSession === true) {
+      const existingSession = await UssdSession.findOne({
+        phoneNumber,
+        isActive: true,
+        lastActivity: { $gte: new Date(Date.now() - SESSION_TIMEOUT_MS) }
+      }).sort({ lastActivity: -1 });
+
+      if (existingSession) {
+        console.log(`Found existing active session for phone ${phoneNumber}, migrating to new sessionID ${sessionId}`);
+        // Migrate the existing session to the new sessionID
+        existingSession.sessionId = sessionId;
+        existingSession.lastActivity = new Date();
+        existingSession.markModified('sessionId');
+        existingSession.markModified('lastActivity');
+        await existingSession.save();
+        session = existingSession;
+      }
+    }
+
     if (!session || newSession === true) {
       console.log(`Creating new session for ${sessionId}`);
       session = await UssdSession.create({
