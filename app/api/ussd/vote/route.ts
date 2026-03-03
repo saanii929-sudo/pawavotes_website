@@ -15,6 +15,12 @@ const MIN_VOTES = 1;
 const MAX_VOTES = 1000;
 const HIGH_VOTE_THRESHOLD = 100;
 
+// Helper function to mark session data as modified for Mongoose
+function updateSessionData(session: any, updates: any) {
+  Object.assign(session.data, updates);
+  session.markModified('data');
+}
+
 function getNavigationText(step: string): string {
   if (step === "welcome") {
     return "0. Exit";
@@ -23,6 +29,7 @@ function getNavigationText(step: string): string {
 }
 
 function compressMessage(text: string, maxLength = MAX_MESSAGE_LENGTH): string {
+  if (!text) return "";
   if (text.length <= maxLength) return text;
 
   text = text
@@ -40,6 +47,7 @@ function compressMessage(text: string, maxLength = MAX_MESSAGE_LENGTH): string {
 }
 
 function truncateName(name: string, maxLength: number): string {
+  if (!name) return "";
   if (name.length <= maxLength) return name;
   return name.substring(0, maxLength - 3) + "...";
 }
@@ -687,6 +695,7 @@ async function handleAwardSelection(session: any, userInput: string) {
     votingStartTime: selectedAward.votingStartTime,
     votingEndTime: selectedAward.votingEndTime,
   };
+  session.markModified('data');
 
   const categories = await Category.find({
     awardId: selectedAward._id,
@@ -705,6 +714,7 @@ async function handleAwardSelection(session: any, userInput: string) {
 
   session.currentStep = "select_category";
   session.data.categories = categories;
+  session.markModified('data');
 
   return showCategoryMenu(session);
 }
@@ -717,6 +727,8 @@ async function handleCategorySelection(session: any, userInput: string) {
   const itemsPerPage = ITEMS_PER_PAGE;
 
   if (
+    !categories ||
+    !Array.isArray(categories) ||
     isNaN(selectedIndex) ||
     selectedIndex < 0 ||
     selectedIndex >= itemsPerPage ||
@@ -724,7 +736,7 @@ async function handleCategorySelection(session: any, userInput: string) {
   ) {
     return handleError(
       session,
-      `Invalid selection. Enter 1-${Math.min(itemsPerPage, categories.length - pageStartIndex)}`,
+      `Invalid selection. Enter 1-${Math.min(itemsPerPage, (categories?.length || 0) - pageStartIndex)}`,
     );
   }
 
@@ -733,6 +745,7 @@ async function handleCategorySelection(session: any, userInput: string) {
   session.data.categoryName = selectedCategory.name;
   session.data.currentPage = 1;
   session.data.errorCount = 0;
+  session.markModified('data');
 
   session.currentStep = "nominee_method";
 
@@ -772,6 +785,7 @@ async function handleNomineeMethod(session: any, userInput: string) {
     session.currentStep = "select_nominee";
     session.data.nominees = nominees;
     session.data.currentPage = 1;
+    session.markModified('data');
 
     return showNomineeMenu(session);
   } else {
