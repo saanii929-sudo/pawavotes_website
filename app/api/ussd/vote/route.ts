@@ -112,38 +112,9 @@ export async function POST(req: NextRequest) {
     const phoneNumber = msisdn;
     const text = userData || "";
 
-    console.log(`USSD Request - SessionID: ${sessionId}, Phone: ${phoneNumber}, Text: ${text}, NewSession: ${newSession}`);
-
     let session = await UssdSession.findOne({ sessionId });
-    let shouldResetSession = false;
 
-    // Check if there's an existing active session for this phone number with a different sessionID
-    if (!session && newSession === true) {
-      const existingSession = await UssdSession.findOne({
-        phoneNumber,
-        isActive: true,
-        sessionId: { $ne: sessionId }, // Different sessionID
-        lastActivity: { $gte: new Date(Date.now() - SESSION_TIMEOUT_MS) }
-      }).sort({ lastActivity: -1 });
-
-      if (existingSession) {
-        console.log(`Found existing active session for phone ${phoneNumber}, migrating to new sessionID ${sessionId}`);
-        // Migrate the existing session to the new sessionID
-        existingSession.sessionId = sessionId;
-        existingSession.lastActivity = new Date();
-        existingSession.markModified('sessionId');
-        existingSession.markModified('lastActivity');
-        await existingSession.save();
-        session = existingSession;
-        // Don't reset - continue from where user left off
-      } else {
-        // No existing session to migrate, will create new one
-        shouldResetSession = true;
-      }
-    }
-
-    if (!session) {
-      console.log(`Creating new session for ${sessionId}`);
+    if (!session || newSession === true) {
       session = await UssdSession.create({
         sessionId,
         phoneNumber,
@@ -152,34 +123,11 @@ export async function POST(req: NextRequest) {
         isActive: true,
         lastActivity: new Date(),
       });
-    } else if (newSession === true && shouldResetSession) {
-      // Reset existing session to welcome
-      console.log(`Resetting session ${sessionId} to welcome`);
-      session.currentStep = "welcome";
-      session.data = {};
-      session.isActive = true;
-      session.lastActivity = new Date();
-      session.markModified('data');
-      session.markModified('lastActivity');
     } else {
-      console.log(`Existing session found - Step: ${session.currentStep}, LastActivity: ${session.lastActivity}`);
-      // Update lastActivity BEFORE processing to avoid timeout issues
       session.lastActivity = new Date();
-      session.markModified('lastActivity');
     }
 
-    // For new sessions, ignore the USSD code in the text
-    let userInput = "";
-    if (newSession === true) {
-      // New session - user just dialed the code, no input yet
-      userInput = "";
-    } else {
-      // Continuing session - extract the last input
-      userInput = text.split("*").pop() || "";
-    }
-
-    console.log(`Processing with userInput: "${userInput}", Step: ${session.currentStep}`);
-
+    const userInput = text.split("*").pop() || "";
     const response = await handleUssdFlow(session, userInput, phoneNumber);
     await session.save();
 
@@ -210,21 +158,13 @@ async function handleUssdFlow(
   phoneNumber: string,
 ) {
   const step = session.currentStep;
-  const now = Date.now();
-  const lastActivityTime = new Date(session.lastActivity).getTime();
-  const sessionAge = now - lastActivityTime;
-  
-  console.log(`handleUssdFlow - Step: ${step}, SessionAge: ${sessionAge}ms (${(sessionAge/1000).toFixed(1)}s), Timeout: ${SESSION_TIMEOUT_MS}ms`);
-  console.log(`LastActivity: ${session.lastActivity}, Now: ${new Date(now)}`);
-  
+  const sessionAge = Date.now() - new Date(session.lastActivity).getTime();
   if (sessionAge > SESSION_TIMEOUT_MS && step !== "welcome") {
-    console.log(`Session expired! Age: ${sessionAge}ms > Timeout: ${SESSION_TIMEOUT_MS}ms`);
     return {
       message: "Session expired. Please dial again to continue.",
       continueSession: false,
     };
   }
-  
   if (userInput === "#") {
     return handleNextPage(session);
   }
@@ -710,12 +650,7 @@ async function handleQuickVoteCode(session: any, userInput: string) {
 async function handleAwardSelection(session: any, userInput: string) {
   const awards = session.data?.awards;
 
-  console.log(`handleAwardSelection - userInput: ${userInput}`);
-  console.log(`Session data:`, JSON.stringify(session.data, null, 2));
-  console.log(`Awards in session:`, awards);
-
   if (!awards || !Array.isArray(awards) || awards.length === 0) {
-    console.error(`No awards found in session! session.data:`, session.data);
     return {
       message: "Session expired. Please dial the code again to start over.",
       continueSession: false,
@@ -1149,24 +1084,10 @@ async function handleNetworkConfirmation(
 async function handlePaymentOTP(session: any, userInput: string) {
   const otpInput = userInput.trim();
 
-  console.log(`handlePaymentOTP called with OTP: ${otpInput}`);
-  console.log(`Session data at OTP entry:`, JSON.stringify(session.data, null, 2));
-  console.log(`Payment reference from session: ${session.data.paymentReference}`);
-
   if (!otpInput || otpInput.length < 4) {
     return {
       message: "Invalid OTP. Enter 4-6 digit code:\n\n0. Cancel",
       continueSession: true,
-    };
-  }
-
-  // Check if payment reference exists
-  if (!session.data.paymentReference) {
-    console.error("Payment reference missing from session:", session.data);
-    session.isActive = false;
-    return {
-      message: "Session error. Please try voting again.",
-      continueSession: false,
     };
   }
 
@@ -1180,8 +1101,6 @@ async function handlePaymentOTP(session: any, userInput: string) {
       continueSession: false,
     };
   }
-
-  console.log(`Attempting OTP submission with reference: ${session.data.paymentReference}`);
 
   const result = await submitPaystackOTP(
     otpInput,
