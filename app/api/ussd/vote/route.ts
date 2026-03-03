@@ -642,6 +642,7 @@ async function handleQuickVoteCode(session: any, userInput: string) {
     votingStartTime: award.votingStartTime,
     votingEndTime: award.votingEndTime,
   };
+  session.markModified('data');
 
   const pricePerVote = award?.pricing?.votingCost || 0.5;
   session.currentStep = "enter_votes";
@@ -827,6 +828,7 @@ async function handleNomineeCodeEntry(session: any, userInput: string) {
   session.data.nomineeName = nominee.name;
   session.data.nomineeCode = nomineeCode;
   session.data.errorCount = 0;
+  session.markModified('data');
 
   const pricePerVote = session.data.awardCache?.pricing?.votingCost || 0.5;
   session.currentStep = "enter_votes";
@@ -864,6 +866,7 @@ async function handleNomineeSelection(session: any, userInput: string) {
   session.data.nomineeName = selectedNominee.name;
   session.data.nomineeCode = selectedNominee.nomineeCode;
   session.data.errorCount = 0;
+  session.markModified('data');
 
   const pricePerVote = session.data.awardCache?.pricing?.votingCost || 0.5;
   session.currentStep = "enter_votes";
@@ -913,6 +916,7 @@ async function handleVoteQuantity(session: any, userInput: string) {
   session.data.numberOfVotes = numberOfVotes;
   session.data.amount = amount;
   session.data.errorCount = 0;
+  session.markModified('data');
   session.currentStep = "confirm";
 
   const displayName = truncateName(session.data.nomineeName, 22);
@@ -938,6 +942,7 @@ async function handleHighVoteConfirmation(session: any, userInput: string) {
     session.data.amount = amount;
     session.data.confirmedHighVote = false;
     session.data.tempVotes = null;
+    session.markModified('data');
     session.currentStep = "confirm";
 
     const displayName = truncateName(session.data.nomineeName, 22);
@@ -954,6 +959,7 @@ async function handleHighVoteConfirmation(session: any, userInput: string) {
   } else {
     session.data.confirmedHighVote = false;
     session.data.tempVotes = null;
+    session.markModified('data');
     session.currentStep = "enter_votes";
 
     const pricePerVote = session.data.awardCache?.pricing?.votingCost || 0.5;
@@ -1162,6 +1168,15 @@ async function processPayment(
   try {
     const paymentReference = `USSD-${Date.now()}-${randomBytes(6).toString("hex")}`;
     const dummyEmail = `${phoneNumber}@ussd.pawavotes.com`;
+
+    console.log("processPayment - session.data:", JSON.stringify(session.data, null, 2));
+    console.log("Creating vote with:", {
+      awardId: session.data.awardId,
+      categoryId: session.data.categoryId,
+      nomineeId: session.data.nomineeId,
+      numberOfVotes: session.data.numberOfVotes,
+      amount: session.data.amount,
+    });
 
     let vote: any;
     try {
