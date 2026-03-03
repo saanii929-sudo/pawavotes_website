@@ -538,9 +538,12 @@ async function showWelcome(session: any, userInput?: string) {
     };
   }
 
-  // If only one award and no user input (first time), show welcome menu
-  if (activeAwards.length === 1 && !userInput) {
-    session.data.awards = activeAwards;
+  // Store awards in session for later use
+  session.data.awards = activeAwards;
+  session.data.currentPage = 1;
+  
+  // If there's only one award, pre-select it
+  if (activeAwards.length === 1) {
     session.data.awardId = activeAwards[0]._id.toString();
     session.data.awardName = activeAwards[0].name;
     session.data.awardCache = {
@@ -550,7 +553,12 @@ async function showWelcome(session: any, userInput?: string) {
       votingStartTime: activeAwards[0].votingStartTime,
       votingEndTime: activeAwards[0].votingEndTime,
     };
+  }
+  
+  session.markModified('data');
 
+  // If no user input (first time), show welcome menu
+  if (!userInput) {
     return {
       message: compressMessage(
         `Welcome to PawaVotes\n\n1. Browse Events\n2. Quick Vote (Code)\n\n${getNavigationText("welcome")}`,
@@ -559,12 +567,19 @@ async function showWelcome(session: any, userInput?: string) {
     };
   }
 
-  // If user selected "1" (Browse Events) or multiple awards exist, show award selection
-  session.currentStep = "select_award";
-  session.data.awards = activeAwards;
-  session.data.currentPage = 1;
+  // If user selected "1" (Browse Events), show award selection
+  if (userInput === "1") {
+    session.currentStep = "select_award";
+    return showAwardMenu(session);
+  }
 
-  return showAwardMenu(session);
+  // If we get here with unexpected input, show welcome again
+  return {
+    message: compressMessage(
+      `Welcome to PawaVotes\n\n1. Browse Events\n2. Quick Vote (Code)\n\n${getNavigationText("welcome")}`,
+    ),
+    continueSession: true,
+  };
 }
 
 async function handleQuickVoteCode(session: any, userInput: string) {
@@ -669,7 +684,12 @@ async function handleQuickVoteCode(session: any, userInput: string) {
 async function handleAwardSelection(session: any, userInput: string) {
   const awards = session.data?.awards;
 
+  console.log(`handleAwardSelection - userInput: ${userInput}`);
+  console.log(`Session data:`, JSON.stringify(session.data, null, 2));
+  console.log(`Awards in session:`, awards);
+
   if (!awards || !Array.isArray(awards) || awards.length === 0) {
+    console.error(`No awards found in session! session.data:`, session.data);
     return {
       message: "Session expired. Please dial the code again to start over.",
       continueSession: false,
