@@ -121,6 +121,7 @@ export async function POST(req: NextRequest) {
       const existingSession = await UssdSession.findOne({
         phoneNumber,
         isActive: true,
+        sessionId: { $ne: sessionId }, // Different sessionID
         lastActivity: { $gte: new Date(Date.now() - SESSION_TIMEOUT_MS) }
       }).sort({ lastActivity: -1 });
 
@@ -136,7 +137,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (!session || newSession === true) {
+    if (!session) {
       console.log(`Creating new session for ${sessionId}`);
       session = await UssdSession.create({
         sessionId,
