@@ -1463,8 +1463,18 @@ async function submitPaystackOTP(otp: string, reference: string) {
       };
     }
 
+    const chargeStatus = data.data?.status;
+    
+    // Handle different charge statuses
+    // success: Payment completed
+    // pay_offline: User needs to approve on phone (treat as success for mobile money)
+    // requery: Payment being confirmed (treat as success)
+    const successStatuses = ["success", "pay_offline", "requery"];
+    const isSuccess = data.status === true && successStatuses.includes(chargeStatus);
+
     return {
-      success: data.status === true && data.data?.status === "success",
+      success: isSuccess,
+      status: chargeStatus,
       data,
     };
   } catch (error: any) {
