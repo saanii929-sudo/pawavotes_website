@@ -1210,7 +1210,7 @@ async function processPayment(
 
     if (!paystackResponse.success) {
       // Handle Paystack API errors
-      await Vote.findByIdAndUpdate(vote._id, { paymentStatus: "failed" });
+      await PendingVote.findByIdAndUpdate(pendingVote._id, { status: "failed" });
       
       const errorMessage = paystackResponse.error || "Payment initiation failed";
       console.error("Paystack charge failed:", errorMessage);
@@ -1220,7 +1220,7 @@ async function processPayment(
       
       if (isTestMode) {
         // In test mode, allow vote to proceed with warning
-        await Vote.findByIdAndUpdate(vote._id, { paymentStatus: "completed" });
+        await PendingVote.findByIdAndUpdate(pendingVote._id, { status: "completed" });
         await Nominee.findByIdAndUpdate(session.data.nomineeId, {
           $inc: { voteCount: session.data.numberOfVotes },
         });

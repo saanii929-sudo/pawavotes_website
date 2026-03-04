@@ -34,9 +34,7 @@ export default function ChatbotWidget() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Initialize audio element
   useEffect(() => {
-    // Create a notification sound as a data URL (simple beep)
     const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
     const sampleRate = audioContext.sampleRate;
     const duration = 0.3;
@@ -44,7 +42,6 @@ export default function ChatbotWidget() {
     const audioBuffer = audioContext.createBuffer(1, numSamples, sampleRate);
     const channelData = audioBuffer.getChannelData(0);
 
-    // Generate a pleasant notification beep (two tones)
     for (let i = 0; i < numSamples; i++) {
       const t = i / sampleRate;
       if (t < 0.15) {
@@ -54,7 +51,6 @@ export default function ChatbotWidget() {
       }
     }
 
-    // Convert to WAV and create audio element
     const wavData = audioBufferToWav(audioBuffer);
     const blob = new Blob([wavData], { type: 'audio/wav' });
     const url = URL.createObjectURL(blob);
@@ -68,25 +64,21 @@ export default function ChatbotWidget() {
     };
   }, []);
 
-  // Enable audio on first user interaction
   useEffect(() => {
     const enableAudio = () => {
       if (!audioEnabled && audioRef.current) {
-        // Try to play and immediately pause to enable audio
         audioRef.current.play().then(() => {
           audioRef.current?.pause();
           audioRef.current!.currentTime = 0;
           setAudioEnabled(true);
         }).catch(() => {
-          // Audio still blocked, will try again on next interaction
         });
       }
     };
-
-    // Listen for any user interaction
     window.addEventListener('click', enableAudio, { once: true });
     window.addEventListener('touchstart', enableAudio, { once: true });
     window.addEventListener('keydown', enableAudio, { once: true });
+    
 
     return () => {
       window.removeEventListener('click', enableAudio);
@@ -198,7 +190,7 @@ export default function ChatbotWidget() {
         setIsOpen(true);
         break;
       case 'email':
-        window.location.href = 'mailto:support@pawavotes.com?subject=Support Request';
+        window.location.href = 'mailto:pawavotes@gmail.com?subject=Support Request';
         break;
       case 'phone':
         setPhoneModalType('phone');
@@ -437,7 +429,7 @@ export default function ChatbotWidget() {
                 </div>
                 <div className="text-left">
                   <p className="font-medium text-gray-900 text-sm">Email Us</p>
-                  <p className="text-xs text-gray-500">support@pawavotes.com</p>
+                  <p className="text-xs text-gray-500">pawavotes@gmail.com</p>
                 </div>
               </button>
 
