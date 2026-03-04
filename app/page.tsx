@@ -355,9 +355,6 @@ export default function Home() {
           </div>
         </footer>
       </section>
-
-      {/* Chatbot Widget */}
-      <ChatbotWidget />
     </main>
   );
 }
