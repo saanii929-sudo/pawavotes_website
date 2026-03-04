@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import { MessageCircle, X, Send, Minimize2 } from 'lucide-react';
+import { MessageCircle, X, Send, Minimize2, Mail, Phone, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface Message {
@@ -13,7 +13,13 @@ interface Message {
 
 export default function ChatbotWidget() {
   const [isOpen, setIsOpen] = useState(false);
+  const [showContactOptions, setShowContactOptions] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [hasPlayedSound, setHasPlayedSound] = useState(false);
+  const [showNotification, setShowNotification] = useState(false);
+  const [audioEnabled, setAudioEnabled] = useState(false);
+  const [showPhoneModal, setShowPhoneModal] = useState(false);
+  const [phoneModalType, setPhoneModalType] = useState<'phone' | 'whatsapp'>('phone');
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -26,6 +32,151 @@ export default function ChatbotWidget() {
   const [isTyping, setIsTyping] = useState(false);
   const [sessionId] = useState(() => `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Initialize audio element
+  useEffect(() => {
+    // Create a notification sound as a data URL (simple beep)
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const sampleRate = audioContext.sampleRate;
+    const duration = 0.3;
+    const numSamples = sampleRate * duration;
+    const audioBuffer = audioContext.createBuffer(1, numSamples, sampleRate);
+    const channelData = audioBuffer.getChannelData(0);
+
+    // Generate a pleasant notification beep (two tones)
+    for (let i = 0; i < numSamples; i++) {
+      const t = i / sampleRate;
+      if (t < 0.15) {
+        channelData[i] = Math.sin(2 * Math.PI * 800 * t) * 0.3 * (1 - t / 0.15);
+      } else {
+        channelData[i] = Math.sin(2 * Math.PI * 1000 * t) * 0.3 * (1 - (t - 0.15) / 0.15);
+      }
+    }
+
+    // Convert to WAV and create audio element
+    const wavData = audioBufferToWav(audioBuffer);
+    const blob = new Blob([wavData], { type: 'audio/wav' });
+    const url = URL.createObjectURL(blob);
+    
+    const audio = new Audio(url);
+    audio.volume = 0.5;
+    audioRef.current = audio;
+
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, []);
+
+  // Enable audio on first user interaction
+  useEffect(() => {
+    const enableAudio = () => {
+      if (!audioEnabled && audioRef.current) {
+        // Try to play and immediately pause to enable audio
+        audioRef.current.play().then(() => {
+          audioRef.current?.pause();
+          audioRef.current!.currentTime = 0;
+          setAudioEnabled(true);
+        }).catch(() => {
+          // Audio still blocked, will try again on next interaction
+        });
+      }
+    };
+
+    // Listen for any user interaction
+    window.addEventListener('click', enableAudio, { once: true });
+    window.addEventListener('touchstart', enableAudio, { once: true });
+    window.addEventListener('keydown', enableAudio, { once: true });
+
+    return () => {
+      window.removeEventListener('click', enableAudio);
+      window.removeEventListener('touchstart', enableAudio);
+      window.removeEventListener('keydown', enableAudio);
+    };
+  }, [audioEnabled]);
+
+  // Play notification sound and show alert after audio is enabled
+  useEffect(() => {
+    if (audioEnabled && !hasPlayedSound) {
+      const timer = setTimeout(() => {
+        playNotificationSound();
+        setShowNotification(true);
+        setHasPlayedSound(true);
+        
+        // Hide notification after 5 seconds
+        setTimeout(() => {
+          setShowNotification(false);
+        }, 5000);
+      }, 500);
+
+      return () => clearTimeout(timer);
+    }
+  }, [audioEnabled, hasPlayedSound]);
+
+  const playNotificationSound = () => {
+    if (audioRef.current && audioEnabled) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch((error) => {
+        console.log('Audio playback failed:', error);
+      });
+    }
+  };
+
+  // Helper function to convert AudioBuffer to WAV
+  function audioBufferToWav(buffer: AudioBuffer): ArrayBuffer {
+    const length = buffer.length * buffer.numberOfChannels * 2 + 44;
+    const arrayBuffer = new ArrayBuffer(length);
+    const view = new DataView(arrayBuffer);
+    const channels: Float32Array[] = [];
+    let offset = 0;
+    let pos = 0;
+
+    // Write WAV header
+    const setUint16 = (data: number) => {
+      view.setUint16(pos, data, true);
+      pos += 2;
+    };
+    const setUint32 = (data: number) => {
+      view.setUint32(pos, data, true);
+      pos += 4;
+    };
+
+    // "RIFF" chunk descriptor
+    setUint32(0x46464952); // "RIFF"
+    setUint32(length - 8); // file length - 8
+    setUint32(0x45564157); // "WAVE"
+
+    // "fmt " sub-chunk
+    setUint32(0x20746d66); // "fmt "
+    setUint32(16); // subchunk1size
+    setUint16(1); // audio format (1 = PCM)
+    setUint16(buffer.numberOfChannels);
+    setUint32(buffer.sampleRate);
+    setUint32(buffer.sampleRate * 2 * buffer.numberOfChannels); // byte rate
+    setUint16(buffer.numberOfChannels * 2); // block align
+    setUint16(16); // bits per sample
+
+    // "data" sub-chunk
+    setUint32(0x61746164); // "data"
+    setUint32(length - pos - 4); // subchunk2size
+
+    // Write interleaved data
+    for (let i = 0; i < buffer.numberOfChannels; i++) {
+      channels.push(buffer.getChannelData(i));
+    }
+
+    while (pos < length) {
+      for (let i = 0; i < buffer.numberOfChannels; i++) {
+        let sample = Math.max(-1, Math.min(1, channels[i][offset]));
+        sample = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+        view.setInt16(pos, sample, true);
+        pos += 2;
+      }
+      offset++;
+    }
+
+    return arrayBuffer;
+  }
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -34,6 +185,42 @@ export default function ChatbotWidget() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  const handleChatButtonClick = () => {
+    setShowContactOptions(true);
+  };
+
+  const handleContactOptionSelect = (option: 'chatbot' | 'email' | 'phone' | 'whatsapp') => {
+    setShowContactOptions(false);
+    
+    switch (option) {
+      case 'chatbot':
+        setIsOpen(true);
+        break;
+      case 'email':
+        window.location.href = 'mailto:support@pawavotes.com?subject=Support Request';
+        break;
+      case 'phone':
+        setPhoneModalType('phone');
+        setShowPhoneModal(true);
+        break;
+      case 'whatsapp':
+        setPhoneModalType('whatsapp');
+        setShowPhoneModal(true);
+        break;
+    }
+  };
+
+  const handlePhoneSelect = (phoneNumber: string) => {
+    setShowPhoneModal(false);
+    
+    if (phoneModalType === 'phone') {
+      window.location.href = `tel:${phoneNumber}`;
+    } else {
+      const whatsappNumber = phoneNumber.replace(/\+/g, '').replace(/\s/g, '');
+      window.open(`https://wa.me/${whatsappNumber}?text=Hello, I need help with PawaVotes`, '_blank');
+    }
+  };
 
   const sendMessage = async () => {
     if (!inputMessage.trim()) return;
@@ -103,20 +290,203 @@ export default function ChatbotWidget() {
 
   return (
     <>
+      {/* Phone Number Selection Modal */}
+      <AnimatePresence>
+        {showPhoneModal && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowPhoneModal(false)}
+              className="fixed inset-0 bg-black/50 z-50 backdrop-blur-sm"
+            />
+            
+            {/* Modal */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl shadow-2xl p-6 w-96 max-w-[90vw]"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-gray-900 text-lg">
+                  {phoneModalType === 'phone' ? 'Select Phone Number' : 'Select WhatsApp Number'}
+                </h3>
+                <button
+                  onClick={() => setShowPhoneModal(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <p className="text-sm text-gray-600 mb-4">
+                Choose a number to {phoneModalType === 'phone' ? 'call' : 'chat on WhatsApp'}:
+              </p>
+              
+              <div className="space-y-3">
+                <button
+                  onClick={() => handlePhoneSelect('+233552732025')}
+                  className="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-green-50 transition-colors border-2 border-gray-200 hover:border-green-600 group"
+                >
+                  <div className="bg-green-100 group-hover:bg-green-600 p-3 rounded-full transition-colors">
+                    <Phone className="w-6 h-6 text-green-600 group-hover:text-white transition-colors" />
+                  </div>
+                  <div className="text-left flex-1">
+                    <p className="font-semibold text-gray-900 text-base">+233 55 273 2025</p>
+                    <p className="text-xs text-gray-500">Primary support line</p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => handlePhoneSelect('+233543194406')}
+                  className="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-blue-50 transition-colors border-2 border-gray-200 hover:border-blue-600 group"
+                >
+                  <div className="bg-blue-100 group-hover:bg-blue-600 p-3 rounded-full transition-colors">
+                    <Phone className="w-6 h-6 text-blue-600 group-hover:text-white transition-colors" />
+                  </div>
+                  <div className="text-left flex-1">
+                    <p className="font-semibold text-gray-900 text-base">+233 54 319 4406</p>
+                    <p className="text-xs text-gray-500">Alternative support line</p>
+                  </div>
+                </button>
+              </div>
+
+              <button
+                onClick={() => setShowPhoneModal(false)}
+                className="w-full mt-4 py-2.5 text-sm text-gray-600 hover:text-gray-900 font-medium transition-colors"
+              >
+                Cancel
+              </button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Notification Alert */}
+      <AnimatePresence>
+        {showNotification && !isOpen && !showContactOptions && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, x: 100 }}
+            animate={{ opacity: 1, y: 0, x: 0 }}
+            exit={{ opacity: 0, y: 20, x: 100 }}
+            className="fixed bottom-24 right-6 z-40 bg-white rounded-lg shadow-xl p-4 max-w-xs border-l-4 border-green-600"
+          >
+            <div className="flex items-start gap-3">
+              <div className="bg-green-100 rounded-full p-2">
+                <MessageCircle className="w-5 h-5 text-green-600" />
+              </div>
+              <div className="flex-1">
+                <h4 className="font-semibold text-gray-900 text-sm">Need Help?</h4>
+                <p className="text-gray-600 text-xs mt-1">Chat with us for instant support!</p>
+              </div>
+              <button
+                onClick={() => setShowNotification(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Contact Options Modal */}
+      <AnimatePresence>
+        {showContactOptions && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 20 }}
+            className="fixed bottom-24 right-6 z-50 bg-white rounded-2xl shadow-2xl p-6 w-80"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-900">Contact Us</h3>
+              <button
+                onClick={() => setShowContactOptions(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <p className="text-sm text-gray-600 mb-4">Choose how you'd like to reach us:</p>
+            
+            <div className="space-y-2">
+              <button
+                onClick={() => handleContactOptionSelect('chatbot')}
+                className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-green-50 transition-colors border border-gray-200 hover:border-green-600"
+              >
+                <div className="bg-green-100 p-2 rounded-lg">
+                  <MessageSquare className="w-5 h-5 text-green-600" />
+                </div>
+                <div className="text-left">
+                  <p className="font-medium text-gray-900 text-sm">Chat with AI Bot</p>
+                  <p className="text-xs text-gray-500">Instant automated support</p>
+                </div>
+              </button>
+
+              <button
+                onClick={() => handleContactOptionSelect('email')}
+                className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-blue-50 transition-colors border border-gray-200 hover:border-blue-600"
+              >
+                <div className="bg-blue-100 p-2 rounded-lg">
+                  <Mail className="w-5 h-5 text-blue-600" />
+                </div>
+                <div className="text-left">
+                  <p className="font-medium text-gray-900 text-sm">Email Us</p>
+                  <p className="text-xs text-gray-500">support@pawavotes.com</p>
+                </div>
+              </button>
+
+              <button
+                onClick={() => handleContactOptionSelect('phone')}
+                className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-purple-50 transition-colors border border-gray-200 hover:border-purple-600"
+              >
+                <div className="bg-purple-100 p-2 rounded-lg">
+                  <Phone className="w-5 h-5 text-purple-600" />
+                </div>
+                <div className="text-left">
+                  <p className="font-medium text-gray-900 text-sm">Call Us</p>
+                  <p className="text-xs text-gray-500">+233 55 273 2025 / +233 54 319 4406</p>
+                </div>
+              </button>
+
+              <button
+                onClick={() => handleContactOptionSelect('whatsapp')}
+                className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-green-50 transition-colors border border-gray-200 hover:border-green-600"
+              >
+                <div className="bg-green-100 p-2 rounded-lg">
+                  <MessageCircle className="w-5 h-5 text-green-600" />
+                </div>
+                <div className="text-left">
+                  <p className="font-medium text-gray-900 text-sm">WhatsApp</p>
+                  <p className="text-xs text-gray-500">Chat on WhatsApp</p>
+                </div>
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Chat Button */}
       <AnimatePresence>
-        {!isOpen && (
+        {!isOpen && !showContactOptions && (
           <motion.button
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             exit={{ scale: 0 }}
-            onClick={() => setIsOpen(true)}
-            className="fixed bottom-6 right-6 z-50 bg-green-600 hover:bg-green-700 text-white rounded-full p-4 shadow-lg transition-colors"
+            onClick={handleChatButtonClick}
+            className="fixed bottom-6 right-6 z-50 bg-green-600 hover:bg-green-700 text-white rounded-full p-4 shadow-lg transition-colors group"
           >
             <MessageCircle className="w-6 h-6" />
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center animate-pulse">
               1
             </span>
+            {/* Pulse animation */}
+            <span className="absolute inset-0 rounded-full bg-green-600 animate-ping opacity-75"></span>
           </motion.button>
         )}
       </AnimatePresence>
@@ -136,7 +506,7 @@ export default function ChatbotWidget() {
             className="fixed bottom-6 right-6 z-50 w-96 bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden"
           >
             {/* Header */}
-            <div className="bg-linear-to-r from-green-600 to-green-500 text-white p-4 flex items-center justify-between">
+            <div className="bg-gradient-to-r from-green-600 to-green-500 text-white p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
                   <MessageCircle className="w-5 h-5" />
