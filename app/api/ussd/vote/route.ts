@@ -6,6 +6,7 @@ import Award from "@/models/Award";
 import Category from "@/models/Category";
 import Nominee from "@/models/Nominee";
 import Vote from "@/models/Vote";
+import PendingVote from "@/models/PendingVote";
 
 const MAX_MESSAGE_LENGTH = 160;
 const MAX_ERROR_COUNT = 3;
@@ -1170,7 +1171,7 @@ async function processPayment(
     const dummyEmail = `${phoneNumber}@ussd.pawavotes.com`;
 
     console.log("processPayment - session.data:", JSON.stringify(session.data, null, 2));
-    console.log("Creating vote with:", {
+    console.log("Creating pending vote with:", {
       awardId: session.data.awardId,
       categoryId: session.data.categoryId,
       nomineeId: session.data.nomineeId,
@@ -1178,22 +1179,21 @@ async function processPayment(
       amount: session.data.amount,
     });
 
-    let vote: any;
+    let pendingVote: any;
     try {
-      vote = await Vote.create({
+      pendingVote = await PendingVote.create({
+        reference: paymentReference,
         awardId: session.data.awardId,
         categoryId: session.data.categoryId,
         nomineeId: session.data.nomineeId,
-        voterEmail: dummyEmail,
-        voterPhone: phoneNumber,
+        email: dummyEmail,
+        phone: phoneNumber,
         numberOfVotes: session.data.numberOfVotes,
         amount: session.data.amount,
-        paymentReference,
-        paymentMethod: "mobile_money",
-        paymentStatus: "pending",
+        status: "pending",
       });
     } catch (voteError: any) {
-      console.error("Vote creation error:", voteError);
+      console.error("Pending vote creation error:", voteError);
       return {
         message: "Error creating vote record. Please try again.",
         continueSession: false,
@@ -1270,7 +1270,9 @@ async function processPayment(
       }
 
       case "pay_offline": {
-        // User needs to approve on their phone
+        // User needs to approve on their phone - this is normal for mobile money
+        // PendingVote already created, will be verified when user approves
+        
         session.isActive = false;
         const offlineInstructions = getOfflineInstructions(
           provider,
@@ -1279,33 +1281,44 @@ async function processPayment(
         
         return {
           message: compressMessage(
-            `Payment Initiated!\n\n${offlineInstructions}\n\nFor: ${truncateName(session.data.nomineeName, 20)}\nVotes: ${session.data.numberOfVotes}\n\nRef: ${paymentReference.substring(0, 15)}...\n\nThank you!`,
+            `Payment Initiated!\n\n${offlineInstructions}\n\nYour vote will be counted once payment is approved.\n\nFor: ${truncateName(session.data.nomineeName, 20)}\nVotes: ${session.data.numberOfVotes}\n\nRef: ${paymentReference.substring(0, 15)}...\n\nThank you!`,
           ),
           continueSession: false,
         };
       }
 
       case "success": {
-        // Payment successful immediately
-        await Vote.findByIdAndUpdate(vote._id, {
-          paymentStatus: "completed",
-        });
-        await Nominee.findByIdAndUpdate(session.data.nomineeId, {
-          $inc: { voteCount: session.data.numberOfVotes },
-        });
-        session.isActive = false;
+        // Payment successful immediately - verify and complete
+        const verifyResult = await verifyPaystackTransaction(paymentReference);
         
-        return {
-          message: compressMessage(
-            `Vote Successful!\n\n${session.data.numberOfVotes} vote(s) for ${truncateName(session.data.nomineeName, 20)}\n\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you for voting!`,
-          ),
-          continueSession: false,
-        };
+        if (verifyResult.success) {
+          await completePendingVote(pendingVote, session.data);
+          session.isActive = false;
+          
+          return {
+            message: compressMessage(
+              `Vote Successful!\n\n${session.data.numberOfVotes} vote(s) for ${truncateName(session.data.nomineeName, 20)}\n\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you for voting!`,
+            ),
+            continueSession: false,
+          };
+        } else {
+          pendingVote.status = "failed";
+          await pendingVote.save();
+          session.isActive = false;
+          
+          return {
+            message: compressMessage(
+              `Payment verification failed. Please try again.`,
+            ),
+            continueSession: false,
+          };
+        }
       }
 
       case "failed": {
         // Payment failed
-        await Vote.findByIdAndUpdate(vote._id, { paymentStatus: "failed" });
+        pendingVote.status = "failed";
+        await pendingVote.save();
         session.isActive = false;
         
         const failureMessage = displayText || "Unable to process payment";
@@ -1559,4 +1572,87 @@ function checkAwardVotingWindow(award: any, now: Date): boolean {
   }
 
   return now >= start && now <= end;
+}
+
+
+// Helper function to verify Paystack transaction
+async function verifyPaystackTransaction(reference: string) {
+  try {
+    const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
+    
+    if (!paystackSecretKey) {
+      console.error("Paystack secret key not configured");
+      return { success: false, error: "Payment system not configured" };
+    }
+
+    const verifyResponse = await fetch(
+      `https://api.paystack.co/transaction/verify/${reference}`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${paystackSecretKey}`,
+        },
+      }
+    );
+
+    const verifyData = await verifyResponse.json();
+
+    if (!verifyResponse.ok || !verifyData.status) {
+      return { success: false, error: "Payment verification failed", data: verifyData };
+    }
+
+    // Check if payment was successful
+    if (verifyData.data.status !== "success") {
+      return { success: false, error: "Payment was not successful", data: verifyData };
+    }
+
+    return { success: true, data: verifyData.data };
+  } catch (error: any) {
+    console.error("Verify transaction error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Helper function to complete a pending vote
+async function completePendingVote(pendingVote: any, sessionData: any) {
+  try {
+    // Create the actual vote record
+    const vote = await Vote.create({
+      awardId: pendingVote.awardId,
+      categoryId: pendingVote.categoryId,
+      nomineeId: pendingVote.nomineeId,
+      voterEmail: pendingVote.email,
+      voterPhone: pendingVote.phone,
+      numberOfVotes: pendingVote.numberOfVotes,
+      amount: pendingVote.amount,
+      paymentReference: pendingVote.reference,
+      paymentMethod: "mobile_money",
+      paymentStatus: "completed",
+    });
+
+    // Update nominee vote count
+    await Nominee.findByIdAndUpdate(pendingVote.nomineeId, {
+      $inc: { voteCount: pendingVote.numberOfVotes },
+    });
+
+    // Update category vote count
+    await Category.findByIdAndUpdate(pendingVote.categoryId, {
+      $inc: { voteCount: pendingVote.numberOfVotes },
+    });
+
+    // Update award vote count
+    await Award.findByIdAndUpdate(pendingVote.awardId, {
+      $inc: { totalVotes: pendingVote.numberOfVotes },
+    });
+
+    // Mark pending vote as completed
+    pendingVote.status = "completed";
+    await pendingVote.save();
+
+    console.log("Vote completed successfully:", vote._id);
+    return { success: true, vote };
+  } catch (error: any) {
+    console.error("Complete pending vote error:", error);
+    return { success: false, error: error.message };
+  }
 }

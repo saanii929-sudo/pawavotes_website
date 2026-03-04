@@ -1,120 +1,68 @@
-import { NextRequest, NextResponse } from 'next/server';
-import connectDB from '@/lib/mongodb';
-import Transfer from '@/models/Transfer';
-import crypto from 'crypto';
+import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
+import connectDB from "@/lib/mongodb";
+import Vote from "@/models/Vote";
+import Nominee from "@/models/Nominee";
 
 export async function POST(req: NextRequest) {
   try {
     await connectDB();
 
-    // Verify Paystack signature
+    const body = await req.text();
+    const signature = req.headers.get("x-paystack-signature");
+
+    // Verify webhook signature
     const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
     if (!paystackSecretKey) {
-      return NextResponse.json({ error: 'Paystack not configured' }, { status: 500 });
+      console.error("PAYSTACK_SECRET_KEY not configured");
+      return NextResponse.json({ error: "Configuration error" }, { status: 500 });
     }
 
-    const body = await req.text();
-    const signature = req.headers.get('x-paystack-signature');
-
-    if (!signature) {
-      return NextResponse.json({ error: 'No signature provided' }, { status: 400 });
-    }
-
-    // Validate signature
     const hash = crypto
-      .createHmac('sha512', paystackSecretKey)
+      .createHmac("sha512", paystackSecretKey)
       .update(body)
-      .digest('hex');
+      .digest("hex");
 
     if (hash !== signature) {
-      console.error('Invalid Paystack signature');
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
+      console.error("Invalid webhook signature");
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
 
     const event = JSON.parse(body);
-    console.log('Paystack webhook event:', event.event);
+    console.log("Paystack webhook event:", event.event);
 
-    // Handle charge/payment events (for USSD voting)
-    if (event.event === 'charge.success') {
-      const reference = event.data.reference;
-      
-      // Update vote payment status
-      const Vote = (await import('@/models/Vote')).default;
-      const Nominee = (await import('@/models/Nominee')).default;
-      
+    // Handle charge.success event
+    if (event.event === "charge.success") {
+      const { reference, status, channel } = event.data;
+
+      console.log(`Payment successful - Reference: ${reference}, Status: ${status}, Channel: ${channel}`);
+
+      // Find the vote by payment reference
       const vote = await Vote.findOne({ paymentReference: reference });
-      
-      if (vote && vote.paymentStatus !== 'completed') {
-        vote.paymentStatus = 'completed';
-        await vote.save();
-        
-        // Increment nominee vote count
-        await Nominee.findByIdAndUpdate(vote.nomineeId, {
-          $inc: { voteCount: vote.numberOfVotes },
-        });
-        
-        console.log(`Vote payment ${reference} marked as completed and ${vote.numberOfVotes} votes added to nominee`);
+
+      if (!vote) {
+        console.error(`Vote not found for reference: ${reference}`);
+        return NextResponse.json({ error: "Vote not found" }, { status: 404 });
       }
-    } else if (event.event === 'charge.failed') {
-      const reference = event.data.reference;
-      
-      const Vote = (await import('@/models/Vote')).default;
-      const vote = await Vote.findOne({ paymentReference: reference });
-      
-      if (vote) {
-        vote.paymentStatus = 'failed';
-        await vote.save();
-        
-        console.log(`Vote payment ${reference} marked as failed`);
-      }
+
+      // Update vote status to completed
+      vote.paymentStatus = "completed";
+      await vote.save();
+
+      // Update nominee vote count
+      await Nominee.findByIdAndUpdate(vote.nomineeId, {
+        $inc: { voteCount: vote.numberOfVotes },
+      });
+
+      console.log(`Vote completed - Nominee: ${vote.nomineeId}, Votes: ${vote.numberOfVotes}`);
+
+      return NextResponse.json({ message: "Webhook processed successfully" });
     }
 
-    // Handle transfer events
-    if (event.event === 'transfer.success') {
-      const transferCode = event.data.transfer_code;
-      
-      const transfer = await Transfer.findOne({ referenceId: transferCode });
-      
-      if (transfer) {
-        transfer.status = 'successful';
-        transfer.paystackData = event.data;
-        await transfer.save();
-        
-        console.log(`Transfer ${transferCode} marked as successful`);
-      }
-    } else if (event.event === 'transfer.failed') {
-      const transferCode = event.data.transfer_code;
-      
-      const transfer = await Transfer.findOne({ referenceId: transferCode });
-      
-      if (transfer) {
-        transfer.status = 'failed';
-        transfer.paystackData = event.data;
-        await transfer.save();
-        
-        console.log(`Transfer ${transferCode} marked as failed`);
-      }
-    } else if (event.event === 'transfer.reversed') {
-      const transferCode = event.data.transfer_code;
-      
-      const transfer = await Transfer.findOne({ referenceId: transferCode });
-      
-      if (transfer) {
-        transfer.status = 'failed';
-        transfer.notes = 'Transfer was reversed';
-        transfer.paystackData = event.data;
-        await transfer.save();
-        
-        console.log(`Transfer ${transferCode} was reversed`);
-      }
-    }
-
-    return NextResponse.json({ success: true });
+    // Handle other events if needed
+    return NextResponse.json({ message: "Event received" });
   } catch (error: any) {
-    console.error('Paystack webhook error:', error);
-    return NextResponse.json(
-      { error: 'Webhook processing failed', details: error.message },
-      { status: 500 }
-    );
+    console.error("Paystack webhook error:", error);
+    return NextResponse.json({ error: "Webhook processing failed" }, { status: 500 });
   }
 }
