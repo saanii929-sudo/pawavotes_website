@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Mail, Edit, Trash2, CheckCircle, XCircle, Clock, Search, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
+import ConfirmModal from "@/components/ConfirmModal";
 
 interface Award {
   _id: string;
@@ -35,6 +36,15 @@ const AdminsManagement = () => {
     email: '',
     assignedAwards: [] as string[],
   });
+  
+  // Modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    type?: "danger" | "warning" | "info";
+  }>({ isOpen: false, title: "", message: "", onConfirm: () => {}, type: "warning" });
 
   useEffect(() => {
     // Check user role
@@ -177,28 +187,34 @@ const AdminsManagement = () => {
   };
 
   const handleDelete = async (adminId: string) => {
-    if (!confirm('Are you sure you want to delete this admin?')) {
-      return;
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: "Delete Admin",
+      message: "Are you sure you want to delete this admin?",
+      type: "danger",
+      onConfirm: async () => {
+        setConfirmModal({ ...confirmModal, isOpen: false });
+        
+        try {
+          const token = localStorage.getItem('token');
+          const response = await fetch(`/api/organization/admins/${adminId}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          });
 
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/organization/admins/${adminId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+          if (!response.ok) {
+            throw new Error('Failed to delete admin');
+          }
 
-      if (!response.ok) {
-        throw new Error('Failed to delete admin');
+          toast.success('Admin deleted successfully');
+          fetchAdmins();
+        } catch (error: any) {
+          toast.error(error.message);
+        }
       }
-
-      toast.success('Admin deleted successfully');
-      fetchAdmins();
-    } catch (error: any) {
-      toast.error(error.message);
-    }
+    });
   };
 
   const handleAwardToggle = (awardId: string) => {
@@ -499,6 +515,16 @@ const AdminsManagement = () => {
           </div>
         </div>
       )}
+      
+      {/* Confirm Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        type={confirmModal.type}
+      />
     </div>
   );
 };

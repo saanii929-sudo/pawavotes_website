@@ -14,6 +14,8 @@ import {
   Mail,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import AlertModal from "@/components/AlertModal";
+import ConfirmModal from "@/components/ConfirmModal";
 
 interface Voter {
   _id: string;
@@ -57,6 +59,22 @@ export default function VotersPage() {
   const [bulkDeliveryMethod, setBulkDeliveryMethod] = useState<
     "email" | "sms" | "both"
   >("both");
+  
+  // Modal states
+  const [alertModal, setAlertModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: "success" | "error" | "info" | "warning";
+  }>({ isOpen: false, title: "", message: "", type: "info" });
+  
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    type?: "danger" | "warning" | "info";
+  }>({ isOpen: false, title: "", message: "", onConfirm: () => {}, type: "warning" });
 
   const [formData, setFormData] = useState({
     name: "",
@@ -178,9 +196,12 @@ export default function VotersPage() {
         );
 
         if (!editingVoter && data.data.plainPassword) {
-          alert(
-            `Voter Credentials:\nToken: ${data.data.token}\nPassword: ${data.data.plainPassword}\n\nPlease save these credentials!`,
-          );
+          setAlertModal({
+            isOpen: true,
+            title: "Voter Credentials",
+            message: `Token: ${data.data.token}\nPassword: ${data.data.plainPassword}\n\nPlease save these credentials!`,
+            type: "success"
+          });
         }
 
         setShowAddModal(false);
@@ -215,34 +236,36 @@ export default function VotersPage() {
   };
 
   const handleDelete = async (voterId: string) => {
-    if (
-      !confirm(
-        "Are you sure you want to delete this voter? This action cannot be undone.",
-      )
-    ) {
-      return;
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: "Delete Voter",
+      message: "Are you sure you want to delete this voter? This action cannot be undone.",
+      type: "danger",
+      onConfirm: async () => {
+        setConfirmModal({ ...confirmModal, isOpen: false });
+        
+        try {
+          const token = localStorage.getItem("token");
+          const response = await fetch(`/api/elections/voters/${voterId}`, {
+            method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
 
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`/api/elections/voters/${voterId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        toast.success("Voter deleted successfully!");
-        fetchVoters();
-      } else {
-        const data = await response.json();
-        toast.error(data.error || "Failed to delete voter");
+          if (response.ok) {
+            toast.success("Voter deleted successfully!");
+            fetchVoters();
+          } else {
+            const data = await response.json();
+            toast.error(data.error || "Failed to delete voter");
+          }
+        } catch (error) {
+          console.error("Delete voter error:", error);
+          toast.error("Failed to delete voter");
+        }
       }
-    } catch (error) {
-      console.error("Delete voter error:", error);
-      toast.error("Failed to delete voter");
-    }
+    });
   };
 
   const handleResendCredentials = async (
@@ -260,43 +283,45 @@ export default function VotersPage() {
     if (voterEmail) contactInfo.push(voterEmail);
     if (voterPhone) contactInfo.push(voterPhone);
 
-    if (
-      !confirm(
-        `Resend voting credentials to ${voterName} (${contactInfo.join(", ")})?`,
-      )
-    ) {
-      return;
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: "Resend Credentials",
+      message: `Resend voting credentials to ${voterName} (${contactInfo.join(", ")})?`,
+      type: "info",
+      onConfirm: async () => {
+        setConfirmModal({ ...confirmModal, isOpen: false });
+        
+        setResendingCredentials(voterId);
+        try {
+          const token = localStorage.getItem("token");
+          const response = await fetch(`/api/elections/voters/${voterId}/resend`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
 
-    setResendingCredentials(voterId);
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`/api/elections/voters/${voterId}/resend`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+          if (response.ok) {
+            const data = await response.json();
+            const methods = [];
+            if (data.data?.emailSent) methods.push("email");
+            if (data.data?.smsSent) methods.push("SMS");
 
-      if (response.ok) {
-        const data = await response.json();
-        const methods = [];
-        if (data.data?.emailSent) methods.push("email");
-        if (data.data?.smsSent) methods.push("SMS");
-
-        const methodText =
-          methods.length > 0 ? ` via ${methods.join(" and ")}` : "";
-        toast.success(`Credentials resent successfully${methodText}!`);
-      } else {
-        const data = await response.json();
-        toast.error(data.error || "Failed to resend credentials");
+            const methodText =
+              methods.length > 0 ? ` via ${methods.join(" and ")}` : "";
+            toast.success(`Credentials resent successfully${methodText}!`);
+          } else {
+            const data = await response.json();
+            toast.error(data.error || "Failed to resend credentials");
+          }
+        } catch (error) {
+          console.error("Resend credentials error:", error);
+          toast.error("Failed to resend credentials");
+        } finally {
+          setResendingCredentials(null);
+        }
       }
-    } catch (error) {
-      console.error("Resend credentials error:", error);
-      toast.error("Failed to resend credentials");
-    } finally {
-      setResendingCredentials(null);
-    }
+    });
   };
 
   const handleBulkUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1202,6 +1227,25 @@ export default function VotersPage() {
           </div>
         </div>
       )}
+      
+      {/* Alert Modal */}
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        onClose={() => setAlertModal({ ...alertModal, isOpen: false })}
+        title={alertModal.title}
+        message={alertModal.message}
+        type={alertModal.type}
+      />
+      
+      {/* Confirm Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        type={confirmModal.type}
+      />
     </div>
   );
 }

@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { Plus, ChevronLeft, X, Info, Edit2, Trash2, MoreVertical } from "lucide-react";
 import Image from "next/image";
 import toast from "react-hot-toast";
+import ConfirmModal from "@/components/ConfirmModal";
 
 interface BulkVotePackage {
   _id: string;
@@ -45,6 +46,15 @@ const BulkVotingManager = () => {
     votes: "",
     description: "",
   });
+  
+  // Modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    type?: "danger" | "warning" | "info";
+  }>({ isOpen: false, title: "", message: "", onConfirm: () => {}, type: "warning" });
 
   useEffect(() => {
     fetchAwards();
@@ -184,26 +194,34 @@ const BulkVotingManager = () => {
   };
 
   const handleDeletePackage = async (packageId: string) => {
-    if (!confirm("Are you sure you want to delete this bulk vote package?")) return;
+    setConfirmModal({
+      isOpen: true,
+      title: "Delete Bulk Vote Package",
+      message: "Are you sure you want to delete this bulk vote package?",
+      type: "danger",
+      onConfirm: async () => {
+        setConfirmModal({ ...confirmModal, isOpen: false });
+        
+        const loadingToast = toast.loading("Deleting package...");
+        try {
+          const response = await fetch(`/api/bulk-vote-packages/${packageId}`, {
+            method: "DELETE",
+          });
 
-    const loadingToast = toast.loading("Deleting package...");
-    try {
-      const response = await fetch(`/api/bulk-vote-packages/${packageId}`, {
-        method: "DELETE",
-      });
-
-      if (response.ok) {
-        toast.success("Package deleted successfully!", { id: loadingToast });
-        if (selectedAward) {
-          fetchBulkVotePackages(selectedAward._id);
+          if (response.ok) {
+            toast.success("Package deleted successfully!", { id: loadingToast });
+            if (selectedAward) {
+              fetchBulkVotePackages(selectedAward._id);
+            }
+            setShowActionMenu(null);
+          } else {
+            toast.error("Failed to delete package", { id: loadingToast });
+          }
+        } catch (error) {
+          toast.error("Failed to delete package", { id: loadingToast });
         }
-        setShowActionMenu(null);
-      } else {
-        toast.error("Failed to delete package", { id: loadingToast });
       }
-    } catch (error) {
-      toast.error("Failed to delete package", { id: loadingToast });
-    }
+    });
   };
 
   const handleToggleActive = async (packageId: string, currentStatus: boolean) => {
@@ -596,6 +614,16 @@ const BulkVotingManager = () => {
           </div>
         </>
       )}
+      
+      {/* Confirm Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        type={confirmModal.type}
+      />
     </div>
   );
 };

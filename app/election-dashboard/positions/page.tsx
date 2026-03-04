@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, Edit, Trash2, GripVertical } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ConfirmModal from "@/components/ConfirmModal";
 
 interface Position {
   _id: string;
@@ -30,6 +31,15 @@ export default function PositionsPage() {
     maxSelections: 1,
     order: 0,
   });
+  
+  // Modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    type?: "danger" | "warning" | "info";
+  }>({ isOpen: false, title: "", message: "", onConfirm: () => {}, type: "warning" });
 
   useEffect(() => {
     fetchElections();
@@ -129,30 +139,36 @@ export default function PositionsPage() {
   };
 
   const handleDelete = async (positionId: string) => {
-    if (!confirm('Are you sure you want to delete this position? This will also delete all candidates in this position.')) {
-      return;
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: "Delete Position",
+      message: "Are you sure you want to delete this position? This will also delete all candidates in this position.",
+      type: "danger",
+      onConfirm: async () => {
+        setConfirmModal({ ...confirmModal, isOpen: false });
+        
+        try {
+          const token = localStorage.getItem('token');
+          const response = await fetch(`/api/elections/categories/${positionId}`, {
+            method: 'DELETE',
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
 
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/elections/categories/${positionId}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        toast.success('Position deleted successfully!');
-        fetchPositions();
-      } else {
-        const data = await response.json();
-        toast.error(data.error || 'Failed to delete position');
+          if (response.ok) {
+            toast.success('Position deleted successfully!');
+            fetchPositions();
+          } else {
+            const data = await response.json();
+            toast.error(data.error || 'Failed to delete position');
+          }
+        } catch (error) {
+          console.error('Delete position error:', error);
+          toast.error('Failed to delete position');
+        }
       }
-    } catch (error) {
-      console.error('Delete position error:', error);
-      toast.error('Failed to delete position');
-    }
+    });
   };
 
   const resetForm = () => {
@@ -414,6 +430,16 @@ export default function PositionsPage() {
           </div>
         </div>
       )}
+      
+      {/* Confirm Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        type={confirmModal.type}
+      />
     </div>
   );
 }

@@ -12,6 +12,7 @@ import {
   CheckCircle,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import ConfirmModal from "@/components/ConfirmModal";
 
 interface Election {
   _id: string;
@@ -42,6 +43,15 @@ export default function ElectionsPage() {
     allowRevote: false,
     requireAllCategories: false,
   });
+  
+  // Modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    type?: "danger" | "warning" | "info";
+  }>({ isOpen: false, title: "", message: "", onConfirm: () => {}, type: "warning" });
 
   useEffect(() => {
     fetchElections();
@@ -126,30 +136,36 @@ export default function ElectionsPage() {
   };
 
   const handleDelete = async (electionId: string) => {
-    if (!confirm("Are you sure you want to delete this election? This action cannot be undone.")) {
-      return;
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: "Delete Election",
+      message: "Are you sure you want to delete this election? This action cannot be undone.",
+      type: "danger",
+      onConfirm: async () => {
+        setConfirmModal({ ...confirmModal, isOpen: false });
+        
+        try {
+          const token = localStorage.getItem("token");
+          const response = await fetch(`/api/elections/${electionId}`, {
+            method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
 
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`/api/elections/${electionId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        toast.success("Election deleted successfully!");
-        fetchElections();
-      } else {
-        const data = await response.json();
-        toast.error(data.error || "Failed to delete election");
+          if (response.ok) {
+            toast.success("Election deleted successfully!");
+            fetchElections();
+          } else {
+            const data = await response.json();
+            toast.error(data.error || "Failed to delete election");
+          }
+        } catch (error) {
+          console.error("Delete election error:", error);
+          toast.error("Failed to delete election");
+        }
       }
-    } catch (error) {
-      console.error("Delete election error:", error);
-      toast.error("Failed to delete election");
-    }
+    });
   };
 
   const resetForm = () => {
@@ -436,6 +452,16 @@ export default function ElectionsPage() {
           </div>
         </div>
       )}
+      
+      {/* Confirm Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        type={confirmModal.type}
+      />
     </div>
   );
 }

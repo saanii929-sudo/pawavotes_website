@@ -4,6 +4,7 @@ import { Plus, Search, MoreVertical, X, Upload, ChevronDown, ChevronLeft, Info, 
 import Image from "next/image";
 import toast from "react-hot-toast";
 import ImageUpload from '@/components/ImageUpload';
+import ConfirmModal from "@/components/ConfirmModal";
 
 interface Award {
   _id: string;
@@ -69,6 +70,15 @@ const AwardsManagementSystem = () => {
     email: "",
     phone: ""
   });
+  
+  // Modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    type?: "danger" | "warning" | "info";
+  }>({ isOpen: false, title: "", message: "", onConfirm: () => {}, type: "warning" });
 
   useEffect(() => { 
     fetchAwards();
@@ -345,29 +355,37 @@ const AwardsManagementSystem = () => {
   };
 
   const handleDeleteNominee = async (nomineeId: string) => {
-    if (!confirm("Are you sure you want to delete this nominee?")) return;
-    
-    const loadingToast = toast.loading("Deleting nominee...");
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`/api/nominees/${nomineeId}`, { 
-        method: "DELETE", 
-        headers: { Authorization: `Bearer ${token}` } 
-      });
-      
-      if (response.ok) {
-        toast.success("Nominee deleted successfully!", { id: loadingToast });
-        if (selectedAward) { 
-          fetchNominees(selectedAward._id); 
-          fetchCategories(selectedAward._id); 
+    setConfirmModal({
+      isOpen: true,
+      title: "Delete Nominee",
+      message: "Are you sure you want to delete this nominee?",
+      type: "danger",
+      onConfirm: async () => {
+        setConfirmModal({ ...confirmModal, isOpen: false });
+        
+        const loadingToast = toast.loading("Deleting nominee...");
+        try {
+          const token = localStorage.getItem("token");
+          const response = await fetch(`/api/nominees/${nomineeId}`, { 
+            method: "DELETE", 
+            headers: { Authorization: `Bearer ${token}` } 
+          });
+          
+          if (response.ok) {
+            toast.success("Nominee deleted successfully!", { id: loadingToast });
+            if (selectedAward) { 
+              fetchNominees(selectedAward._id); 
+              fetchCategories(selectedAward._id); 
+            }
+            setShowActionMenu(null);
+          } else { 
+            toast.error("Failed to delete nominee", { id: loadingToast }); 
+          }
+        } catch (error) { 
+          toast.error("Failed to delete nominee", { id: loadingToast }); 
         }
-        setShowActionMenu(null);
-      } else { 
-        toast.error("Failed to delete nominee", { id: loadingToast }); 
       }
-    } catch (error) { 
-      toast.error("Failed to delete nominee", { id: loadingToast }); 
-    }
+    });
   };
 
   const handleDownloadNominees = async () => {
@@ -781,9 +799,16 @@ const AwardsManagementSystem = () => {
                               </button>
                               <button 
                                 onClick={() => {
-                                  if (confirm(`Delete all ${nominee.categories.length} nomination(s) for ${nominee.name}?`)) {
-                                    nominee.categories.forEach((cat: any) => handleDeleteNominee(cat.nomineeId));
-                                  }
+                                  setConfirmModal({
+                                    isOpen: true,
+                                    title: "Delete All Nominations",
+                                    message: `Delete all ${nominee.categories.length} nomination(s) for ${nominee.name}?`,
+                                    type: "danger",
+                                    onConfirm: () => {
+                                      setConfirmModal({ ...confirmModal, isOpen: false });
+                                      nominee.categories.forEach((cat: any) => handleDeleteNominee(cat.nomineeId));
+                                    }
+                                  });
                                 }} 
                                 className="w-full px-3 py-2 text-left text-xs text-red-600 hover:bg-gray-50 rounded-b-lg flex items-center gap-2"
                               >
@@ -889,9 +914,16 @@ const AwardsManagementSystem = () => {
                               </button>
                               <button 
                                 onClick={() => {
-                                  if (confirm(`Delete all ${nominee.categories.length} nomination(s) for ${nominee.name}?`)) {
-                                    nominee.categories.forEach((cat: any) => handleDeleteNominee(cat.nomineeId));
-                                  }
+                                  setConfirmModal({
+                                    isOpen: true,
+                                    title: "Delete All Nominations",
+                                    message: `Delete all ${nominee.categories.length} nomination(s) for ${nominee.name}?`,
+                                    type: "danger",
+                                    onConfirm: () => {
+                                      setConfirmModal({ ...confirmModal, isOpen: false });
+                                      nominee.categories.forEach((cat: any) => handleDeleteNominee(cat.nomineeId));
+                                    }
+                                  });
                                 }} 
                                 className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-50 rounded-b-lg flex items-center gap-2"
                               >
@@ -1093,6 +1125,16 @@ const AwardsManagementSystem = () => {
           </div>
         </div>
       )}
+      
+      {/* Confirm Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        type={confirmModal.type}
+      />
     </div>
   );
 };

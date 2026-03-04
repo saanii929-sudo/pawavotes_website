@@ -11,6 +11,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import ConfirmModal from "@/components/ConfirmModal";
 
 interface Contestant {
   _id: string;
@@ -52,6 +53,15 @@ const ContestantManagement = () => {
   const [loadingNominees, setLoadingNominees] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [categories, setCategories] = useState<{ _id: string; name: string }[]>([]);
+  
+  // Modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    type?: "danger" | "warning" | "info";
+  }>({ isOpen: false, title: "", message: "", onConfirm: () => {}, type: "warning" });
 
   useEffect(() => {
     fetchStage();
@@ -170,32 +180,35 @@ const ContestantManagement = () => {
   };
 
   const handleRemoveContestant = async (nomineeId: string, nomineeName: string) => {
-    if (
-      !confirm(
-        `Are you sure you want to remove ${nomineeName} from this stage? Their existing votes will be preserved.`
-      )
-    )
-      return;
+    setConfirmModal({
+      isOpen: true,
+      title: "Remove Contestant",
+      message: `Are you sure you want to remove ${nomineeName} from this stage? Their existing votes will be preserved.`,
+      type: "warning",
+      onConfirm: async () => {
+        setConfirmModal({ ...confirmModal, isOpen: false });
+        
+        const loadingToast = toast.loading("Removing contestant...");
+        try {
+          const response = await fetch(
+            `/api/stages/${stageId}/contestants/${nomineeId}`,
+            { method: "DELETE" }
+          );
 
-    const loadingToast = toast.loading("Removing contestant...");
-    try {
-      const response = await fetch(
-        `/api/stages/${stageId}/contestants/${nomineeId}`,
-        { method: "DELETE" }
-      );
-
-      if (response.ok) {
-        toast.success("Contestant removed successfully!", { id: loadingToast });
-        fetchContestants();
-      } else {
-        const data = await response.json();
-        toast.error(data.message || "Failed to remove contestant", {
-          id: loadingToast,
-        });
+          if (response.ok) {
+            toast.success("Contestant removed successfully!", { id: loadingToast });
+            fetchContestants();
+          } else {
+            const data = await response.json();
+            toast.error(data.message || "Failed to remove contestant", {
+              id: loadingToast,
+            });
+          }
+        } catch (error) {
+          toast.error("Failed to remove contestant", { id: loadingToast });
+        }
       }
-    } catch (error) {
-      toast.error("Failed to remove contestant", { id: loadingToast });
-    }
+    });
   };
 
   const toggleNomineeSelection = (nomineeId: string) => {
@@ -505,6 +518,16 @@ const ContestantManagement = () => {
           </div>
         </>
       )}
+      
+      {/* Confirm Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        type={confirmModal.type}
+      />
     </div>
   );
 };

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Plus, Search, Edit, Trash2, Building2, Mail, Phone, Globe, Calendar, Award, Vote, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import AlertModal from "@/components/AlertModal";
+import ConfirmModal from "@/components/ConfirmModal";
 
 export default function OrganizationsPage() {
   const [organizations, setOrganizations] = useState<any[]>([]);
@@ -24,6 +26,8 @@ export default function OrganizationsPage() {
   const [creationResult, setCreationResult] = useState<any>(null);
   const [showResultModal, setShowResultModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', type: 'info' as 'success' | 'error' | 'info' | 'warning' });
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: () => {} });
 
   useEffect(() => {
     fetchOrganizations();
@@ -80,7 +84,12 @@ export default function OrganizationsPage() {
           setCreationResult(data);
           setShowResultModal(true);
         } else {
-          alert('Organization saved successfully!');
+          setAlertModal({
+            isOpen: true,
+            title: 'Success',
+            message: 'Organization saved successfully!',
+            type: 'success'
+          });
         }
         setShowModal(false);
         setEditingOrg(null);
@@ -88,18 +97,37 @@ export default function OrganizationsPage() {
         fetchOrganizations();
       } else {
         console.error('Error response:', data);
-        alert(data.error || "Failed to save organization");
+        setAlertModal({
+          isOpen: true,
+          title: 'Error',
+          message: data.error || "Failed to save organization",
+          type: 'error'
+        });
       }
     } catch (error) {
       console.error("Failed to save organization:", error);
-      alert("Failed to save organization");
+      setAlertModal({
+        isOpen: true,
+        title: 'Error',
+        message: "Failed to save organization",
+        type: 'error'
+      });
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this organization?")) return;
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Organization',
+      message: 'Are you sure you want to delete this organization?',
+      onConfirm: () => performDelete(id)
+    });
+  };
+
+  const performDelete = async (id: string) => {
+    setConfirmModal({ ...confirmModal, isOpen: false });
 
     const token = localStorage.getItem("token");
 
@@ -703,6 +731,26 @@ export default function OrganizationsPage() {
           </div>
         </div>
       )}
+
+      {/* Alert Modal */}
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        onClose={() => setAlertModal({ ...alertModal, isOpen: false })}
+        title={alertModal.title}
+        message={alertModal.message}
+        type={alertModal.type}
+      />
+
+      {/* Confirm Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        type="danger"
+        confirmText="Delete"
+      />
     </div>
   );
 }

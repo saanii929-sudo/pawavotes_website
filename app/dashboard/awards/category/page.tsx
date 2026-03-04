@@ -11,6 +11,7 @@ import {
   Info,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import ConfirmModal from "@/components/ConfirmModal";
 
 interface Award {
   _id: string;
@@ -40,6 +41,15 @@ const ManageCategoriesApp = () => {
   const [loadingCategories, setLoadingCategories] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [serviceFeePercentage, setServiceFeePercentage] = useState<number>(10);
+  
+  // Modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    type?: "danger" | "warning" | "info";
+  }>({ isOpen: false, title: "", message: "", onConfirm: () => {}, type: "warning" });
 
   useEffect(() => {
     fetchAwards();
@@ -173,31 +183,39 @@ const ManageCategoriesApp = () => {
   };
 
   const handleDeleteCategory = async (categoryId: Category) => {
-    if (!confirm("Are you sure you want to delete this category?")) return;
+    setConfirmModal({
+      isOpen: true,
+      title: "Delete Category",
+      message: "Are you sure you want to delete this category?",
+      type: "danger",
+      onConfirm: async () => {
+        setConfirmModal({ ...confirmModal, isOpen: false });
+        
+        const loadingToast = toast.loading("Deleting category...");
 
-    const loadingToast = toast.loading("Deleting category...");
+        try {
+          const token = localStorage.getItem("token");
+          const response = await fetch(`/api/categories/${categoryId}`, {
+            method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
 
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`/api/categories/${categoryId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        toast.success("Category deleted successfully!", { id: loadingToast });
-        fetchCategories(selectedAward!._id);
-        fetchAwards();
-        setShowActionMenu(null);
-      } else {
-        toast.error("Failed to delete category", { id: loadingToast });
+          if (response.ok) {
+            toast.success("Category deleted successfully!", { id: loadingToast });
+            fetchCategories(selectedAward!._id);
+            fetchAwards();
+            setShowActionMenu(null);
+          } else {
+            toast.error("Failed to delete category", { id: loadingToast });
+          }
+        } catch (error) {
+          console.error("Failed to delete category:", error);
+          toast.error("Failed to delete category", { id: loadingToast });
+        }
       }
-    } catch (error) {
-      console.error("Failed to delete category:", error);
-      toast.error("Failed to delete category", { id: loadingToast });
-    }
+    });
   };
 
   return (
@@ -613,6 +631,16 @@ const ManageCategoriesApp = () => {
           </>
         )}
       </AnimatePresence>
+      
+      {/* Confirm Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        type={confirmModal.type}
+      />
     </div>
   );
 };

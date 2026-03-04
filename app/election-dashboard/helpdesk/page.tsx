@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { UserPlus, Trash2, Mail, Lock, User, Shield, Search, Edit, CheckSquare } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ConfirmModal from "@/components/ConfirmModal";
 
 interface Election {
   _id: string;
@@ -33,6 +34,15 @@ export default function HelpdeskManagementPage() {
     assignedElections: [] as string[],
   });
   const [submitting, setSubmitting] = useState(false);
+  
+  // Modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    type?: "danger" | "warning" | "info";
+  }>({ isOpen: false, title: "", message: "", onConfirm: () => {}, type: "warning" });
 
   useEffect(() => {
     fetchHelpdeskUsers();
@@ -169,26 +179,34 @@ export default function HelpdeskManagementPage() {
   };
 
   const handleDeleteUser = async (userId: string) => {
-    if (!confirm('Are you sure you want to delete this help desk user?')) return;
+    setConfirmModal({
+      isOpen: true,
+      title: "Delete Help Desk User",
+      message: "Are you sure you want to delete this help desk user?",
+      type: "danger",
+      onConfirm: async () => {
+        setConfirmModal({ ...confirmModal, isOpen: false });
+        
+        try {
+          const token = localStorage.getItem('token');
+          const response = await fetch(`/api/helpdesk/users/${userId}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` },
+          });
 
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/helpdesk/users/${userId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.ok) {
-        toast.success('User deleted successfully');
-        fetchHelpdeskUsers();
-      } else {
-        const data = await response.json();
-        toast.error(data.error || 'Failed to delete user');
+          if (response.ok) {
+            toast.success('User deleted successfully');
+            fetchHelpdeskUsers();
+          } else {
+            const data = await response.json();
+            toast.error(data.error || 'Failed to delete user');
+          }
+        } catch (error) {
+          console.error('Failed to delete user:', error);
+          toast.error('Failed to delete user');
+        }
       }
-    } catch (error) {
-      console.error('Failed to delete user:', error);
-      toast.error('Failed to delete user');
-    }
+    });
   };
 
   const toggleElection = (electionId: string) => {
@@ -575,6 +593,16 @@ export default function HelpdeskManagementPage() {
           </div>
         </div>
       )}
+      
+      {/* Confirm Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        type={confirmModal.type}
+      />
     </div>
   );
 }

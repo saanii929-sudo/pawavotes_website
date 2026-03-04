@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { Search, Save, RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
+import ConfirmModal from "@/components/ConfirmModal";
 
 interface Organization {
   _id: string;
@@ -20,6 +21,15 @@ const ServiceFeesManagement = () => {
   const [globalFee, setGlobalFee] = useState("10");
   const [editingFees, setEditingFees] = useState<{ [key: string]: string }>({});
   const [saving, setSaving] = useState<{ [key: string]: boolean }>({});
+  
+  // Modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    type?: "danger" | "warning" | "info";
+  }>({ isOpen: false, title: "", message: "", onConfirm: () => {}, type: "warning" });
 
   useEffect(() => {
     fetchOrganizations();
@@ -114,34 +124,40 @@ const ServiceFeesManagement = () => {
       return;
     }
 
-    if (!confirm(`Are you sure you want to set ${fee}% service fee for ALL organizations?`)) {
-      return;
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: "Update All Service Fees",
+      message: `Are you sure you want to set ${fee}% service fee for ALL organizations?`,
+      type: "warning",
+      onConfirm: async () => {
+        setConfirmModal({ ...confirmModal, isOpen: false });
+        
+        const loadingToast = toast.loading("Updating all service fees...");
 
-    const loadingToast = toast.loading("Updating all service fees...");
+        try {
+          const token = localStorage.getItem("token");
+          const response = await fetch("/api/superadmin/service-fees/bulk-update", {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ serviceFeePercentage: fee }),
+          });
 
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("/api/superadmin/service-fees/bulk-update", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ serviceFeePercentage: fee }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        toast.success(`Updated ${data.count} organizations successfully!`, { id: loadingToast });
-        fetchOrganizations();
-      } else {
-        const data = await response.json();
-        toast.error(data.error || "Failed to update service fees", { id: loadingToast });
+          if (response.ok) {
+            const data = await response.json();
+            toast.success(`Updated ${data.count} organizations successfully!`, { id: loadingToast });
+            fetchOrganizations();
+          } else {
+            const data = await response.json();
+            toast.error(data.error || "Failed to update service fees", { id: loadingToast });
+          }
+        } catch (error) {
+          toast.error("Failed to update service fees", { id: loadingToast });
+        }
       }
-    } catch (error) {
-      toast.error("Failed to update service fees", { id: loadingToast });
-    }
+    });
   };
 
   const resetToDefault = async (orgId: string) => {
@@ -439,6 +455,16 @@ const ServiceFeesManagement = () => {
           </>
         )}
       </div>
+      
+      {/* Confirm Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        type={confirmModal.type}
+      />
     </div>
   );
 };

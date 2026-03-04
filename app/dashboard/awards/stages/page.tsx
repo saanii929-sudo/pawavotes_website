@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import toast from "react-hot-toast";
+import ConfirmModal from "@/components/ConfirmModal";
 
 interface Stage {
   _id: string;
@@ -72,6 +73,15 @@ const StagingManager = () => {
     qualificationCount: "",
     qualificationThreshold: "",
   });
+  
+  // Modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    type?: "danger" | "warning" | "info";
+  }>({ isOpen: false, title: "", message: "", onConfirm: () => {}, type: "warning" });
 
   useEffect(() => {
     fetchAwards();
@@ -251,26 +261,34 @@ const StagingManager = () => {
   };
 
   const handleDeleteStage = async (stageId: string) => {
-    if (!confirm("Are you sure you want to delete this stage?")) return;
+    setConfirmModal({
+      isOpen: true,
+      title: "Delete Stage",
+      message: "Are you sure you want to delete this stage?",
+      type: "danger",
+      onConfirm: async () => {
+        setConfirmModal({ ...confirmModal, isOpen: false });
+        
+        const loadingToast = toast.loading("Deleting stage...");
+        try {
+          const response = await fetch(`/api/stages/${stageId}`, {
+            method: "DELETE",
+          });
 
-    const loadingToast = toast.loading("Deleting stage...");
-    try {
-      const response = await fetch(`/api/stages/${stageId}`, {
-        method: "DELETE",
-      });
-
-      if (response.ok) {
-        toast.success("Stage deleted successfully!", { id: loadingToast });
-        if (selectedAward) {
-          fetchStages(selectedAward._id);
+          if (response.ok) {
+            toast.success("Stage deleted successfully!", { id: loadingToast });
+            if (selectedAward) {
+              fetchStages(selectedAward._id);
+            }
+            setShowActionMenu(null);
+          } else {
+            toast.error("Failed to delete stage", { id: loadingToast });
+          }
+        } catch (error) {
+          toast.error("Failed to delete stage", { id: loadingToast });
         }
-        setShowActionMenu(null);
-      } else {
-        toast.error("Failed to delete stage", { id: loadingToast });
       }
-    } catch (error) {
-      toast.error("Failed to delete stage", { id: loadingToast });
-    }
+    });
   };
 
   const getStatusColor = (status: string) => {
@@ -1103,6 +1121,16 @@ const StagingManager = () => {
           </div>
         </>
       )}
+      
+      {/* Confirm Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        type={confirmModal.type}
+      />
     </div>
   );
 };
