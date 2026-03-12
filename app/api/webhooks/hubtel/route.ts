@@ -22,6 +22,24 @@ export async function POST(req: NextRequest) {
     // Hubtel sends ResponseCode "0000" for successful payments
     if (ResponseCode !== "0000") {
       console.error("Hubtel webhook - Payment not successful:", body);
+      
+      // Update pending vote/nomination status to failed if we have a reference
+      if (Data?.ClientReference) {
+        const reference = Data.ClientReference;
+        
+        if (reference.startsWith("VOTE") || reference.startsWith("USSD-")) {
+          await PendingVote.findOneAndUpdate(
+            { reference },
+            { status: "failed", paymentData: body }
+          );
+        } else if (reference.startsWith("NOM")) {
+          await PendingNomination.findOneAndUpdate(
+            { reference },
+            { status: "failed", paymentData: body }
+          );
+        }
+      }
+      
       return NextResponse.json({ message: "Payment not successful" }, { status: 200 });
     }
 

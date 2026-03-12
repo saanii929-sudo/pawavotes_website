@@ -1199,7 +1199,7 @@ async function processPayment(
     // Return immediately to end USSD session
     return {
       message: compressMessage(
-        `Payment Initiated!\n\n${offlineInstructions}\n\nYour vote will be counted once payment is approved.\n\nFor: ${truncateName(session.data.nomineeName, 20)}\nVotes: ${session.data.numberOfVotes}\n\nRef: ${shortRef}\n\nThank you!`,
+        `PAYMENT REQUEST SENT!\n\nIMPORTANT:\n${offlineInstructions}\n\nYour vote will be counted after approval.\n\nFor: ${truncateName(session.data.nomineeName, 20)}\nVotes: ${session.data.numberOfVotes}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nRef: ${shortRef}\n\nThank you!`,
       ),
       continueSession: false,
     };
@@ -1317,13 +1317,13 @@ function getOfflineInstructions(provider: string, amount: number): string {
   const amountStr = `GHS ${amount.toFixed(2)}`;
   switch (provider) {
     case "mtn":
-      return `Dial *170# > My Approvals\nApprove ${amountStr}`;
+      return `>> Dial *170# NOW\n>> Go to My Approvals\n>> Approve ${amountStr}`;
     case "vod":
-      return `Dial *110# > Pending Payments\nApprove ${amountStr}`;
+      return `>> Dial *110# NOW\n>> Go to Pending Payments\n>> Approve ${amountStr}`;
     case "tgo":
-      return `Check your phone for approval\nApprove ${amountStr}`;
+      return `>> Check your phone NOW\n>> Approve ${amountStr}`;
     default:
-      return `Check your phone to approve\nAmount: ${amountStr}`;
+      return `>> Check your phone NOW\n>> Approve ${amountStr}`;
   }
 }
 
