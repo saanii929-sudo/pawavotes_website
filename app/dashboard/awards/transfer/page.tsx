@@ -189,7 +189,6 @@ const TransferManagementSystem = () => {
   };
 
   const handleAddTransferClick = () => {
-    // Show password verification modal first
     setShowPasswordModal(true);
     setPassword("");
   };
@@ -576,7 +575,7 @@ const TransferManagementSystem = () => {
               </p>
             </div>
 
-            <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg shadow-md p-4 sm:p-6 border-2 border-green-300">
+            <div className="bg-linear-to-br from-green-50 to-emerald-50 rounded-lg shadow-md p-4 sm:p-6 border-2 border-green-300">
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center">
                   <CreditCard className="text-white" size={20} />
@@ -685,11 +684,11 @@ const TransferManagementSystem = () => {
                                 ? `${transfer.recipientBank} • ${transfer.recipientAccountNumber}`
                                 : `Mobile Money • ${transfer.recipientPhoneNumber}`}
                             </p>
-                            {transfer.notes && (
+                            {/* {transfer.notes && (
                               <p className="text-xs text-orange-500">
                                 {transfer.notes}
                               </p>
-                            )}
+                            )} */}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className="text-gray-900 text-sm">
@@ -807,7 +806,6 @@ const TransferManagementSystem = () => {
         </div>
       )}
 
-      {/* Password Verification Modal */}
       {showPasswordModal && (
         <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
@@ -918,21 +916,9 @@ const TransferManagementSystem = () => {
                 <h2 className="text-lg sm:text-xl font-bold">
                   Request Transfer
                 </h2>
-                <p className="text-xs sm:text-sm text-green-100">
-                  Transfer funds via Hubtel (
-                  {revenueInfo?.serviceFeePercentage || 10}% platform fee
-                  applied)
-                </p>
               </div>
 
               <div className="p-4 sm:p-6 space-y-4 sm:space-y-5">
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                  <p className="text-xs text-blue-800">
-                    <strong>Available Balance:</strong> GHS{" "}
-                    {(revenueInfo?.availableAmount || 0).toFixed(2)}
-                  </p>
-                </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Transfer Amount (GHS){" "}
@@ -953,39 +939,6 @@ const TransferManagementSystem = () => {
                     }
                     className="w-full text-sm text-black px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                   />
-                  
-                  {/* Balance Breakdown */}
-                  <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                    <div className="space-y-2 text-xs">
-                      <div className="flex justify-between text-gray-600">
-                        <span>Available Balance:</span>
-                        <span className="font-semibold text-green-600">
-                          GHS {(revenueInfo?.availableAmount || 0).toFixed(2)}
-                        </span>
-                      </div>
-                      {formData.amount && parseFloat(formData.amount) > 0 && (
-                        <>
-                          <div className="flex justify-between text-gray-600">
-                            <span>Requesting:</span>
-                            <span className="font-semibold text-blue-600">
-                              - GHS {parseFloat(formData.amount).toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between pt-2 border-t border-gray-300">
-                            <span className="font-bold text-gray-700">Remaining After Transfer:</span>
-                            <span className={`font-bold ${
-                              (revenueInfo?.availableAmount || 0) - parseFloat(formData.amount) >= 0
-                                ? 'text-green-600'
-                                : 'text-red-600'
-                            }`}>
-                              GHS {((revenueInfo?.availableAmount || 0) - parseFloat(formData.amount)).toFixed(2)}
-                            </span>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
                   {formData.amount &&
                     parseFloat(formData.amount) >
                       (revenueInfo?.availableAmount || 0) && (
