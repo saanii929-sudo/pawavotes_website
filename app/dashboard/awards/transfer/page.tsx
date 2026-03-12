@@ -70,6 +70,7 @@ const TransferManagementSystem = () => {
     platformFee: number;
     organizerShare: number;
     alreadyTransferred: number;
+    totalRequested: number;
     availableAmount: number;
     serviceFeePercentage: number;
   } | null>(null);
@@ -323,19 +324,6 @@ const TransferManagementSystem = () => {
     }
   };
 
-  const calculateTotalRequestedTransfers = () => {
-    // Sum of only PENDING and APPROVED transfers (not completed, rejected, or failed)
-    return transfers
-      .filter(t => t.status === 'pending' || t.status === 'approved')
-      .reduce((sum, t) => sum + t.amount, 0);
-  };
-
-  const calculateRemainingBalance = (currentAmount: number) => {
-    // Available amount - (pending/approved transfers + current amount being entered)
-    const totalRequested = calculateTotalRequestedTransfers();
-    return (revenueInfo?.availableAmount || 0) - totalRequested - currentAmount;
-  };
-
   const getStatusColor = (status: string) => {
     switch (status) {
       case "completed":
@@ -553,51 +541,71 @@ const TransferManagementSystem = () => {
               <p className="text-2xl sm:text-3xl font-bold text-gray-900">
                 GHS {(revenueInfo?.totalRevenue || 0).toFixed(2)}
               </p>
+              <p className="text-xs text-gray-500 mt-2">
+                Platform Fee ({revenueInfo?.serviceFeePercentage || 10}%): GHS {(revenueInfo?.platformFee || 0).toFixed(2)}
+              </p>
             </div>
+
             <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
                   <CreditCard className="text-green-600" size={20} />
                 </div>
-                <span className="text-gray-600 text-sm">Available Balance</span>
+                <span className="text-gray-600 text-sm">Organizer Share</span>
               </div>
               <p className="text-2xl sm:text-3xl font-bold text-green-600">
-                GHS {(revenueInfo?.availableAmount || 0).toFixed(2)}
+                GHS {(revenueInfo?.organizerShare || 0).toFixed(2)}
+              </p>
+              <p className="text-xs text-gray-500 mt-2">
+                After platform fee deduction
               </p>
             </div>
 
-            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border-2 border-green-200">
+            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                  <Smartphone className="text-green-600" size={20} />
+                <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+                  <Smartphone className="text-orange-600" size={20} />
                 </div>
-                <span className="text-gray-600 text-sm">
-                  {formData.amount && parseFloat(formData.amount) > 0
-                    ? "Transfer Breakdown"
-                    : "Balance Summary"}
-                </span>
+                <span className="text-gray-600 text-sm">Total Requested</span>
               </div>
+              <p className="text-2xl sm:text-3xl font-bold text-orange-600">
+                GHS {(revenueInfo?.totalRequested || 0).toFixed(2)}
+              </p>
+              <p className="text-xs text-gray-500 mt-2">
+                Pending + Approved transfers
+              </p>
+            </div>
 
-              <>
-                <p className="text-xs text-gray-500 mb-1">Total Requested</p>
-                <p className="text-2xl sm:text-3xl font-bold text-orange-600">
-                  GHS {calculateTotalRequestedTransfers().toFixed(2)}
-                </p>
-                <div className="mt-3 pt-3 border-gray-200">
-                  <div className="border-t border-gray-300 pt-2 mt-2">
-                    <div className="flex justify-between text-xs text-gray-900">
-                      <span className="font-semibold">Remaining Balance:</span>
-                      <span className="font-bold text-green-600">
-                        GHS{" "}
-                        {(
-                          (revenueInfo?.availableAmount || 0) -
-                          calculateTotalRequestedTransfers()
-                        ).toFixed(2)}
-                      </span>
-                    </div>
+            <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg shadow-md p-4 sm:p-6 border-2 border-green-300">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center">
+                  <CreditCard className="text-white" size={20} />
+                </div>
+                <span className="text-gray-700 text-sm font-semibold">Available Balance</span>
+              </div>
+              <p className="text-3xl sm:text-4xl font-bold text-green-700">
+                GHS {(revenueInfo?.availableAmount || 0).toFixed(2)}
+              </p>
+              <div className="mt-3 pt-3 border-t border-green-200">
+                <div className="space-y-1 text-xs text-gray-600">
+                  <div className="flex justify-between">
+                    <span>Organizer Share:</span>
+                    <span className="font-semibold">GHS {(revenueInfo?.organizerShare || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Already Transferred:</span>
+                    <span className="font-semibold text-red-600">- GHS {(revenueInfo?.alreadyTransferred || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Pending/Approved:</span>
+                    <span className="font-semibold text-orange-600">- GHS {(revenueInfo?.totalRequested || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between pt-2 border-t border-green-300">
+                    <span className="font-bold text-gray-700">Available:</span>
+                    <span className="font-bold text-green-700">GHS {(revenueInfo?.availableAmount || 0).toFixed(2)}</span>
                   </div>
                 </div>
-              </>
+              </div>
             </div>
           </div>
 
@@ -945,12 +953,50 @@ const TransferManagementSystem = () => {
                     }
                     className="w-full text-sm text-black px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                   />
+                  
+                  {/* Balance Breakdown */}
+                  <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="space-y-2 text-xs">
+                      <div className="flex justify-between text-gray-600">
+                        <span>Available Balance:</span>
+                        <span className="font-semibold text-green-600">
+                          GHS {(revenueInfo?.availableAmount || 0).toFixed(2)}
+                        </span>
+                      </div>
+                      {formData.amount && parseFloat(formData.amount) > 0 && (
+                        <>
+                          <div className="flex justify-between text-gray-600">
+                            <span>Requesting:</span>
+                            <span className="font-semibold text-blue-600">
+                              - GHS {parseFloat(formData.amount).toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between pt-2 border-t border-gray-300">
+                            <span className="font-bold text-gray-700">Remaining After Transfer:</span>
+                            <span className={`font-bold ${
+                              (revenueInfo?.availableAmount || 0) - parseFloat(formData.amount) >= 0
+                                ? 'text-green-600'
+                                : 'text-red-600'
+                            }`}>
+                              GHS {((revenueInfo?.availableAmount || 0) - parseFloat(formData.amount)).toFixed(2)}
+                            </span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
                   {formData.amount &&
                     parseFloat(formData.amount) >
                       (revenueInfo?.availableAmount || 0) && (
-                      <p className="text-xs text-red-600 mt-1">
-                        Amount exceeds available balance
-                      </p>
+                      <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <p className="text-xs text-red-700 font-semibold">
+                          ⚠️ Amount exceeds available balance
+                        </p>
+                        <p className="text-xs text-red-600 mt-1">
+                          Maximum you can request: GHS {(revenueInfo?.availableAmount || 0).toFixed(2)}
+                        </p>
+                      </div>
                     )}
                 </div>
 

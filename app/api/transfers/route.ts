@@ -128,6 +128,7 @@ export async function POST(req: NextRequest) {
     const organization = await Organization.findById(decoded.id);
     const serviceFeePercentage = organization?.serviceFeePercentage || 10;
 
+    // Calculate revenue
     const votes = await Vote.find({ awardId, paymentStatus: 'completed' });
     const votingRevenue = votes.reduce((sum, v) => sum + (v.amount || 0), 0);
 
@@ -144,25 +145,46 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    const existingTransfers = await Transfer.find({
+
+    // Get all transfers for this award
+    const allTransfers = await Transfer.find({
       awardId,
       organizationId: decoded.id,
-      status: 'successful',
     });
-    const alreadyTransferred = existingTransfers.reduce((sum, t) => sum + t.amount, 0);
 
-    const availableAmount = organizerShare - alreadyTransferred;
+    // Calculate already transferred (completed transfers only)
+    const completedTransfers = allTransfers.filter(t => t.status === 'completed');
+    const alreadyTransferred = completedTransfers.reduce((sum, t) => sum + t.amount, 0);
+
+    // Calculate total requested (pending + approved transfers)
+    const pendingAndApprovedTransfers = allTransfers.filter(
+      t => t.status === 'pending' || t.status === 'approved'
+    );
+    const totalRequested = pendingAndApprovedTransfers.reduce((sum, t) => sum + t.amount, 0);
+
+    // Available balance = organizer share - already transferred - total requested
+    const availableAmount = organizerShare - alreadyTransferred - totalRequested;
 
     if (availableAmount <= 0) {
       return NextResponse.json(
-        { error: 'All available funds have already been transferred' },
+        { error: 'No available funds. All funds have been transferred or are pending transfer.' },
         { status: 400 }
       );
     }
 
     if (transferAmount > availableAmount) {
       return NextResponse.json(
-        { error: `Requested amount (GHS ${transferAmount.toFixed(2)}) exceeds available balance (GHS ${availableAmount.toFixed(2)})` },
+        { 
+          error: `Requested amount (GHS ${transferAmount.toFixed(2)}) exceeds available balance (GHS ${availableAmount.toFixed(2)})`,
+          details: {
+            totalRevenue: totalRevenue.toFixed(2),
+            platformFee: platformFee.toFixed(2),
+            organizerShare: organizerShare.toFixed(2),
+            alreadyTransferred: alreadyTransferred.toFixed(2),
+            totalRequested: totalRequested.toFixed(2),
+            availableAmount: availableAmount.toFixed(2),
+          }
+        },
         { status: 400 }
       );
     }

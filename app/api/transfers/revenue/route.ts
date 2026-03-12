@@ -56,6 +56,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Calculate total revenue from all completed votes and nominations
     const votes = await Vote.find({ awardId, paymentStatus: 'completed' });
     const votingRevenue = votes.reduce((sum, v) => sum + (v.amount || 0), 0);
 
@@ -65,15 +66,27 @@ export async function GET(req: NextRequest) {
     const totalRevenue = votingRevenue + nominationRevenue;
     const platformFee = totalRevenue * (serviceFeePercentage / 100);
     const organizerShare = totalRevenue - platformFee;
-    const query: any = { awardId, status: 'successful' };
+
+    // Get all transfers for this award
+    const transferQuery: any = { awardId };
     if (decoded.role === 'organization') {
-      query.organizationId = decoded.id;
+      transferQuery.organizationId = decoded.id;
     }
 
-    const existingTransfers = await Transfer.find(query);
-    const alreadyTransferred = existingTransfers.reduce((sum, t) => sum + t.amount, 0);
+    const allTransfers = await Transfer.find(transferQuery);
 
-    const availableAmount = Math.max(0, organizerShare - alreadyTransferred);
+    // Calculate already transferred (completed transfers only)
+    const completedTransfers = allTransfers.filter(t => t.status === 'completed');
+    const alreadyTransferred = completedTransfers.reduce((sum, t) => sum + t.amount, 0);
+
+    // Calculate total requested (pending + approved transfers)
+    const pendingAndApprovedTransfers = allTransfers.filter(
+      t => t.status === 'pending' || t.status === 'approved'
+    );
+    const totalRequested = pendingAndApprovedTransfers.reduce((sum, t) => sum + t.amount, 0);
+
+    // Available balance = organizer share - already transferred - total requested
+    const availableAmount = Math.max(0, organizerShare - alreadyTransferred - totalRequested);
 
     return NextResponse.json({
       success: true,
@@ -82,6 +95,7 @@ export async function GET(req: NextRequest) {
         platformFee,
         organizerShare,
         alreadyTransferred,
+        totalRequested,
         availableAmount,
         serviceFeePercentage,
       },

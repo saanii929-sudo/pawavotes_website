@@ -355,12 +355,25 @@ async function initiateHubtelSendMoney(transfer: any) {
     const responseText = await response.text();
     console.log('Hubtel Send Money raw response:', responseText);
 
+    // Check if response is HTML (403 Forbidden page)
+    if (responseText.trim().startsWith('<')) {
+      console.error('Hubtel returned HTML (likely 403 Forbidden - IP not whitelisted)');
+      return { 
+        success: false, 
+        error: 'Access denied by Hubtel. Your IP address may not be whitelisted. Please contact Hubtel support to whitelist your server IP.',
+        statusCode: response.status
+      };
+    }
+
     let data;
     try {
       data = JSON.parse(responseText);
     } catch (parseError) {
       console.error('Failed to parse Hubtel response:', parseError);
-      return { success: false, error: 'Invalid response from Hubtel' };
+      return { 
+        success: false, 
+        error: `Invalid response from Hubtel (Status: ${response.status}). Response: ${responseText.substring(0, 200)}` 
+      };
     }
 
     console.log('Hubtel Send Money parsed response:', data);
@@ -456,12 +469,25 @@ async function initiateHubtelSendToBank(transfer: any) {
     const responseText = await response.text();
     console.log('Hubtel Send-To-Bank raw response:', responseText);
 
+    // Check if response is HTML (403 Forbidden page)
+    if (responseText.trim().startsWith('<')) {
+      console.error('Hubtel returned HTML (likely 403 Forbidden - IP not whitelisted)');
+      return { 
+        success: false, 
+        error: 'Access denied by Hubtel. Your IP address may not be whitelisted. Please contact Hubtel support to whitelist your server IP.',
+        statusCode: response.status
+      };
+    }
+
     let data;
     try {
       data = JSON.parse(responseText);
     } catch (parseError) {
       console.error('Failed to parse Hubtel response:', parseError);
-      return { success: false, error: 'Invalid response from Hubtel' };
+      return { 
+        success: false, 
+        error: `Invalid response from Hubtel (Status: ${response.status}). Response: ${responseText.substring(0, 200)}` 
+      };
     }
 
     console.log('Hubtel Send-To-Bank parsed response:', data);
