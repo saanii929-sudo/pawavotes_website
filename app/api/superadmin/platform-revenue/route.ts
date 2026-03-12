@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
       revenueByOrganization[orgId].totalRevenue += awardRevenue;
       revenueByOrganization[orgId].platformFee += awardRevenue * (serviceFeePercentage / 100);
     }
-    const allTransfers = await Transfer.find({ status: 'successful' });
+    const allTransfers = await Transfer.find({ status: 'completed' });
     const totalTransferred = allTransfers.reduce((sum, t) => sum + t.amount, 0);
     for (const transfer of allTransfers) {
       const orgId = transfer.organizationId;
@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
       0
     );
     const transferCount = allTransfers.length;
-    const successfulTransfers = allTransfers.filter(t => t.status === 'successful').length;
+    const successfulTransfers = allTransfers.length; // All fetched transfers are completed
     const pendingTransfers = await Transfer.countDocuments({ status: 'pending' });
 
     return NextResponse.json({

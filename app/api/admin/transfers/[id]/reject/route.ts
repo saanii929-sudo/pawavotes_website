@@ -5,7 +5,7 @@ import { verifyToken } from '@/lib/auth';
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectDB();
@@ -33,7 +33,7 @@ export async function POST(
       );
     }
 
-    const transferId = params.id;
+    const { id: transferId } = await params;
     const transfer = await Transfer.findById(transferId);
 
     if (!transfer) {

@@ -5,7 +5,7 @@ import { verifyToken } from '@/lib/auth';
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectDB();
@@ -23,7 +23,7 @@ export async function POST(
       );
     }
 
-    const transferId = params.id;
+    const { id: transferId } = await params;
     const transfer = await Transfer.findById(transferId);
 
     if (!transfer) {
@@ -222,7 +222,7 @@ export async function POST(
           details: error.message,
           data: transfer,
         }, { status: 500 });
-        }
+      }
     } else {
       return NextResponse.json({
         success: false,
@@ -389,55 +389,6 @@ async function initiateHubtelSendMoney(transfer: any) {
     return { success: false, error: error.message };
   }
 }
-  } catch (error: any) {
-    console.error('Transfer approval error:', error);
-    return NextResponse.json(
-      { error: 'Failed to approve transfer', details: error.message },
-      { status: 500 }
-    );
-  }
-}
-
-
-// Helper function to check transfer status (used by scheduled check)
-async function checkTransferStatus(clientReference: string) {
-  try {
-    const hubtelApiId = process.env.HUBTEL_API_ID;
-    const hubtelApiKey = process.env.HUBTEL_API_KEY;
-    const hubtelPrepaidDepositId = process.env.HUBTEL_PREPAID_DEPOSIT_ID;
-
-    if (!hubtelApiId || !hubtelApiKey || !hubtelPrepaidDepositId) {
-      return { success: false, error: 'Hubtel credentials not configured' };
-    }
-
-    const authString = `${hubtelApiId}:${hubtelApiKey}`;
-    const base64Auth = Buffer.from(authString).toString('base64');
-
-    const url = `https://smrsc.hubtel.com/api/merchants/${hubtelPrepaidDepositId}/transactions/status?clientReference=${clientReference}`;
-
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Basic ${base64Auth}`,
-      },
-    });
-
-    if (!response.ok) {
-      return { success: false, error: `HTTP ${response.status}` };
-    }
-
-    const data = await response.json();
-
-    if (data.ResponseCode === 'success' || data.ResponseCode === '0000') {
-      return { success: true, data: data.Data };
-    } else {
-      return { success: false, error: 'Status check failed' };
-    }
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
-}
-
 
 // Helper function to initiate Hubtel Send-To-Bank
 async function initiateHubtelSendToBank(transfer: any) {
