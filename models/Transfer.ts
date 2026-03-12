@@ -13,11 +13,17 @@ export interface ITransfer extends Document {
   recipientBank?: string;
   recipientAccountNumber?: string;
   recipientPhoneNumber?: string;
+  momoNetwork?: string;
   transferType: 'bank' | 'mobile_money';
-  status: 'successful' | 'pending' | 'failed';
+  status: 'pending' | 'approved' | 'rejected' | 'completed' | 'failed';
   initiatedBy: string;
+  approvedBy?: string;
+  approvedAt?: Date;
+  rejectedBy?: string;
+  rejectedAt?: Date;
+  rejectionReason?: string;
   notes?: string;
-  paystackData?: any;
+  hubtelData?: any;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -67,6 +73,7 @@ const TransferSchema: Schema = new Schema(
     recipientBank: String,
     recipientAccountNumber: String,
     recipientPhoneNumber: String,
+    momoNetwork: String,
     transferType: {
       type: String,
       enum: ['bank', 'mobile_money'],
@@ -74,15 +81,20 @@ const TransferSchema: Schema = new Schema(
     },
     status: {
       type: String,
-      enum: ['successful', 'pending', 'failed'],
+      enum: ['pending', 'approved', 'rejected', 'completed', 'failed'],
       default: 'pending',
     },
     initiatedBy: {
       type: String,
       required: true,
     },
+    approvedBy: String,
+    approvedAt: Date,
+    rejectedBy: String,
+    rejectedAt: Date,
+    rejectionReason: String,
     notes: String,
-    paystackData: {
+    hubtelData: {
       type: Schema.Types.Mixed,
     },
   },

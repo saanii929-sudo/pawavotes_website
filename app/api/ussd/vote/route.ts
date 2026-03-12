@@ -1151,58 +1151,14 @@ async function processPayment(
       };
     }
 
-    const hubtelResponse = await initiateHubtelCharge(
-      dummyEmail,
-      session.data.amount,
-      phoneNumber,
-      paymentReference,
-      provider,
-    );
-
-    if (!hubtelResponse.success) {
-      // Handle Hubtel API errors
-      await PendingVote.findByIdAndUpdate(pendingVote._id, { status: "failed" });
-      
-      const errorMessage = hubtelResponse.error || "Payment initiation failed";
-      console.error("Hubtel charge failed:", errorMessage);
-
-      return {
-        message: compressMessage(
-          `Payment Failed\n\n${errorMessage}\n\nPlease try again or contact support.`,
-        ),
-        continueSession: false,
-      };
-    }
-
-    const chargeData = hubtelResponse.data;
-    const chargeStatus = hubtelResponse.status; // "success" or "pending"
-
-    console.log(`Charge status: ${chargeStatus}`);
-
     // Store payment reference for later use
     session.data.paymentReference = paymentReference;
     session.markModified('data');
     console.log(`Stored payment reference in session: ${paymentReference}`);
 
-    // Hubtel Direct Receive Money is always async - user must approve on phone
-    // ResponseCode "0001" means transaction pending, waiting for customer approval
-    // ResponseCode "0000" means immediate success (rare)
-    
-    if (chargeStatus === "success") {
-      // Immediate success (rare case)
-      await completePendingVote(pendingVote, session.data);
-      session.isActive = false;
-      
-      return {
-        message: compressMessage(
-          `Vote Successful!\n\n${session.data.numberOfVotes} vote(s) for ${truncateName(session.data.nomineeName, 20)}\n\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you for voting!`,
-        ),
-        continueSession: false,
-      };
-    }
-
-    // Pending - user needs to approve on their phone
+    // End USSD session immediately
     session.isActive = false;
+    
     const offlineInstructions = getOfflineInstructions(
       provider,
       session.data.amount,
@@ -1211,9 +1167,39 @@ async function processPayment(
     // Create a short reference for display
     const shortRef = paymentReference.substring(5, 20); // Remove "USSD-" prefix and truncate
     
+    // Initiate Hubtel charge AFTER 4 seconds (as required by Hubtel)
+    // This runs in the background after USSD session ends
+    setTimeout(async () => {
+      try {
+        console.log(`[${paymentReference}] Initiating Hubtel charge after 4-second delay`);
+        
+        const hubtelResponse = await initiateHubtelCharge(
+          dummyEmail,
+          session.data.amount,
+          phoneNumber,
+          paymentReference,
+          provider,
+        );
+
+        if (!hubtelResponse.success) {
+          // Handle Hubtel API errors
+          await PendingVote.findByIdAndUpdate(pendingVote._id, { status: "failed" });
+          
+          const errorMessage = hubtelResponse.error || "Payment initiation failed";
+          console.error(`[${paymentReference}] Hubtel charge failed:`, errorMessage);
+        } else {
+          console.log(`[${paymentReference}] Hubtel charge initiated successfully`);
+        }
+      } catch (error: any) {
+        console.error(`[${paymentReference}] Error in delayed Hubtel charge:`, error);
+        await PendingVote.findByIdAndUpdate(pendingVote._id, { status: "failed" });
+      }
+    }, 4000); // 4-second delay as required by Hubtel
+
+    // Return immediately to end USSD session
     return {
       message: compressMessage(
-        `Payment Initiated!\n\n${offlineInstructions}\n\nYour vote will be counted once payment is approved.\n\nFor: ${truncateName(session.data.nomineeName, 20)}\nVotes: ${session.data.numberOfVotes}\n\nRef: ${shortRef}\n\nTo check status, dial this code again.\n\nThank you!`,
+        `Payment Initiated!\n\n${offlineInstructions}\n\nYour vote will be counted once payment is approved.\n\nFor: ${truncateName(session.data.nomineeName, 20)}\nVotes: ${session.data.numberOfVotes}\n\nRef: ${shortRef}\n\nThank you!`,
       ),
       continueSession: false,
     };

@@ -181,6 +181,7 @@ export async function POST(req: NextRequest) {
       recipientBank: transferType === 'bank' ? recipientBank : undefined,
       recipientAccountNumber: transferType === 'bank' ? recipientAccountNumber : undefined,
       recipientPhoneNumber: transferType === 'mobile_money' ? recipientPhoneNumber : undefined,
+      momoNetwork: transferType === 'mobile_money' ? momoNetwork : undefined,
       transferType,
       status: 'pending',
       initiatedBy: decoded.email || decoded.id,
@@ -194,9 +195,38 @@ export async function POST(req: NextRequest) {
       organizationId: decoded.id,
     });
 
+    // Send email notification to super admin
+    try {
+      const emailResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/emails/transfer-request`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          transferId: transfer._id,
+          referenceId,
+          organizationName: organization?.name || 'Unknown Organization',
+          awardName: award.name,
+          amount: transferAmount,
+          recipientName,
+          transferType,
+          recipientDetails: transferType === 'bank' 
+            ? `${recipientBank} - ${recipientAccountNumber}`
+            : `${momoNetwork} - ${recipientPhoneNumber}`,
+        }),
+      });
+
+      if (!emailResponse.ok) {
+        console.error('Failed to send email notification');
+      }
+    } catch (emailError) {
+      console.error('Error sending email notification:', emailError);
+      // Don't fail the transfer request if email fails
+    }
+
     return NextResponse.json({
       success: true,
-      message: 'Transfer request submitted successfully. It will be processed by the platform administrator.',
+      message: 'Transfer request submitted successfully. It will be reviewed by the platform administrator.',
       data: {
         transfer,
         totalRevenue,
