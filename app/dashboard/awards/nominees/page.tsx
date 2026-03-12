@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect } from "react";
-import { Plus, Search, MoreVertical, X, Upload, ChevronDown, ChevronLeft, Info, Edit2, Trash2, Download, Link as LinkIcon, Copy } from "lucide-react";
+import { Plus, Search, MoreVertical, X, Upload, ChevronDown, ChevronLeft, Info, Edit2, Trash2, Download, Link as LinkIcon, Copy, QrCode } from "lucide-react";
 import Image from "next/image";
 import toast from "react-hot-toast";
 import ImageUpload from '@/components/ImageUpload';
@@ -486,6 +486,34 @@ const AwardsManagementSystem = () => {
     }
   };
 
+  const handleDownloadQRCode = async () => {
+    try {
+      if (!nominationLink || !selectedAward) return;
+
+      // Use QR code API to generate QR code
+      const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(nominationLink)}`;
+      
+      // Fetch the QR code image
+      const response = await fetch(qrCodeUrl);
+      const blob = await response.blob();
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${selectedAward.name.replace(/[^a-z0-9]/gi, '_')}_Nomination_QR.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success("QR code downloaded successfully!", { duration: 3000 });
+    } catch (error) {
+      console.error("QR download error:", error);
+      toast.error("Failed to download QR code", { duration: 3000 });
+    }
+  };
+
   const getInitials = (name: string) => {
     return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
   };
@@ -718,14 +746,25 @@ const AwardsManagementSystem = () => {
                   <span className="text-xs sm:text-sm">Generate Link</span>
                 </button>
               ) : (
-                <button 
-                  onClick={handleCopyNominationLink}
-                  className="flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors w-full sm:w-auto"
-                  title="Copy nomination link to clipboard"
-                >
-                  <Copy size={18} />
-                  <span className="text-xs sm:text-sm">Copy Link</span>
-                </button>
+                <>
+                  <button 
+                    onClick={handleCopyNominationLink}
+                    className="flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors w-full sm:w-auto"
+                    title="Copy nomination link to clipboard"
+                  >
+                    <Copy size={18} />
+                    <span className="text-xs sm:text-sm">Copy Link</span>
+                  </button>
+                  
+                  <button 
+                    onClick={handleDownloadQRCode}
+                    className="flex items-center justify-center gap-2 px-4 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors w-full sm:w-auto"
+                    title="Download QR code for nomination link"
+                  >
+                    <QrCode size={18} />
+                    <span className="text-xs sm:text-sm">Download QR</span>
+                  </button>
+                </>
               )}
             </div>
 
