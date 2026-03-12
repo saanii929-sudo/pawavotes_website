@@ -324,12 +324,14 @@ const TransferManagementSystem = () => {
   };
 
   const calculateTotalRequestedTransfers = () => {
-    // Sum of all transfers (pending + successful + failed) from database
-    return transfers.reduce((sum, t) => sum + t.amount, 0);
+    // Sum of only PENDING and APPROVED transfers (not completed, rejected, or failed)
+    return transfers
+      .filter(t => t.status === 'pending' || t.status === 'approved')
+      .reduce((sum, t) => sum + t.amount, 0);
   };
 
   const calculateRemainingBalance = (currentAmount: number) => {
-    // Available amount - (all transfers in DB + current amount being entered)
+    // Available amount - (pending/approved transfers + current amount being entered)
     const totalRequested = calculateTotalRequestedTransfers();
     return (revenueInfo?.availableAmount || 0) - totalRequested - currentAmount;
   };

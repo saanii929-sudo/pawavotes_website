@@ -12,8 +12,22 @@ export default function RejectTransferPage() {
   useEffect(() => {
     const rejectTransfer = async () => {
       try {
+        // Check if user is logged in
+        const token = localStorage.getItem("token");
+        if (!token) {
+          // Redirect to login with return URL
+          const returnUrl = encodeURIComponent(window.location.pathname);
+          router.push(`/login?redirect=${returnUrl}`);
+          return;
+        }
+
         const response = await fetch(`/api/admin/transfers/${params.id}/reject`, {
           method: "POST",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ reason: "Rejected via email" }),
         });
 
         const data = await response.json();

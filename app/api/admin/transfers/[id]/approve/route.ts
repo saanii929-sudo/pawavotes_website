@@ -16,7 +16,7 @@ export async function POST(
     }
 
     const decoded = verifyToken(token);
-    if (!decoded || decoded.role !== 'super-admin') {
+    if (!decoded || decoded.role !== 'superadmin') {
       return NextResponse.json(
         { error: 'Only super admins can approve transfers' },
         { status: 403 }
