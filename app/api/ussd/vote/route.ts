@@ -16,11 +16,6 @@ const MIN_VOTES = 1;
 const MAX_VOTES = 1000;
 const HIGH_VOTE_THRESHOLD = 100;
 
-// Helper function to mark session data as modified for Mongoose
-function updateSessionData(session: any, updates: any) {
-  Object.assign(session.data, updates);
-  session.markModified('data');
-}
 
 function getNavigationText(step: string): string {
   if (step === "welcome") {
@@ -73,18 +68,6 @@ function handleError(
     ),
     continueSession,
   };
-}
-
-function formatPhoneForPaystack(phoneNumber: string): string {
-  let cleaned = phoneNumber.replace(/[\s\-+]/g, "");
-  if (cleaned.startsWith("233")) {
-    cleaned = cleaned.substring(3);
-  }
-  if (cleaned.startsWith("0")) {
-    cleaned = cleaned.substring(1);
-  }
-
-  return "233" + cleaned;
 }
 
 function detectMobileProvider(phoneNumber: string): string | null {
@@ -147,6 +130,12 @@ export async function POST(req: NextRequest) {
       message: response.message,
       continueSession: response.continueSession,
     };
+    console.log(`USSD Response [${phoneNumber}]:`, {
+      continueSession: arkeselResponse.continueSession,
+      messageLength: arkeselResponse.message.length,
+      step: session.currentStep,
+      isActive: session.isActive
+    });
 
     return NextResponse.json(arkeselResponse);
   } catch (error: any) {
@@ -446,7 +435,6 @@ function showNomineeMenu(session: any) {
 }
 
 async function showWelcome(session: any, userInput?: string) {
-  // Handle Quick Vote option
   if (userInput === "2") {
     session.currentStep = "quick_vote_code";
     return {
@@ -512,12 +500,8 @@ async function showWelcome(session: any, userInput?: string) {
       continueSession: false,
     };
   }
-
-  // Store awards in session for later use
   session.data.awards = activeAwards;
   session.data.currentPage = 1;
-  
-  // If there's only one award, pre-select it
   if (activeAwards.length === 1) {
     session.data.awardId = activeAwards[0]._id.toString();
     session.data.awardName = activeAwards[0].name;
@@ -531,8 +515,6 @@ async function showWelcome(session: any, userInput?: string) {
   }
   
   session.markModified('data');
-
-  // If no user input (first time), show welcome menu
   if (!userInput) {
     return {
       message: compressMessage(
@@ -541,14 +523,10 @@ async function showWelcome(session: any, userInput?: string) {
       continueSession: true,
     };
   }
-
-  // If user selected "1" (Browse Events), show award selection
   if (userInput === "1") {
     session.currentStep = "select_award";
     return showAwardMenu(session);
   }
-
-  // If we get here with unexpected input, show welcome again
   return {
     message: compressMessage(
       `Welcome to PawaVotes\n\n1. Browse Events\n2. Quick Vote (Code)\n\n${getNavigationText("welcome")}`,
@@ -1103,8 +1081,6 @@ async function handleNetworkConfirmation(
 }
 
 async function handlePaymentOTP(session: any, userInput: string) {
-  // Hubtel doesn't use OTP for USSD payments - this is kept for backward compatibility
-  // but will redirect user to approve on phone instead
   session.isActive = false;
   return {
     message: "Please approve the payment on your phone to complete your vote.",
@@ -1150,25 +1126,16 @@ async function processPayment(
         continueSession: false,
       };
     }
-
-    // Store payment reference for later use
     session.data.paymentReference = paymentReference;
     session.markModified('data');
     console.log(`Stored payment reference in session: ${paymentReference}`);
-
-    // End USSD session immediately
     session.isActive = false;
     
     const offlineInstructions = getOfflineInstructions(
       provider,
       session.data.amount,
     );
-    
-    // Create a short reference for display
-    const shortRef = paymentReference.substring(5, 20); // Remove "USSD-" prefix and truncate
-    
-    // Initiate Hubtel charge AFTER 4 seconds (as required by Hubtel)
-    // This runs in the background after USSD session ends
+    const shortRef = paymentReference.substring(5, 20);
     setTimeout(async () => {
       try {
         console.log(`[${paymentReference}] Initiating Hubtel charge after 4-second delay`);
@@ -1182,7 +1149,6 @@ async function processPayment(
         );
 
         if (!hubtelResponse.success) {
-          // Handle Hubtel API errors
           await PendingVote.findByIdAndUpdate(pendingVote._id, { status: "failed" });
           
           const errorMessage = hubtelResponse.error || "Payment initiation failed";
@@ -1191,38 +1157,30 @@ async function processPayment(
         }
         
         console.log(`[${paymentReference}] Hubtel charge initiated successfully`);
-        
-        // Schedule automatic status check after 5 minutes (as fallback if webhook not received)
         setTimeout(async () => {
           try {
             console.log(`[${paymentReference}] Running automatic status check (5 min after initiation)`);
-            
-            // Check if vote is still pending
             const checkPendingVote = await PendingVote.findOne({ reference: paymentReference });
             
             if (!checkPendingVote || checkPendingVote.status !== 'pending') {
               console.log(`[${paymentReference}] Vote already processed, skipping status check`);
               return;
             }
-            
-            // Call Hubtel Transaction Status Check API
             await checkHubtelTransactionStatus(paymentReference, pendingVote._id);
           } catch (statusError: any) {
             console.error(`[${paymentReference}] Automatic status check error:`, statusError);
           }
-        }, 5 * 60 * 1000); // 5 minutes after payment initiation
+        }, 5 * 60 * 1000);
         
       } catch (error: any) {
         console.error(`[${paymentReference}] Error in delayed Hubtel charge:`, error);
         await PendingVote.findByIdAndUpdate(pendingVote._id, { status: "failed" });
       }
-    }, 4000); // 4-second delay as required by Hubtel
-
-    // Return immediately to end USSD session
+    }, 4000);
+    const finalMessage = `Payment request sent!\n\n${offlineInstructions}\n\nVote: ${truncateName(session.data.nomineeName, 20)}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you!`;
+    
     return {
-      message: compressMessage(
-        `PAYMENT REQUEST SENT!\n\nIMPORTANT:\n${offlineInstructions}\n\nYour vote will be counted after approval.\n\nFor: ${truncateName(session.data.nomineeName, 20)}\nVotes: ${session.data.numberOfVotes}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nRef: ${shortRef}\n\nThank you!`,
-      ),
+      message: compressMessage(finalMessage),
       continueSession: false,
     };
   } catch (error: any) {
@@ -1252,16 +1210,12 @@ async function initiateHubtelCharge(
       console.error("Hubtel credentials not configured");
       return { success: false, error: "Payment configuration error" };
     }
-
-    // Format phone number to international format (233XXXXXXXXX)
     let formattedPhone = phoneNumber.replace(/[\s\-+]/g, "");
     if (formattedPhone.startsWith("0")) {
       formattedPhone = "233" + formattedPhone.substring(1);
     } else if (!formattedPhone.startsWith("233")) {
       formattedPhone = "233" + formattedPhone;
     }
-
-    // Map provider codes to Hubtel channel names
     const channelMap: { [key: string]: string } = {
       "mtn": "mtn-gh",
       "vod": "vodafone-gh",
@@ -1273,8 +1227,6 @@ async function initiateHubtelCharge(
     console.log(
       `Original: ${phoneNumber} → Formatted: ${formattedPhone}, Provider: ${provider} → Channel: ${channel}`,
     );
-
-    // Hubtel Receive Money request
     const hubtelRequest = {
       CustomerName: email.split("@")[0],
       CustomerMsisdn: formattedPhone,
@@ -1317,9 +1269,6 @@ async function initiateHubtelCharge(
         data 
       };
     }
-
-    // Hubtel returns ResponseCode "0001" for pending transactions
-    // ResponseCode "0000" for immediate success (rare)
     const isSuccess = data.ResponseCode === "0001" || data.ResponseCode === "0000";
 
     return { 
@@ -1333,19 +1282,17 @@ async function initiateHubtelCharge(
   }
 }
 
-// Removed Paystack OTP and charge status functions - Hubtel uses callback-based verification
-
 function getOfflineInstructions(provider: string, amount: number): string {
   const amountStr = `GHS ${amount.toFixed(2)}`;
   switch (provider) {
     case "mtn":
-      return `>> Dial *170# NOW\n>> Go to My Approvals\n>> Approve ${amountStr}`;
+      return `Dial *170# > My Approvals > Approve ${amountStr}`;
     case "vod":
-      return `>> Dial *110# NOW\n>> Go to Pending Payments\n>> Approve ${amountStr}`;
+      return `Dial *110# > Pending Payments > Approve ${amountStr}`;
     case "tgo":
-      return `>> Check your phone NOW\n>> Approve ${amountStr}`;
+      return `Check phone > Approve ${amountStr}`;
     default:
-      return `>> Check your phone NOW\n>> Approve ${amountStr}`;
+      return `Check phone > Approve ${amountStr}`;
   }
 }
 
@@ -1372,54 +1319,6 @@ function checkAwardVotingWindow(award: any, now: Date): boolean {
   return now >= start && now <= end;
 }
 
-
-// Removed Paystack verification - Hubtel uses webhook callbacks for payment confirmation
-
-// Helper function to complete a pending vote
-async function completePendingVote(pendingVote: any, sessionData: any) {
-  try {
-    // Create the actual vote record
-    const vote = await Vote.create({
-      awardId: pendingVote.awardId,
-      categoryId: pendingVote.categoryId,
-      nomineeId: pendingVote.nomineeId,
-      voterEmail: pendingVote.email,
-      voterPhone: pendingVote.phone,
-      numberOfVotes: pendingVote.numberOfVotes,
-      amount: pendingVote.amount,
-      paymentReference: pendingVote.reference,
-      paymentMethod: "mobile_money",
-      paymentStatus: "completed",
-    });
-
-    // Update nominee vote count
-    await Nominee.findByIdAndUpdate(pendingVote.nomineeId, {
-      $inc: { voteCount: pendingVote.numberOfVotes },
-    });
-
-    // Update category vote count
-    await Category.findByIdAndUpdate(pendingVote.categoryId, {
-      $inc: { voteCount: pendingVote.numberOfVotes },
-    });
-
-    // Update award vote count
-    await Award.findByIdAndUpdate(pendingVote.awardId, {
-      $inc: { totalVotes: pendingVote.numberOfVotes },
-    });
-
-    // Mark pending vote as completed
-    pendingVote.status = "completed";
-    await pendingVote.save();
-
-    console.log("Vote completed successfully:", vote._id);
-    return { success: true, vote };
-  } catch (error: any) {
-    console.error("Complete pending vote error:", error);
-    return { success: false, error: error.message };
-  }
-}
-
-// Helper function to check Hubtel transaction status (fallback if webhook not received)
 async function checkHubtelTransactionStatus(clientReference: string, pendingVoteId: any) {
   try {
     const hubtelApiId = process.env.HUBTEL_API_ID;
@@ -1430,8 +1329,6 @@ async function checkHubtelTransactionStatus(clientReference: string, pendingVote
       console.error('Hubtel credentials not configured for status check');
       return { success: false, error: 'Configuration error' };
     }
-
-    // Hubtel Receive Money Status Check API
     const statusUrl = `https://smrsc.hubtel.com/api/merchants/${hubtelPrepaidDepositId}/transactions/status?clientReference=${clientReference}`;
 
     console.log(`[${clientReference}] Calling Hubtel Status Check API`);
@@ -1454,12 +1351,8 @@ async function checkHubtelTransactionStatus(clientReference: string, pendingVote
       console.error(`[${clientReference}] Status check failed:`, data);
       return { success: false, error: data.Message || 'Status check failed', data };
     }
-
-    // Check if transaction was successful
     if (data.ResponseCode === 'success' && data.Data?.transactionStatus === 'success') {
       console.log(`[${clientReference}] Payment confirmed via status check, processing vote`);
-
-      // Get the pending vote
       const pendingVote = await PendingVote.findById(pendingVoteId);
 
       if (!pendingVote) {
@@ -1471,8 +1364,6 @@ async function checkHubtelTransactionStatus(clientReference: string, pendingVote
         console.log(`[${clientReference}] Vote already completed`);
         return { success: true, message: 'Already processed' };
       }
-
-      // Process the vote
       const voteData = {
         awardId: pendingVote.awardId,
         categoryId: pendingVote.categoryId,
@@ -1487,8 +1378,6 @@ async function checkHubtelTransactionStatus(clientReference: string, pendingVote
       };
 
       await Vote.create(voteData);
-
-      // Update counts
       await Nominee.findByIdAndUpdate(pendingVote.nomineeId, {
         $inc: { voteCount: pendingVote.numberOfVotes },
       });
@@ -1498,8 +1387,6 @@ async function checkHubtelTransactionStatus(clientReference: string, pendingVote
       await Award.findByIdAndUpdate(pendingVote.awardId, {
         $inc: { totalVotes: pendingVote.numberOfVotes },
       });
-
-      // Mark as completed
       pendingVote.status = 'completed';
       pendingVote.paymentData = data.Data;
       await pendingVote.save();
@@ -1509,8 +1396,6 @@ async function checkHubtelTransactionStatus(clientReference: string, pendingVote
       return { success: true, data };
     } else if (data.Data?.transactionStatus === 'failed') {
       console.log(`[${clientReference}] Payment failed according to status check`);
-
-      // Mark as failed
       await PendingVote.findByIdAndUpdate(pendingVoteId, {
         status: 'failed',
         paymentData: data.Data
