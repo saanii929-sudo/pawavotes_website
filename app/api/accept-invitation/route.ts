@@ -61,7 +61,6 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error: any) {
-    console.error('Accept invitation error:', error);
     return NextResponse.json(
       { error: 'Failed to accept invitation', details: error.message },
       { status: 500 }

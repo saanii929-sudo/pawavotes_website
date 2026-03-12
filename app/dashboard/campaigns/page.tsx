@@ -21,6 +21,7 @@ import {
   ChevronDown,
   Send,
   BarChart3,
+  QrCode,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Image from 'next/image';
@@ -207,6 +208,33 @@ function CampaignCard({
     ? (campaign.currentAmount / campaign.goalAmount) * 100 
     : 0;
 
+  const handleDownloadQRCode = async () => {
+    try {
+      const campaignUrl = `${window.location.origin}/campaigns/${campaign._id}`;
+      
+      // Use QR code API to generate QR code
+      const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(campaignUrl)}`;
+      
+      // Fetch the QR code image
+      const response = await fetch(qrCodeUrl);
+      const blob = await response.blob();
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${campaign.campaignName.replace(/[^a-z0-9]/gi, '_')}_Campaign_QR.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success("QR code downloaded successfully!");
+    } catch (error) {
+      console.error("QR download error:", error);
+      toast.error("Failed to download QR code");
+    }
+  };
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow">
       <div className="p-4 sm:p-6">
@@ -311,6 +339,15 @@ function CampaignCard({
             <Share2 className="w-4 h-4" />
             Copy Campaign Link
           </button>
+          
+          <button
+            onClick={handleDownloadQRCode}
+            className="flex-1 min-w-full sm:min-w-37.5 bg-green-600 hover:bg-green-700 text-white px-3 sm:px-4 py-2 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors text-sm"
+          >
+            <QrCode className="w-4 h-4" />
+            Download QR Code
+          </button>
+
           <button 
             onClick={onEmailSupporters}
             disabled={campaign.supporters.length === 0}

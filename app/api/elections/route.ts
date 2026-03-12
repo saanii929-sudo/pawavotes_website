@@ -3,7 +3,6 @@ import connectDB from '@/lib/mongodb';
 import Election from '@/models/Election';
 import { verifyToken } from '@/lib/auth';
 
-// GET all elections for organization
 export async function GET(req: NextRequest) {
   try {
     await connectDB();
@@ -33,7 +32,6 @@ export async function GET(req: NextRequest) {
       data: elections,
     });
   } catch (error: any) {
-    console.error('Get elections error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch elections', details: error.message },
       { status: 500 }
@@ -41,7 +39,6 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST create new election
 export async function POST(req: NextRequest) {
   try {
     await connectDB();
@@ -66,7 +63,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validate dates
     const start = new Date(startDate);
     const end = new Date(endDate);
 
@@ -97,7 +93,6 @@ export async function POST(req: NextRequest) {
       data: election,
     }, { status: 201 });
   } catch (error: any) {
-    console.error('Create election error:', error);
     return NextResponse.json(
       { error: 'Failed to create election', details: error.message },
       { status: 500 }

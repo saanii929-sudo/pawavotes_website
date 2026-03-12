@@ -26,7 +26,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check in all user types
     let user = await Organization.findOne({
       resetPasswordToken: token,
       resetPasswordExpiry: { $gt: new Date() },
@@ -55,11 +54,7 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-
-    // Hash new password
     const hashedPassword = await hashPassword(password);
-
-    // Update password and clear reset token
     user.password = hashedPassword;
     user.resetPasswordToken = undefined;
     user.resetPasswordExpiry = undefined;
@@ -70,7 +65,6 @@ export async function POST(req: NextRequest) {
       message: 'Password reset successfully',
     });
   } catch (error: any) {
-    console.error('Reset password error:', error);
     return NextResponse.json(
       { error: 'Failed to reset password', details: error.message },
       { status: 500 }

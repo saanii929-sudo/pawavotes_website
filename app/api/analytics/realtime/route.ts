@@ -23,12 +23,10 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const awardId = searchParams.get('awardId');
 
-    // Build query based on user role
     let voteQuery: any = { paymentStatus: 'completed' };
     let paymentQuery: any = { status: 'completed' };
 
     if (decoded.role === 'organization') {
-      // Get organization's awards
       const awards = await Award.find({ organizationId: decoded.id }).select('_id');
       const awardIds = awards.map(a => a._id.toString());
       
@@ -49,42 +47,18 @@ export async function GET(req: NextRequest) {
       voteQuery.awardId = { $in: admin.assignedAwards };
       paymentQuery.awardId = { $in: admin.assignedAwards };
     }
-
-    // If specific award requested
     if (awardId) {
       voteQuery.awardId = awardId;
       paymentQuery.awardId = awardId;
     }
 
-    // Get real-time stats
     const now = new Date();
-    // Use UTC midnight for today to match MongoDB's UTC storage
     const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
     
-    console.log('Analytics query:', {
-      todayStart: todayStart.toISOString(),
-      todayStartLocal: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString(),
-      now: now.toISOString(),
-      serverTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      voteQuery,
-    });
-
-    // Get all votes first (sorted by most recent)
     const allVotesData = await Vote.find(voteQuery)
       .select('amount numberOfVotes createdAt nomineeId voterPhone paymentMethod')
       .sort({ createdAt: -1 })
       .lean();
-    
-    console.log('All votes found:', allVotesData.length);
-    console.log('Most recent 5 votes:', allVotesData.slice(0, 5).map(v => ({ 
-      amount: v.amount, 
-      votes: v.numberOfVotes, 
-      createdAt: v.createdAt,
-      createdAtISO: new Date(v.createdAt).toISOString(),
-      isToday: new Date(v.createdAt) >= todayStart
-    })));
-
-    // Calculate totals manually
     const totalVotes = allVotesData.length;
     const totalRevenue = allVotesData.reduce((sum, vote) => sum + (vote.amount || 0), 0);
     
@@ -92,13 +66,10 @@ export async function GET(req: NextRequest) {
     const votesToday = votesTodayData.length;
     const revenueToday = votesTodayData.reduce((sum, vote) => sum + (vote.amount || 0), 0);
 
-    // Create aggregation-friendly query using the vote IDs we already have
     const voteIds = allVotesData.map(v => (v as any)._id);
     const aggQuery: any = { 
       _id: { $in: voteIds }
     };
-
-    console.log('Aggregation query with vote IDs:', voteIds.length, 'votes');
 
     const [
       topNominees,
@@ -106,8 +77,6 @@ export async function GET(req: NextRequest) {
       paymentMethods,
       votingTrend,
     ] = await Promise.all([
-      
-      // Top 10 nominees by votes
       Vote.aggregate([
         { $match: aggQuery },
         {
@@ -121,8 +90,6 @@ export async function GET(req: NextRequest) {
         { $sort: { totalVotes: -1 } },
         { $limit: 10 },
       ]),
-      
-      // Votes by hour (last 24 hours)
       Vote.aggregate([
         {
           $match: {
@@ -139,8 +106,6 @@ export async function GET(req: NextRequest) {
         },
         { $sort: { _id: 1 } },
       ]),
-      
-      // Payment methods breakdown
       Vote.aggregate([
         { $match: aggQuery },
         {
@@ -151,8 +116,7 @@ export async function GET(req: NextRequest) {
           },
         },
       ]),
-      
-      // Voting trend (last 7 days)
+    
       Vote.aggregate([
         {
           $match: {
@@ -174,7 +138,6 @@ export async function GET(req: NextRequest) {
       ]),
     ]);
 
-    // Calculate votes by region from the data we have
     const votesByRegion = allVotesData.reduce((acc: any[], vote) => {
       const prefix = vote.voterPhone?.substring(0, 5) || 'Unknown';
       const existing = acc.find(r => r._id === prefix);
@@ -186,27 +149,8 @@ export async function GET(req: NextRequest) {
       return acc;
     }, []).sort((a, b) => b.count - a.count).slice(0, 10);
 
-    // Get recent votes (already sorted from the query)
     const recentVotes = allVotesData.slice(0, 20);
 
-    console.log('Recent votes being returned:', recentVotes.length);
-    console.log('First 3 recent votes:', recentVotes.slice(0, 3).map(v => ({
-      id: (v as any)._id,
-      nominee: v.nomineeId,
-      amount: v.amount,
-      votes: v.numberOfVotes,
-      createdAt: new Date(v.createdAt).toISOString(),
-      paymentMethod: v.paymentMethod
-    })));
-
-    console.log('Aggregation results:', {
-      topNominees: topNominees.length,
-      votesByHour: votesByHour.length,
-      paymentMethods: paymentMethods.length,
-      votingTrend: votingTrend.length,
-    });
-
-    // Populate nominee details for top nominees
     const nomineeIds = topNominees.map(n => n._id);
     const nominees = await Nominee.find({ _id: { $in: nomineeIds } })
       .populate('categoryId', 'name')
@@ -252,14 +196,11 @@ export async function GET(req: NextRequest) {
       timestamp: new Date().toISOString(),
     };
 
-    console.log('Analytics overview:', analyticsData.overview);
-
     return NextResponse.json({
       success: true,
       data: analyticsData,
     });
   } catch (error: any) {
-    console.error('Real-time analytics error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch analytics', details: error.message },
       { status: 500 }

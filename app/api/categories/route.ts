@@ -5,7 +5,6 @@ import Award from '@/models/Award';
 import { withAuth } from '@/middleware/auth';
 import { hasAwardAccess } from '@/lib/access-control';
 
-// GET all categories for the logged-in organization or org-admin
 async function getCategories(req: NextRequest) {
   try {
     await connectDB();
@@ -16,8 +15,6 @@ async function getCategories(req: NextRequest) {
     const search = searchParams.get('search') || '';
 
     let query: any = {};
-
-    // If awardId is provided, check access
     if (awardId) {
       const hasAccess = await hasAwardAccess(
         user.id,
@@ -35,7 +32,6 @@ async function getCategories(req: NextRequest) {
 
       query.awardId = awardId;
     } else {
-      // If no awardId, filter by organization or assigned awards
       if (user.role === 'org-admin') {
         if (!user.assignedAwards || user.assignedAwards.length === 0) {
           return NextResponse.json({
@@ -60,7 +56,6 @@ async function getCategories(req: NextRequest) {
       data: categories,
     });
   } catch (error: any) {
-    console.error('Get categories error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch categories', details: error.message },
       { status: 500 }
@@ -68,7 +63,6 @@ async function getCategories(req: NextRequest) {
   }
 }
 
-// POST create new category
 async function createCategory(req: NextRequest) {
   try {
     await connectDB();
@@ -85,7 +79,6 @@ async function createCategory(req: NextRequest) {
       );
     }
 
-    // Check if user has access to this award
     const hasAccess = await hasAwardAccess(
       user.id,
       user.role,
@@ -100,10 +93,7 @@ async function createCategory(req: NextRequest) {
       );
     }
 
-    // Get the organizationId based on user role
     const organizationId = user.role === 'org-admin' ? user.organizationId : user.id;
-
-    // Verify award belongs to organization
     const award = await Award.findOne({
       _id: awardId,
       organizationId: organizationId,
@@ -126,8 +116,6 @@ async function createCategory(req: NextRequest) {
       isPublished: isPublished || false,
       order: order || 0,
     });
-
-    // Update award categories count
     await Award.findByIdAndUpdate(awardId, {
       $inc: { categories: 1 },
     });
@@ -138,7 +126,6 @@ async function createCategory(req: NextRequest) {
       data: category,
     }, { status: 201 });
   } catch (error: any) {
-    console.error('Create category error:', error);
     return NextResponse.json(
       { error: 'Failed to create category', details: error.message },
       { status: 500 }

@@ -22,8 +22,6 @@ async function getCurrentUser(req: NextRequest) {
       email: user.email,
       role: user.role,
     };
-
-    // Fetch full user data based on role
     if (user.role === 'organization') {
       const organization = await Organization.findById(user.id).select('-password');
       if (organization) {
@@ -63,7 +61,6 @@ async function getCurrentUser(req: NextRequest) {
       data: userData,
     });
   } catch (error: any) {
-    console.error('Get current user error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch user data', details: error.message },
       { status: 500 }

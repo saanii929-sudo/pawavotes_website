@@ -91,7 +91,6 @@ export default function AnalyticsPage() {
         setLastUpdate(new Date());
       }
     } catch (error) {
-      console.error('Failed to fetch analytics:', error);
     } finally {
       setLoading(false);
     }
@@ -101,7 +100,6 @@ export default function AnalyticsPage() {
     fetchAnalytics();
   }, [fetchAnalytics]);
 
-  // Auto-refresh every 10 seconds
   useEffect(() => {
     if (!autoRefresh) return;
 
@@ -128,7 +126,6 @@ export default function AnalyticsPage() {
     );
   }
 
-  // Prepare chart data
   const hourlyData = Array.from({ length: 24 }, (_, i) => {
     const hourData = data.votesByHour.find(h => h._id === i);
     return {
@@ -146,7 +143,6 @@ export default function AnalyticsPage() {
 
   return (
     <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
-      {/* Header */}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Real-Time Analytics</h1>

@@ -4,7 +4,6 @@ import { createBulkVotePackageSchema, updateBulkVotePackageSchema } from '@/lib/
 import { successResponse } from '@/utils/api-response';
 import { handleError } from '@/utils/error-handler';
 
-// GET /api/bulk-vote-packages?awardId=xxx
 export async function GET(req: NextRequest) {
   try {
     const awardId = req.nextUrl.searchParams.get('awardId');
@@ -28,7 +27,6 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/bulk-vote-packages
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();

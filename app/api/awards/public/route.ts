@@ -16,7 +16,6 @@ export async function GET(req: NextRequest) {
       awards,
     });
   } catch (error: any) {
-    console.error('Get public awards error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch awards', details: error.message },
       { status: 500 }

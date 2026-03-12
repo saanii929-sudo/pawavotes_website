@@ -57,7 +57,7 @@ function generateToken(): string {
 function generatePassword(): string {
   const uppercase = 'ABCDEFGHJKMNPQRSTUVWXYZ';
   const lowercase = 'abcdefghjkmnpqrstuvwxyz';
-  const numbers = '23456789'; // Excluded: 0, 1
+  const numbers = '23456789';
   const allChars = uppercase + lowercase + numbers;
   
   let password = '';
@@ -209,13 +209,12 @@ export async function POST(req: NextRequest) {
       password: hashedPassword,
       metadata: {
         ...(metadata || {}),
-        plainPassword: password, // Store plain password for resending
+        plainPassword: password,
       },
       status: 'active',
       hasVoted: false,
     });
 
-    // Send credentials based on delivery method
     if (email && (deliveryMethod === 'email' || deliveryMethod === 'both')) {
       try {
         await sendVoterCredentials(email, name, voterToken, password, election.title, election.startDate, election.endDate);

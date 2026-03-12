@@ -21,8 +21,6 @@ export async function POST(
         { status: 404 }
       );
     }
-
-    // Update analytics based on action
     switch (action) {
       case 'view':
         campaign.analytics.views = (campaign.analytics.views || 0) + 1;

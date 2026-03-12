@@ -17,8 +17,6 @@ export async function GET(req: NextRequest) {
         { status: 400 }
       );
     }
-
-    // Check in all user types
     let user = await Organization.findOne({
       resetPasswordToken: token,
       resetPasswordExpiry: { $gt: new Date() },
@@ -50,7 +48,6 @@ export async function GET(req: NextRequest) {
       message: 'Token is valid',
     });
   } catch (error: any) {
-    console.error('Verify reset token error:', error);
     return NextResponse.json(
       { error: 'Failed to verify token', details: error.message },
       { status: 500 }

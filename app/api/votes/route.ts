@@ -26,34 +26,21 @@ export async function GET(req: NextRequest) {
 
     let query: any = {};
 
-    // Build query based on filters
     if (awardId) {
-      // Check if user has access to this award
       let assignedAwards: string[] = [];
       if (decoded.role === 'org-admin') {
         const OrganizationAdmin = (await import('@/models/OrganizationAdmin')).default;
         const admin = await OrganizationAdmin.findById(decoded.id);
         assignedAwards = admin?.assignedAwards?.map((id: any) => id.toString()) || [];
       }
-      
-      console.log('Votes API access check:', {
-        userId: decoded.id,
-        role: decoded.role,
-        awardId,
-        assignedAwards,
-      });
-      
       const hasAccess = await hasAwardAccess(decoded.id, decoded.role, awardId, assignedAwards);
-      console.log('Access result:', hasAccess);
       
       if (!hasAccess) {
         return NextResponse.json({ error: 'Access denied' }, { status: 403 });
       }
       query.awardId = awardId;
     } else {
-      // If no awardId specified, filter by user's accessible awards
       if (decoded.role === 'org-admin') {
-        // Get org-admin's assigned awards
         const OrganizationAdmin = (await import('@/models/OrganizationAdmin')).default;
         const admin = await OrganizationAdmin.findById(decoded.id);
         if (!admin || !admin.assignedAwards || admin.assignedAwards.length === 0) {
@@ -61,7 +48,6 @@ export async function GET(req: NextRequest) {
         }
         query.awardId = { $in: admin.assignedAwards };
       } else if (decoded.role === 'organization') {
-        // Get organization's awards
         const Award = (await import('@/models/Award')).default;
         const awards = await Award.find({ organizationId: decoded.id }).select('_id');
         const awardIds = awards.map(a => a._id.toString());
@@ -83,15 +69,11 @@ export async function GET(req: NextRequest) {
     if (stageId) {
       query.stageId = stageId;
     }
-
-    // Only get completed payments
     query.paymentStatus = 'completed';
 
     const votes = await Vote.find(query)
       .sort({ createdAt: -1 })
       .lean();
-
-    // Populate nominee and category details
     const Nominee = (await import('@/models/Nominee')).default;
     const Category = (await import('@/models/Category')).default;
     const Stage = (await import('@/models/Stage')).default;
@@ -104,7 +86,7 @@ export async function GET(req: NextRequest) {
         
         return {
           ...vote,
-          bulkPackageId: vote.bulkPackageId || null, // Explicitly include bulkPackageId
+          bulkPackageId: vote.bulkPackageId || null,
           nominee,
           category,
           stage,
@@ -117,7 +99,6 @@ export async function GET(req: NextRequest) {
       data: votesWithDetails,
     });
   } catch (error: any) {
-    console.error('Get votes error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch votes', details: error.message },
       { status: 500 }

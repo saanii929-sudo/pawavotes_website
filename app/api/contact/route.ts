@@ -9,16 +9,12 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const { fullName, email, subject, message } = body;
-
-    // Validate required fields
     if (!fullName || !email || !subject || !message) {
       return NextResponse.json(
         { error: 'All fields are required' },
         { status: 400 }
       );
     }
-
-    // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       return NextResponse.json(
@@ -26,16 +22,12 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-
-    // Create contact submission
     const contact = await Contact.create({
       fullName,
       email,
       subject,
       message,
     });
-
-    // Send email notification to admin
     const adminEmail = process.env.SMTP_FROM || 'pawavotes@gmail.com';
     
     const emailHtml = `
@@ -96,8 +88,6 @@ export async function POST(req: NextRequest) {
       
       Reply to: ${email}
     `;
-
-    // Send email notification
     const emailSent = await sendEmail({
       to: adminEmail,
       subject: `Contact Form: ${subject}`,
@@ -108,8 +98,6 @@ export async function POST(req: NextRequest) {
     if (!emailSent) {
       console.warn('Email notification failed, but contact was saved to database');
     }
-
-    // Send confirmation email to user
     const confirmationHtml = `
       <!DOCTYPE html>
       <html>
@@ -164,8 +152,6 @@ export async function POST(req: NextRequest) {
       
       pawavotes@gmail.com | +233 55 273 2025
     `;
-
-    // Send confirmation to user (don't fail if this doesn't work)
     await sendEmail({
       to: email,
       subject: 'Thank you for contacting Pawavotes',
@@ -187,7 +173,6 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
   } catch (error: any) {
-    console.error('Contact form submission error:', error);
     return NextResponse.json(
       { error: 'Failed to submit contact form' },
       { status: 500 }

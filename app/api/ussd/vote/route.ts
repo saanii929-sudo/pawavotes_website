@@ -10,7 +10,7 @@ import PendingVote from "@/models/PendingVote";
 
 const MAX_MESSAGE_LENGTH = 160;
 const MAX_ERROR_COUNT = 3;
-const SESSION_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
+const SESSION_TIMEOUT_MS = 15 * 60 * 1000;
 const ITEMS_PER_PAGE = 5;
 const MIN_VOTES = 1;
 const MAX_VOTES = 1000;
@@ -1097,15 +1097,6 @@ async function processPayment(
     const paymentReference = `USSD-${Date.now()}-${randomBytes(6).toString("hex")}`;
     const dummyEmail = `${phoneNumber}@ussd.pawavotes.com`;
 
-    console.log("processPayment - session.data:", JSON.stringify(session.data, null, 2));
-    console.log("Creating pending vote with:", {
-      awardId: session.data.awardId,
-      categoryId: session.data.categoryId,
-      nomineeId: session.data.nomineeId,
-      numberOfVotes: session.data.numberOfVotes,
-      amount: session.data.amount,
-    });
-
     let pendingVote: any;
     try {
       pendingVote = await PendingVote.create({
@@ -1120,7 +1111,6 @@ async function processPayment(
         status: "pending",
       });
     } catch (voteError: any) {
-      console.error("Pending vote creation error:", voteError);
       return {
         message: "Error creating vote record. Please try again.",
         continueSession: false,
@@ -1128,7 +1118,6 @@ async function processPayment(
     }
     session.data.paymentReference = paymentReference;
     session.markModified('data');
-    console.log(`Stored payment reference in session: ${paymentReference}`);
     session.isActive = false;
     
     const offlineInstructions = getOfflineInstructions(
@@ -1138,8 +1127,6 @@ async function processPayment(
     const shortRef = paymentReference.substring(5, 20);
     setTimeout(async () => {
       try {
-        console.log(`[${paymentReference}] Initiating Hubtel charge after 4-second delay`);
-        
         const hubtelResponse = await initiateHubtelCharge(
           dummyEmail,
           session.data.amount,
@@ -1152,18 +1139,14 @@ async function processPayment(
           await PendingVote.findByIdAndUpdate(pendingVote._id, { status: "failed" });
           
           const errorMessage = hubtelResponse.error || "Payment initiation failed";
-          console.error(`[${paymentReference}] Hubtel charge failed:`, errorMessage);
           return;
         }
         
-        console.log(`[${paymentReference}] Hubtel charge initiated successfully`);
         setTimeout(async () => {
           try {
-            console.log(`[${paymentReference}] Running automatic status check (5 min after initiation)`);
             const checkPendingVote = await PendingVote.findOne({ reference: paymentReference });
             
             if (!checkPendingVote || checkPendingVote.status !== 'pending') {
-              console.log(`[${paymentReference}] Vote already processed, skipping status check`);
               return;
             }
             await checkHubtelTransactionStatus(paymentReference, pendingVote._id);
@@ -1207,7 +1190,6 @@ async function initiateHubtelCharge(
     const callbackUrl = process.env.HUBTEL_CALLBACK_URL || `${process.env.NEXT_PUBLIC_API_URL}/api/webhooks/hubtel`;
     
     if (!hubtelApiId || !hubtelApiKey || !hubtelMerchantAccount) {
-      console.error("Hubtel credentials not configured");
       return { success: false, error: "Payment configuration error" };
     }
     let formattedPhone = phoneNumber.replace(/[\s\-+]/g, "");
@@ -1331,8 +1313,6 @@ async function checkHubtelTransactionStatus(clientReference: string, pendingVote
     }
     const statusUrl = `https://smrsc.hubtel.com/api/merchants/${hubtelPrepaidDepositId}/transactions/status?clientReference=${clientReference}`;
 
-    console.log(`[${clientReference}] Calling Hubtel Status Check API`);
-
     const authString = `${hubtelApiId}:${hubtelApiKey}`;
     const base64Auth = Buffer.from(authString).toString('base64');
 
@@ -1345,23 +1325,17 @@ async function checkHubtelTransactionStatus(clientReference: string, pendingVote
 
     const data = await response.json();
 
-    console.log(`[${clientReference}] Hubtel Status Check response:`, JSON.stringify(data, null, 2));
-
     if (!response.ok) {
-      console.error(`[${clientReference}] Status check failed:`, data);
       return { success: false, error: data.Message || 'Status check failed', data };
     }
     if (data.ResponseCode === 'success' && data.Data?.transactionStatus === 'success') {
-      console.log(`[${clientReference}] Payment confirmed via status check, processing vote`);
       const pendingVote = await PendingVote.findById(pendingVoteId);
 
       if (!pendingVote) {
-        console.error(`[${clientReference}] Pending vote not found`);
         return { success: false, error: 'Pending vote not found' };
       }
 
       if (pendingVote.status === 'completed') {
-        console.log(`[${clientReference}] Vote already completed`);
         return { success: true, message: 'Already processed' };
       }
       const voteData = {
@@ -1390,12 +1364,8 @@ async function checkHubtelTransactionStatus(clientReference: string, pendingVote
       pendingVote.status = 'completed';
       pendingVote.paymentData = data.Data;
       await pendingVote.save();
-
-      console.log(`[${clientReference}] Vote processed successfully via status check`);
-
       return { success: true, data };
     } else if (data.Data?.transactionStatus === 'failed') {
-      console.log(`[${clientReference}] Payment failed according to status check`);
       await PendingVote.findByIdAndUpdate(pendingVoteId, {
         status: 'failed',
         paymentData: data.Data
@@ -1403,11 +1373,9 @@ async function checkHubtelTransactionStatus(clientReference: string, pendingVote
 
       return { success: false, status: 'failed', data };
     } else {
-      console.log(`[${clientReference}] Payment still pending according to status check`);
       return { success: false, status: 'pending', data };
     }
   } catch (error: any) {
-    console.error(`[${clientReference}] Status check error:`, error);
     return { success: false, error: error.message };
   }
 }

@@ -6,25 +6,19 @@ import Admin from '@/models/Admin';
 import crypto from 'crypto';
 
 export async function POST(req: NextRequest) {
-  console.log('🔵 Forgot password API called');
   try {
     await connectDB();
 
     const body = await req.json();
     const { email } = body;
 
-    console.log('📧 Email received:', email);
-
     if (!email) {
-      console.log('❌ No email provided');
       return NextResponse.json(
         { error: 'Email is required' },
         { status: 400 }
       );
     }
 
-    // Check in all user types
-    console.log('🔍 Searching for user...');
     let user = await Organization.findOne({ email: email.toLowerCase() });
     let userType = 'organization';
 
@@ -38,52 +32,23 @@ export async function POST(req: NextRequest) {
       userType = 'admin';
     }
 
-    // Always return success even if user not found (security best practice)
     if (!user) {
-      console.log('⚠️ User not found for email:', email);
       return NextResponse.json({
         success: true,
         message: 'If an account exists with this email, a reset link has been sent.',
       });
     }
 
-    console.log('✅ User found:', { email, userType });
-
-    // Generate reset token
     const resetToken = crypto.randomBytes(32).toString('hex');
     const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour
 
-    console.log('🔑 Reset token generated');
-
-    // Save token to user
     user.resetPasswordToken = resetToken;
     user.resetPasswordExpiry = resetTokenExpiry;
     await user.save();
 
-    console.log('💾 Token saved to database');
-
-    // Create reset URL
     const resetUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
 
-    // In development, log the reset URL
-    if (process.env.NODE_ENV === 'development') {
-      console.log('\n=== PASSWORD RESET EMAIL ===');
-      console.log('To:', email);
-      console.log('Reset URL:', resetUrl);
-      console.log('Token expires in 1 hour');
-      console.log('============================\n');
-    }
-
-    // Send email
     try {
-      console.log('📧 Attempting to send email with config:', {
-        host: process.env.SMTP_HOST,
-        port: process.env.SMTP_PORT,
-        user: process.env.SMTP_USERNAME,
-        from: process.env.SMTP_FROM,
-        to: email,
-      });
-
       const nodemailer = require('nodemailer');
       const transporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST,
@@ -94,9 +59,6 @@ export async function POST(req: NextRequest) {
           pass: process.env.SMTP_PASSWORD,
         },
       });
-
-      console.log('📧 Transporter created, sending email...');
-
       await transporter.sendMail({
         from: process.env.SMTP_FROM,
         to: email,
@@ -162,17 +124,7 @@ If you didn't request this password reset, please ignore this email.
 This is an automated email from PawaVotes.
         `.trim(),
       });
-
-      console.log('✅ Password reset email sent successfully to:', email);
     } catch (emailError: any) {
-      console.error('❌ Failed to send password reset email:', {
-        error: emailError.message,
-        code: emailError.code,
-        command: emailError.command,
-        response: emailError.response,
-        stack: emailError.stack,
-      });
-      // Don't fail the request if email fails - token is still saved
     }
 
     return NextResponse.json({
@@ -180,7 +132,6 @@ This is an automated email from PawaVotes.
       message: 'If an account exists with this email, a reset link has been sent.',
     });
   } catch (error: any) {
-    console.error('Forgot password error:', error);
     return NextResponse.json(
       { error: 'Failed to process request', details: error.message },
       { status: 500 }

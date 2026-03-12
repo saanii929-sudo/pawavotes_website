@@ -4,7 +4,6 @@ import { organizationRegistrationSchema } from '@/lib/schemas';
 import { successResponse } from '@/utils/api-response';
 import { handleError } from '@/utils/error-handler';
 
-// POST /api/auth/register
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();

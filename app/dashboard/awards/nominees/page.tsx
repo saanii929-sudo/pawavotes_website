@@ -70,8 +70,6 @@ const AwardsManagementSystem = () => {
     email: "",
     phone: ""
   });
-  
-  // Modal state
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -183,7 +181,6 @@ const AwardsManagementSystem = () => {
   };
 
   const groupedNominees = React.useMemo(() => {
-    console.log('Raw nominees count:', nominees.length);
     
     const grouped = nominees.reduce((acc: any[], nominee: Nominee) => {
       const normalizedName = nominee.name.trim().toLowerCase();
@@ -193,7 +190,6 @@ const AwardsManagementSystem = () => {
       );
       
       if (existing) {
-        // Check if this category is already added (avoid duplicates)
         const categoryExists = existing.categories.some((cat: any) => cat.nomineeId === nominee._id);
         if (!categoryExists) {
           existing.categories.push({
@@ -249,7 +245,6 @@ const AwardsManagementSystem = () => {
       const token = localStorage.getItem("token");
       
       if (isEditing) {
-        // For editing, update single nominee
         const response = await fetch(`/api/nominees/${editingNomineeId}`, {
           method: "PUT",
           headers: { 
@@ -258,7 +253,7 @@ const AwardsManagementSystem = () => {
           },
           body: JSON.stringify({
             name: formData.name,
-            categoryId: formData.categoryIds[0], // When editing, use first category
+            categoryId: formData.categoryIds[0],
             image: formData.image || undefined,
             bio: formData.bio || undefined,
             email: formData.email || undefined,
@@ -279,7 +274,6 @@ const AwardsManagementSystem = () => {
           toast.error(data.error || "Failed to update nominee", { id: loadingToast });
         }
       } else {
-        // For creating, create nominees sequentially to avoid race condition
         let successCount = 0;
         let failCount = 0;
         
@@ -307,11 +301,9 @@ const AwardsManagementSystem = () => {
               successCount++;
             } else {
               failCount++;
-              console.error('Failed to create nominee for category:', categoryId);
             }
           } catch (error) {
             failCount++;
-            console.error('Error creating nominee for category:', categoryId, error);
           }
         }
         
@@ -416,7 +408,6 @@ const AwardsManagementSystem = () => {
         toast.error(data.error || "Failed to download nominees", { id: loadingToast });
       }
     } catch (error) {
-      console.error("Download error:", error);
       toast.error("Failed to download nominees", { id: loadingToast });
     } finally {
       setDownloadingZip(false);
@@ -437,13 +428,11 @@ const AwardsManagementSystem = () => {
       });
 
       const data = await response.json();
-      console.log('Generate link API response:', data);
 
       if (data.success) {
         setNominationLink(data.nominationLink);
         setNominationLinkGenerated(true);
         
-        // Update the local award object to reflect the change
         const updatedSettings = {
           showResults: selectedAward.settings?.showResults ?? false,
           nominationLinkGenerated: true
@@ -454,7 +443,6 @@ const AwardsManagementSystem = () => {
           settings: updatedSettings
         });
         
-        // Also update the awards list to persist the change
         setAwards(awards.map(award => 
           award._id === selectedAward._id 
             ? { 
@@ -472,7 +460,6 @@ const AwardsManagementSystem = () => {
         toast.error(data.error || "Failed to generate nomination link", { duration: 4000 });
       }
     } catch (error) {
-      console.error("Generate link error:", error);
       toast.error("Failed to generate nomination link", { duration: 4000 });
     }
   };
@@ -489,15 +476,9 @@ const AwardsManagementSystem = () => {
   const handleDownloadQRCode = async () => {
     try {
       if (!nominationLink || !selectedAward) return;
-
-      // Use QR code API to generate QR code
       const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(nominationLink)}`;
-      
-      // Fetch the QR code image
       const response = await fetch(qrCodeUrl);
       const blob = await response.blob();
-      
-      // Create download link
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -509,7 +490,6 @@ const AwardsManagementSystem = () => {
       
       toast.success("QR code downloaded successfully!", { duration: 3000 });
     } catch (error) {
-      console.error("QR download error:", error);
       toast.error("Failed to download QR code", { duration: 3000 });
     }
   };
@@ -758,7 +738,7 @@ const AwardsManagementSystem = () => {
                   
                   <button 
                     onClick={handleDownloadQRCode}
-                    className="flex items-center justify-center gap-2 px-4 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors w-full sm:w-auto"
+                    className="flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors w-full sm:w-auto"
                     title="Download QR code for nomination link"
                   >
                     <QrCode size={18} />

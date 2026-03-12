@@ -24,19 +24,13 @@ export async function POST(
     }
 
     const { id: awardId } = await params;
-
-    // Get award
     const award = await Award.findById(awardId);
     if (!award) {
       return NextResponse.json({ error: 'Award not found' }, { status: 404 });
     }
-
-    // Check permission
     if (decoded.role !== 'superadmin' && award.organizationId.toString() !== decoded.id) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
-
-    // Check if voting has ended
     const now = new Date();
     if (award.votingEndDate && now < new Date(award.votingEndDate)) {
       return NextResponse.json(
@@ -44,14 +38,11 @@ export async function POST(
         { status: 400 }
       );
     }
-
-    // Get all categories for this award
     const categories = await Category.find({ awardId, status: 'published' });
 
     const winners = [];
 
     for (const category of categories) {
-      // Get vote counts for each nominee in this category
       const voteResults = await Vote.aggregate([
         {
           $match: {
@@ -73,7 +64,6 @@ export async function POST(
       ]);
 
       if (voteResults.length > 0) {
-        // Get nominee details
         const nomineeIds = voteResults.map(v => v._id);
         const nominees = await Nominee.find({ _id: { $in: nomineeIds } });
 
@@ -93,8 +83,6 @@ export async function POST(
         });
 
         winners.push(...categoryWinners);
-
-        // Update nominee status
         if (categoryWinners[0]) {
           await Nominee.findByIdAndUpdate(categoryWinners[0].nomineeId, {
             status: 'winner',
@@ -103,16 +91,11 @@ export async function POST(
       }
     }
 
-    // Update award status
     await Award.findByIdAndUpdate(awardId, {
       status: 'completed',
       winnersAnnounced: true,
       winnersAnnouncedAt: new Date(),
     });
-
-    // TODO: Send email notifications to winners
-    // TODO: Post to social media
-    // TODO: Generate winner certificates
 
     return NextResponse.json({
       success: true,
@@ -130,7 +113,6 @@ export async function POST(
   }
 }
 
-// Get announced winners
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -139,8 +121,6 @@ export async function GET(
     await connectDB();
 
     const { id: awardId } = await params;
-
-    // Get award
     const award = await Award.findById(awardId);
     if (!award) {
       return NextResponse.json({ error: 'Award not found' }, { status: 404 });
@@ -153,8 +133,6 @@ export async function GET(
         message: 'Winners have not been announced yet',
       });
     }
-
-    // Get all categories
     const categories = await Category.find({ awardId, status: 'published' });
 
     const winners = [];
@@ -205,7 +183,6 @@ export async function GET(
       winners,
     });
   } catch (error: any) {
-    console.error('Get winners error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch winners', details: error.message },
       { status: 500 }

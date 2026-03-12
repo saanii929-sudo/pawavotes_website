@@ -33,7 +33,6 @@ export async function GET(req: NextRequest) {
       .sort({ createdAt: -1 })
       .lean();
 
-    // Populate nominee and category details
     const nomineeIds = [...new Set(votes.map(v => v.nomineeId.toString()))];
     const categoryIds = [...new Set(votes.map(v => v.categoryId.toString()))];
 
@@ -61,7 +60,6 @@ export async function GET(req: NextRequest) {
       data: votesWithDetails,
     });
   } catch (error: any) {
-    console.error('Get public votes error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch votes', details: error.message },
       { status: 500 }

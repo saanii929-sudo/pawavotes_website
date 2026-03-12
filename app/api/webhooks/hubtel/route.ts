@@ -14,16 +14,11 @@ export async function POST(req: NextRequest) {
     await connectDB();
 
     const body = await req.json();
-    
-    console.log("Hubtel webhook received:", JSON.stringify(body, null, 2));
 
     const { ResponseCode, Data } = body;
 
-    // Hubtel sends ResponseCode "0000" for successful payments
     if (ResponseCode !== "0000") {
-      console.error("Hubtel webhook - Payment not successful:", body);
       
-      // Update pending vote/nomination status to failed if we have a reference
       if (Data?.ClientReference) {
         const reference = Data.ClientReference;
         
@@ -51,8 +46,6 @@ export async function POST(req: NextRequest) {
       Description,
     } = Data;
 
-    console.log(`Hubtel payment successful - Reference: ${ClientReference}, Amount: ${Amount}`);
-
     if (ClientReference.startsWith("VOTE") || ClientReference.startsWith("USSD-")) {
       await processVotePayment(ClientReference, Amount, CustomerPhoneNumber, PaymentDetails, Data);
     } else if (ClientReference.startsWith("NOM")) {
@@ -79,23 +72,12 @@ async function processVotePayment(
   const pendingVote = await PendingVote.findOne({ reference });
 
   if (!pendingVote) {
-    console.error(`Pending vote not found for reference: ${reference}`);
     return;
   }
 
   if (pendingVote.status === "completed") {
-    console.log(`Vote already processed for reference: ${reference}`);
     return;
   }
-
-  // Record the vote
-  console.log("Creating vote record:", {
-    numberOfVotes: pendingVote.numberOfVotes,
-    amount: pendingVote.amount,
-    bulkPackageId: pendingVote.bulkPackageId,
-    reference,
-  });
-
   const voteData = {
     awardId: pendingVote.awardId,
     categoryId: pendingVote.categoryId,
@@ -110,17 +92,7 @@ async function processVotePayment(
     ...(pendingVote.bulkPackageId && { bulkPackageId: pendingVote.bulkPackageId }),
   };
 
-  console.log("Vote data to be saved:", voteData);
-
   const vote = await Vote.create(voteData);
-
-  console.log("Vote created successfully:", {
-    id: vote._id,
-    createdAt: vote.createdAt,
-    createdAtISO: vote.createdAt.toISOString(),
-    amount: vote.amount,
-    numberOfVotes: vote.numberOfVotes
-  });
   await Nominee.findByIdAndUpdate(pendingVote.nomineeId, {
     $inc: { voteCount: pendingVote.numberOfVotes },
   });
@@ -168,8 +140,6 @@ async function processVotePayment(
   pendingVote.status = "completed";
   pendingVote.paymentData = fullData;
   await pendingVote.save();
-
-  console.log(`Vote completed - Nominee: ${pendingVote.nomineeId}, Votes: ${pendingVote.numberOfVotes}`);
 }
 
 async function processNominationPayment(
@@ -182,11 +152,9 @@ async function processNominationPayment(
   const pendingNomination = await PendingNomination.findOne({ reference });
 
   if (!pendingNomination) {
-    console.error(`Pending nomination not found for reference: ${reference}`);
     return;
   }
   if (pendingNomination.status === "completed") {
-    console.log(`Nomination already processed for reference: ${reference}`);
     return;
   }
   const nominee = await Nominee.create({
@@ -202,8 +170,6 @@ async function processNominationPayment(
     nominationType: "self",
     voteCount: 0,
   });
-
-  console.log("Nominee created:", nominee._id);
   await Payment.create({
     transactionId: reference,
     nomineeId: nominee._id.toString(),
@@ -224,6 +190,4 @@ async function processNominationPayment(
   pendingNomination.status = "completed";
   pendingNomination.paymentData = fullData;
   await pendingNomination.save();
-
-  console.log(`Nomination completed - Nominee: ${nominee._id}`);
 }

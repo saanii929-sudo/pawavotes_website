@@ -15,7 +15,6 @@ async function generateNominationLink(
 
     let query: any = { _id: id };
     
-    // If org-admin, check if they have access to this award
     if (user.role === 'org-admin') {
       if (!user.assignedAwards || !user.assignedAwards.includes(id)) {
         return NextResponse.json(
@@ -24,13 +23,8 @@ async function generateNominationLink(
         );
       }
     } else {
-      // Organization owner can only update their own awards
       query.organizationId = user.id;
     }
-
-    console.log('Updating award with query:', query);
-
-    // First, get the current award to preserve existing settings
     const currentAward = await Award.findOne(query);
     
     if (!currentAward) {
@@ -39,8 +33,6 @@ async function generateNominationLink(
         { status: 404 }
       );
     }
-
-    // Update the award to mark nomination link as generated
     const award = await Award.findOneAndUpdate(
       query,
       { 
@@ -50,18 +42,12 @@ async function generateNominationLink(
       },
       { new: true, runValidators: false }
     );
-
-    console.log('Updated award:', award?._id);
-    console.log('Award settings after update:', award?.settings);
-
     if (!award) {
       return NextResponse.json(
         { error: 'Award not found' },
         { status: 404 }
       );
     }
-
-    // Generate the nomination link
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
     const nominationLink = `${baseUrl}/nominate/${award._id}`;
 
@@ -69,10 +55,9 @@ async function generateNominationLink(
       success: true,
       nominationLink,
       message: 'Nomination link generated successfully',
-      settings: award.settings, // Return the updated settings for debugging
+      settings: award.settings,
     });
   } catch (error: any) {
-    console.error('Generate nomination link error:', error);
     return NextResponse.json(
       { error: 'Failed to generate nomination link', details: error.message },
       { status: 500 }
