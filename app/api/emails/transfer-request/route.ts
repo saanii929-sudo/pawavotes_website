@@ -24,8 +24,8 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    const approveUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/admin/transfers/${transferId}/approve`;
-    const rejectUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/admin/transfers/${transferId}/reject`;
+    const approveUrl = `${process.env.NEXT_PUBLIC_API_URL}/admin/transfers/${transferId}/approve`;
+    const rejectUrl = `${process.env.NEXT_PUBLIC_API_URL}/admin/transfers/${transferId}/reject`;
 
     // Email content
     const mailOptions = {

@@ -55,29 +55,28 @@ const WithdrawalsPage = () => {
     }
   };
 
-  const updateTransferStatus = async (transferId: string, status: 'successful' | 'failed') => {
-    const loadingToast = toast.loading(`Updating status to ${status}...`);
+  const updateTransferStatus = async (transferId: string, action: 'approve' | 'reject') => {
+    const loadingToast = toast.loading(`${action === 'approve' ? 'Approving' : 'Rejecting'} transfer...`);
     
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`/api/superadmin/withdrawals/${transferId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ status }),
+      const endpoint = action === 'approve' 
+        ? `/api/admin/transfers/${transferId}/approve`
+        : `/api/admin/transfers/${transferId}/reject`;
+        
+      const response = await fetch(endpoint, {
+        method: 'POST',
       });
 
       if (response.ok) {
-        toast.success(`Withdrawal marked as ${status}!`, { id: loadingToast });
+        const data = await response.json();
+        toast.success(data.message || `Transfer ${action}d successfully!`, { id: loadingToast });
         fetchTransfers();
       } else {
         const data = await response.json();
-        toast.error(data.error || 'Failed to update status', { id: loadingToast });
+        toast.error(data.error || `Failed to ${action} transfer`, { id: loadingToast });
       }
     } catch (error) {
-      toast.error('Failed to update status', { id: loadingToast });
+      toast.error(`Failed to ${action} transfer`, { id: loadingToast });
     }
   };
 
@@ -346,13 +345,13 @@ const WithdrawalsPage = () => {
                       {transfer.status === 'pending' ? (
                         <div className="flex gap-2">
                           <button
-                            onClick={() => updateTransferStatus(transfer._id, 'successful')}
+                            onClick={() => updateTransferStatus(transfer._id, 'approve')}
                             className="px-4 py-2 cursor-pointer bg-green-600 text-white rounded-lg text-xs font-semibold hover:bg-green-700 transition-colors shadow-md hover:shadow-lg"
                           >
                             Approve
                           </button>
                           <button
-                            onClick={() => updateTransferStatus(transfer._id, 'failed')}
+                            onClick={() => updateTransferStatus(transfer._id, 'reject')}
                             className="px-4 py-2 cursor-pointer bg-red-600 text-white rounded-lg text-xs font-semibold hover:bg-red-700 transition-colors shadow-md hover:shadow-lg"
                           >
                             Reject
@@ -477,14 +476,14 @@ const WithdrawalsPage = () => {
               {transfer.status === 'pending' && (
                 <div className="flex gap-2 pt-3 border-t border-gray-200">
                   <button
-                    onClick={() => updateTransferStatus(transfer._id, 'successful')}
+                    onClick={() => updateTransferStatus(transfer._id, 'approve')}
                     className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors shadow-md hover:shadow-lg"
                   >
                     <CheckCircle size={16} />
                     Approve
                   </button>
                   <button
-                    onClick={() => updateTransferStatus(transfer._id, 'failed')}
+                    onClick={() => updateTransferStatus(transfer._id, 'reject')}
                     className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors shadow-md hover:shadow-lg"
                   >
                     <XCircle size={16} />
