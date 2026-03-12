@@ -7,6 +7,8 @@ import {
   CreditCard,
   Smartphone,
   Info,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import Image from "next/image";
 import toast from "react-hot-toast";
@@ -49,6 +51,10 @@ const TransferManagementSystem = () => {
     "list",
   );
   const [showModal, setShowModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [verifyingPassword, setVerifyingPassword] = useState(false);
   const [paymentMode, setPaymentMode] = useState<"bank" | "mobile_money">(
     "bank",
   );
@@ -181,6 +187,49 @@ const TransferManagementSystem = () => {
     setCurrentScreen("transfer");
   };
 
+  const handleAddTransferClick = () => {
+    // Show password verification modal first
+    setShowPasswordModal(true);
+    setPassword("");
+  };
+
+  const handlePasswordVerification = async () => {
+    if (!password) {
+      toast.error("Please enter your password");
+      return;
+    }
+
+    setVerifyingPassword(true);
+
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch("/api/auth/verify-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ password }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        toast.success("Password verified successfully");
+        setShowPasswordModal(false);
+        setPassword("");
+        setShowPassword(false);
+        setShowModal(true); // Show transfer modal
+      } else {
+        toast.error(data.error || "Invalid password");
+      }
+    } catch (error) {
+      toast.error("Failed to verify password");
+    } finally {
+      setVerifyingPassword(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!formData.recipientName || !selectedAward || !formData.amount) {
       toast.error("Please fill in all required fields");
@@ -217,7 +266,7 @@ const TransferManagementSystem = () => {
     }
 
     setProcessingTransfer(true);
-    const loadingToast = toast.loading("Initiating transfer with Paystack...");
+    const loadingToast = toast.loading("Initiating transfer with Hubtel...");
 
     try {
       const token = localStorage.getItem("token");
@@ -474,7 +523,7 @@ const TransferManagementSystem = () => {
               </p>
             </div>
             <button
-              onClick={() => setShowModal(true)}
+              onClick={handleAddTransferClick}
               className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white px-4 sm:px-6 py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm sm:text-base whitespace-nowrap"
             >
               <Plus size={18} />
@@ -550,7 +599,7 @@ const TransferManagementSystem = () => {
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
               <p className="text-gray-500 mb-4">No transfers found</p>
               <button
-                onClick={() => setShowModal(true)}
+                onClick={handleAddTransferClick}
                 className="inline-flex items-center gap-2 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors"
               >
                 <Plus size={20} />
@@ -739,6 +788,91 @@ const TransferManagementSystem = () => {
         </div>
       )}
 
+      {/* Password Verification Modal */}
+      {showPasswordModal && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+          onClick={() => {
+            if (!verifyingPassword) {
+              setShowPasswordModal(false);
+              setPassword("");
+              setShowPassword(false);
+            }
+          }}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-green-600 text-white px-6 py-4 rounded-t-lg">
+              <h2 className="text-xl font-bold">Verify Password</h2>
+              <p className="text-sm text-green-100 mt-1">
+                Please enter your password to continue
+              </p>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Password <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === "Enter" && !verifyingPassword) {
+                        handlePasswordVerification();
+                      }
+                    }}
+                    className="w-full text-sm text-black px-4 py-2.5 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                    autoFocus
+                    disabled={verifyingPassword}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    disabled={verifyingPassword}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-xs text-blue-800">
+                  <strong>Security Check:</strong> We need to verify your identity before allowing transfer operations.
+                </p>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowPasswordModal(false);
+                  setPassword("");
+                  setShowPassword(false);
+                }}
+                className="px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                disabled={verifyingPassword}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePasswordVerification}
+                disabled={verifyingPassword || !password}
+                className="px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                {verifyingPassword ? "Verifying..." : "Verify"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showModal && (
         <>
           <div
@@ -766,7 +900,7 @@ const TransferManagementSystem = () => {
                   Request Transfer
                 </h2>
                 <p className="text-xs sm:text-sm text-green-100">
-                  Transfer funds via Paystack (
+                  Transfer funds via Hubtel (
                   {revenueInfo?.serviceFeePercentage || 10}% platform fee
                   applied)
                 </p>
@@ -947,7 +1081,7 @@ const TransferManagementSystem = () => {
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                   <p className="text-xs text-yellow-800">
                     <strong>Note:</strong> The transfer will be processed
-                    through Paystack. Ensure the recipient details are correct
+                    through Hubtel. Ensure the recipient details are correct
                     as transfers cannot be reversed.
                   </p>
                 </div>

@@ -9,11 +9,67 @@ const VoteSuccessContent = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [countdown, setCountdown] = useState(10);
+  const [voteDetails, setVoteDetails] = useState({
+    nominee: "the nominee",
+    votes: "1",
+    amount: "0",
+    type: "normal",
+  });
 
-  const nomineeName = searchParams.get("nominee") || "the nominee";
-  const votes = searchParams.get("votes") || "1";
-  const amount = searchParams.get("amount") || "0";
-  const type = searchParams.get("type") || "normal";
+  // Get vote details from URL params or localStorage and verify payment
+  useEffect(() => {
+    const nomineeParam = searchParams.get("nominee");
+    const votesParam = searchParams.get("votes");
+    const amountParam = searchParams.get("amount");
+    const typeParam = searchParams.get("type");
+
+    // If URL params exist, use them
+    if (nomineeParam || votesParam || amountParam) {
+      setVoteDetails({
+        nominee: nomineeParam || "the nominee",
+        votes: votesParam || "1",
+        amount: amountParam || "0",
+        type: typeParam || "normal",
+      });
+    } else {
+      // Otherwise, try to get from localStorage
+      try {
+        const stored = localStorage.getItem('pendingVote');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          // Check if not too old (within 10 minutes)
+          if (Date.now() - parsed.timestamp < 10 * 60 * 1000) {
+            setVoteDetails({
+              nominee: parsed.nominee,
+              votes: parsed.votes.toString(),
+              amount: parsed.amount.toString(),
+              type: parsed.type,
+            });
+            
+            // Verify the payment with the backend (fallback if webhook wasn't received)
+            if (parsed.reference) {
+              fetch('/api/public/votes/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reference: parsed.reference }),
+              })
+                .then(res => res.json())
+                .then(data => {
+                  console.log('Vote verification result:', data);
+                })
+                .catch(err => {
+                  console.error('Vote verification error:', err);
+                });
+            }
+          }
+          // Clear localStorage after reading
+          localStorage.removeItem('pendingVote');
+        }
+      } catch (error) {
+        console.error('Error reading vote details:', error);
+      }
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -58,7 +114,7 @@ const VoteSuccessContent = () => {
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">You voted for</p>
-                  <p className="text-lg font-semibold text-gray-900">{nomineeName}</p>
+                  <p className="text-lg font-semibold text-gray-900">{voteDetails.nominee}</p>
                 </div>
               </div>
 
@@ -66,20 +122,20 @@ const VoteSuccessContent = () => {
               <div className="border border-gray-200 rounded-lg divide-y divide-gray-200">
                 <div className="flex items-center justify-between px-4 py-3">
                   <span className="text-gray-600">Number of Votes</span>
-                  <span className="font-semibold text-gray-900">{votes}</span>
+                  <span className="font-semibold text-gray-900">{voteDetails.votes}</span>
                 </div>
                 <div className="flex items-center justify-between px-4 py-3">
                   <span className="text-gray-600">Amount Paid</span>
-                  <span className="font-semibold text-gray-900">GHS {parseFloat(amount).toFixed(2)}</span>
+                  <span className="font-semibold text-gray-900">GHS {parseFloat(voteDetails.amount).toFixed(2)}</span>
                 </div>
                 <div className="flex items-center justify-between px-4 py-3">
                   <span className="text-gray-600">Vote Type</span>
                   <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                    type === "bulk" 
+                    voteDetails.type === "bulk" 
                       ? "bg-purple-100 text-purple-800" 
                       : "bg-blue-100 text-blue-800"
                   }`}>
-                    {type === "bulk" ? "Bulk Package" : "Normal"}
+                    {voteDetails.type === "bulk" ? "Bulk Package" : "Normal"}
                   </span>
                 </div>
               </div>

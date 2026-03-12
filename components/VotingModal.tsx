@@ -90,9 +90,8 @@ const VotingModal = ({
     }
   };
 
-  const initializePaystack = async () => {
+  const initializeHubtelPayment = async () => {
     try {
-      // Generate email from phone number
       const email = `${phone}@ussd.pawavotes.com`;
       
       const voteData =
@@ -136,27 +135,6 @@ const VotingModal = ({
     }
   };
 
-  const verifyPayment = async (reference: string) => {
-    try {
-      const response = await fetch("/api/public/votes/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reference }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Payment verification failed");
-      }
-
-      return data;
-    } catch (error: any) {
-      console.error("Verify payment error:", error);
-      throw error;
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -178,82 +156,25 @@ const VotingModal = ({
     setIsProcessing(true);
 
     try {
-      const initData = await initializePaystack();
-  
-      const email = `${phone}@pawavotes.com`;
-      
-      if (!window.PaystackPop) {
-        const script = document.createElement("script");
-        script.src = "https://js.paystack.co/v1/inline.js";
-        script.async = true;
-        document.body.appendChild(script);
+      const initData = await initializeHubtelPayment();
 
-        await new Promise((resolve, reject) => {
-          script.onload = resolve;
-          script.onerror = reject;
-        });
+      if (!initData.success || !initData.checkoutUrl) {
+        throw new Error("Failed to initialize payment");
       }
 
-      const votesCount =
-        allowBulkVoting && activeTab === "bulk"
-          ? selectedPackage!.votes
-          : numberOfVotes;
+      // Store vote details in localStorage for success page
+      const voteDetails = {
+        nominee: nominee.name,
+        votes: allowBulkVoting && activeTab === "bulk" ? selectedPackage!.votes : numberOfVotes,
+        amount: totalAmount,
+        type: allowBulkVoting && activeTab === "bulk" ? "bulk" : "normal",
+        reference: initData.reference,
+        timestamp: Date.now(),
+      };
+      localStorage.setItem('pendingVote', JSON.stringify(voteDetails));
 
-      // @ts-ignore
-      const handler = window.PaystackPop.setup({
-        key: initData.paystackPublicKey,
-        email: email.toLowerCase(),
-        amount: totalAmount * 100,
-        currency: "GHS",
-        ref: initData.reference,
-        metadata: {
-          custom_fields: [
-            {
-              display_name: "Nominee",
-              variable_name: "nominee_name",
-              value: nominee.name,
-            },
-            {
-              display_name: "Number of Votes",
-              variable_name: "number_of_votes",
-              value: votesCount.toString(),
-            },
-            {
-              display_name: "Vote Type",
-              variable_name: "vote_type",
-              value: activeTab === "bulk" ? "Bulk Package" : "Normal",
-            },
-          ],
-        },
-        callback: (response: any) => {
-          (async () => {
-            try {
-              const verifyData = await verifyPayment(response.reference);
-              toast.success(
-                `Successfully voted ${votesCount} time${votesCount > 1 ? "s" : ""} for ${nominee.name}!`,
-              );
-              const successUrl = `/vote-success?nominee=${encodeURIComponent(nominee.name)}&votes=${votesCount}&amount=${totalAmount}&type=${allowBulkVoting && activeTab === "bulk" ? "bulk" : "normal"}`;
-
-              if (onSuccess) {
-                onSuccess();
-              }
-
-              onClose();
-              router.push(successUrl);
-            } catch (error: any) {
-              toast.error(error.message || "Failed to verify payment");
-            } finally {
-              setIsProcessing(false);
-            }
-          })();
-        },
-        onClose: () => {
-          setIsProcessing(false);
-          toast.error("Payment cancelled");
-        },
-      });
-
-      handler.openIframe();
+      // Redirect to Hubtel checkout page
+      window.location.href = initData.checkoutUrl;
     } catch (error: any) {
       toast.error(error.message || "Failed to process payment");
       setIsProcessing(false);

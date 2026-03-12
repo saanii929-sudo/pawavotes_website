@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Mail, Edit, Trash2, CheckCircle, XCircle, Clock, Search, AlertCircle } from 'lucide-react';
+import { Plus, Mail, Edit, Trash2, CheckCircle, XCircle, Clock, Search, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
 import ConfirmModal from "@/components/ConfirmModal";
@@ -28,6 +28,11 @@ const AdminsManagement = () => {
   const [loading, setLoading] = useState(true);
   const [accessDenied, setAccessDenied] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [verifyingPassword, setVerifyingPassword] = useState(false);
+  const [pendingAdminAction, setPendingAdminAction] = useState<Admin | null | 'new'>(null);
   const [editingAdmin, setEditingAdmin] = useState<Admin | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -104,22 +109,66 @@ const AdminsManagement = () => {
   };
 
   const handleOpenModal = (admin?: Admin) => {
-    if (admin) {
-      setEditingAdmin(admin);
-      setFormData({
-        name: admin.name,
-        email: admin.email,
-        assignedAwards: admin.assignedAwards.map(a => a._id),
-      });
-    } else {
-      setEditingAdmin(null);
-      setFormData({
-        name: '',
-        email: '',
-        assignedAwards: [],
-      });
+    // Show password verification modal first
+    setPendingAdminAction(admin || 'new');
+    setShowPasswordModal(true);
+    setPassword('');
+  };
+
+  const handlePasswordVerification = async () => {
+    if (!password) {
+      toast.error('Please enter your password');
+      return;
     }
-    setShowModal(true);
+
+    setVerifyingPassword(true);
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/auth/verify-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ password }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        toast.success('Password verified successfully');
+        setShowPasswordModal(false);
+        setPassword('');
+        setShowPassword(false);
+
+        // Now open the admin modal with the pending action
+        if (pendingAdminAction === 'new') {
+          setEditingAdmin(null);
+          setFormData({
+            name: '',
+            email: '',
+            assignedAwards: [],
+          });
+        } else if (pendingAdminAction) {
+          setEditingAdmin(pendingAdminAction);
+          setFormData({
+            name: pendingAdminAction.name,
+            email: pendingAdminAction.email,
+            assignedAwards: pendingAdminAction.assignedAwards.map(a => a._id),
+          });
+        }
+        
+        setShowModal(true);
+        setPendingAdminAction(null);
+      } else {
+        toast.error(data.error || 'Invalid password');
+      }
+    } catch (error) {
+      toast.error('Failed to verify password');
+    } finally {
+      setVerifyingPassword(false);
+    }
   };
 
   const handleCloseModal = () => {
@@ -409,6 +458,93 @@ const AdminsManagement = () => {
           </table>
         </div>
       </div>
+
+      {/* Password Verification Modal */}
+      {showPasswordModal && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+          onClick={() => {
+            if (!verifyingPassword) {
+              setShowPasswordModal(false);
+              setPassword('');
+              setShowPassword(false);
+              setPendingAdminAction(null);
+            }
+          }}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-green-600 text-white px-6 py-4 rounded-t-lg">
+              <h2 className="text-xl font-bold">Verify Password</h2>
+              <p className="text-sm text-green-100 mt-1">
+                Please enter your password to continue
+              </p>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Password <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && !verifyingPassword) {
+                        handlePasswordVerification();
+                      }
+                    }}
+                    className="w-full text-sm text-black px-4 py-2.5 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                    autoFocus
+                    disabled={verifyingPassword}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    disabled={verifyingPassword}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-xs text-blue-800">
+                  <strong>Security Check:</strong> We need to verify your identity before managing administrators.
+                </p>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowPasswordModal(false);
+                  setPassword('');
+                  setShowPassword(false);
+                  setPendingAdminAction(null);
+                }}
+                className="px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                disabled={verifyingPassword}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePasswordVerification}
+                disabled={verifyingPassword || !password}
+                className="px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                {verifyingPassword ? 'Verifying...' : 'Verify'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal */}
       {showModal && (

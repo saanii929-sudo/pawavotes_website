@@ -58,20 +58,30 @@ export async function GET(req: NextRequest) {
 
     // Get real-time stats
     const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    // Use UTC midnight for today to match MongoDB's UTC storage
+    const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
     
     console.log('Analytics query:', {
       todayStart: todayStart.toISOString(),
+      todayStartLocal: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString(),
       now: now.toISOString(),
+      serverTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       voteQuery,
     });
 
-    // Get all votes first
-    const allVotesData = await Vote.find(voteQuery).select('amount numberOfVotes createdAt nomineeId voterPhone paymentMethod').lean();
-    console.log('All votes found:', allVotesData.map(v => ({ 
+    // Get all votes first (sorted by most recent)
+    const allVotesData = await Vote.find(voteQuery)
+      .select('amount numberOfVotes createdAt nomineeId voterPhone paymentMethod')
+      .sort({ createdAt: -1 })
+      .lean();
+    
+    console.log('All votes found:', allVotesData.length);
+    console.log('Most recent 5 votes:', allVotesData.slice(0, 5).map(v => ({ 
       amount: v.amount, 
       votes: v.numberOfVotes, 
-      date: v.createdAt 
+      createdAt: v.createdAt,
+      createdAtISO: new Date(v.createdAt).toISOString(),
+      isToday: new Date(v.createdAt) >= todayStart
     })));
 
     // Calculate totals manually
@@ -176,10 +186,18 @@ export async function GET(req: NextRequest) {
       return acc;
     }, []).sort((a, b) => b.count - a.count).slice(0, 10);
 
-    // Get recent votes
-    const recentVotes = allVotesData
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, 20);
+    // Get recent votes (already sorted from the query)
+    const recentVotes = allVotesData.slice(0, 20);
+
+    console.log('Recent votes being returned:', recentVotes.length);
+    console.log('First 3 recent votes:', recentVotes.slice(0, 3).map(v => ({
+      id: (v as any)._id,
+      nominee: v.nomineeId,
+      amount: v.amount,
+      votes: v.numberOfVotes,
+      createdAt: new Date(v.createdAt).toISOString(),
+      paymentMethod: v.paymentMethod
+    })));
 
     console.log('Aggregation results:', {
       topNominees: topNominees.length,

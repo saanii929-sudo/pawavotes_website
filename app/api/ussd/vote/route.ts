@@ -1103,62 +1103,13 @@ async function handleNetworkConfirmation(
 }
 
 async function handlePaymentOTP(session: any, userInput: string) {
-  const otpInput = userInput.trim();
-
-  if (!otpInput || otpInput.length < 4) {
-    return {
-      message: "Invalid OTP. Enter 4-6 digit code:\n\n0. Cancel",
-      continueSession: true,
-    };
-  }
-
-  const otpAttempts = (session.data.otpAttempts || 0) + 1;
-  session.data.otpAttempts = otpAttempts;
-
-  if (otpAttempts > 3) {
-    session.isActive = false;
-    return {
-      message: "Too many attempts. Please try voting again.",
-      continueSession: false,
-    };
-  }
-
-  const result = await submitPaystackOTP(
-    otpInput,
-    session.data.paymentReference,
-  );
-
-  if (result.success) {
-    await Vote.findOneAndUpdate(
-      { paymentReference: session.data.paymentReference },
-      { paymentStatus: "completed" },
-    );
-    await Nominee.findByIdAndUpdate(session.data.nomineeId, {
-      $inc: { voteCount: session.data.numberOfVotes },
-    });
-
-    session.isActive = false;
-    return {
-      message: compressMessage(
-        `Vote Successful!\n\n${session.data.numberOfVotes} vote(s) for ${session.data.nomineeName}\n\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you!`,
-      ),
-      continueSession: false,
-    };
-  } else {
-    const attemptsLeft = 3 - otpAttempts;
-    if (attemptsLeft > 0) {
-      return {
-        message: `Invalid OTP. Try again (${attemptsLeft} left):\n\n0. Cancel`,
-        continueSession: true,
-      };
-    } else {
-      session.isActive = false;
-      return {
-        message: "Too many attempts. Please try voting again.",
-        continueSession: false,
-      };
-    }
-  }
+  // Hubtel doesn't use OTP for USSD payments - this is kept for backward compatibility
+  // but will redirect user to approve on phone instead
+  session.isActive = false;
+  return {
+    message: "Please approve the payment on your phone to complete your vote.",
+    continueSession: false,
+  };
 }
 
 async function processPayment(
@@ -1200,7 +1151,7 @@ async function processPayment(
       };
     }
 
-    const paystackResponse = await initiatePaystackCharge(
+    const hubtelResponse = await initiateHubtelCharge(
       dummyEmail,
       session.data.amount,
       phoneNumber,
@@ -1208,30 +1159,12 @@ async function processPayment(
       provider,
     );
 
-    if (!paystackResponse.success) {
-      // Handle Paystack API errors
+    if (!hubtelResponse.success) {
+      // Handle Hubtel API errors
       await PendingVote.findByIdAndUpdate(pendingVote._id, { status: "failed" });
       
-      const errorMessage = paystackResponse.error || "Payment initiation failed";
-      console.error("Paystack charge failed:", errorMessage);
-
-      // Check if we're in test mode
-      const isTestMode = process.env.PAYSTACK_SECRET_KEY?.startsWith("sk_test_");
-      
-      if (isTestMode) {
-        // In test mode, allow vote to proceed with warning
-        await PendingVote.findByIdAndUpdate(pendingVote._id, { status: "completed" });
-        await Nominee.findByIdAndUpdate(session.data.nomineeId, {
-          $inc: { voteCount: session.data.numberOfVotes },
-        });
-        session.isActive = false;
-        return {
-          message: compressMessage(
-            `TEST MODE: Vote recorded!\n\nNominee: ${session.data.nomineeName}\nVotes: ${session.data.numberOfVotes}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nNote: ${errorMessage}\n\nThank you!`,
-          ),
-          continueSession: false,
-        };
-      }
+      const errorMessage = hubtelResponse.error || "Payment initiation failed";
+      console.error("Hubtel charge failed:", errorMessage);
 
       return {
         message: compressMessage(
@@ -1241,108 +1174,49 @@ async function processPayment(
       };
     }
 
-    const chargeData = paystackResponse.data?.data;
-    const chargeStatus = chargeData?.status;
-    const displayText = chargeData?.display_text || chargeData?.message;
+    const chargeData = hubtelResponse.data;
+    const chargeStatus = hubtelResponse.status; // "success" or "pending"
 
-    console.log(`Charge status: ${chargeStatus}, Display: ${displayText}`);
+    console.log(`Charge status: ${chargeStatus}`);
 
-    // Store payment reference for later use - CRITICAL for OTP flow
+    // Store payment reference for later use
     session.data.paymentReference = paymentReference;
     session.markModified('data');
     console.log(`Stored payment reference in session: ${paymentReference}`);
-    console.log(`Session data after storing reference:`, JSON.stringify(session.data, null, 2));
 
-    switch (chargeStatus) {
-      case "send_otp":
-      case "pending": {
-        // OTP required - wait for user to enter OTP
-        session.currentStep = "enter_payment_otp";
-        session.data.otpAttempts = 0;
-        session.markModified('data');
-        
-        const otpMessage = displayText || "OTP sent to your phone";
-        console.log(`Returning OTP prompt. Session will be saved with reference: ${session.data.paymentReference}`);
-        return {
-          message: compressMessage(`${otpMessage}\n\nEnter OTP:\n\n0. Cancel`),
-          continueSession: true,
-        };
-      }
-
-      case "pay_offline": {
-        // User needs to approve on their phone - this is normal for mobile money
-        // PendingVote already created, will be verified when user approves
-        
-        session.isActive = false;
-        const offlineInstructions = getOfflineInstructions(
-          provider,
-          session.data.amount,
-        );
-        
-        return {
-          message: compressMessage(
-            `Payment Initiated!\n\n${offlineInstructions}\n\nYour vote will be counted once payment is approved.\n\nFor: ${truncateName(session.data.nomineeName, 20)}\nVotes: ${session.data.numberOfVotes}\n\nRef: ${paymentReference.substring(0, 15)}...\n\nThank you!`,
-          ),
-          continueSession: false,
-        };
-      }
-
-      case "success": {
-        // Payment successful immediately - verify and complete
-        const verifyResult = await verifyPaystackTransaction(paymentReference);
-        
-        if (verifyResult.success) {
-          await completePendingVote(pendingVote, session.data);
-          session.isActive = false;
-          
-          return {
-            message: compressMessage(
-              `Vote Successful!\n\n${session.data.numberOfVotes} vote(s) for ${truncateName(session.data.nomineeName, 20)}\n\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you for voting!`,
-            ),
-            continueSession: false,
-          };
-        } else {
-          pendingVote.status = "failed";
-          await pendingVote.save();
-          session.isActive = false;
-          
-          return {
-            message: compressMessage(
-              `Payment verification failed. Please try again.`,
-            ),
-            continueSession: false,
-          };
-        }
-      }
-
-      case "failed": {
-        // Payment failed
-        pendingVote.status = "failed";
-        await pendingVote.save();
-        session.isActive = false;
-        
-        const failureMessage = displayText || "Unable to process payment";
-        return {
-          message: compressMessage(
-            `Payment Failed!\n\n${failureMessage}\n\nPlease try again.`,
-          ),
-          continueSession: false,
-        };
-      }
-
-      default: {
-        // Unknown status - ask user to complete on phone
-        console.warn(`Unknown charge status: ${chargeStatus}`);
-        session.isActive = false;
-        
-        return {
-          message: compressMessage(
-            `Vote Submitted!\n\nPlease complete the payment on your phone.\n\nFor: ${truncateName(session.data.nomineeName, 20)}\nVotes: ${session.data.numberOfVotes}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nRef: ${paymentReference.substring(0, 15)}...\n\nThank you!`,
-          ),
-          continueSession: false,
-        };
-      }
+    // Hubtel Direct Receive Money is always async - user must approve on phone
+    // ResponseCode "0001" means transaction pending, waiting for customer approval
+    // ResponseCode "0000" means immediate success (rare)
+    
+    if (chargeStatus === "success") {
+      // Immediate success (rare case)
+      await completePendingVote(pendingVote, session.data);
+      session.isActive = false;
+      
+      return {
+        message: compressMessage(
+          `Vote Successful!\n\n${session.data.numberOfVotes} vote(s) for ${truncateName(session.data.nomineeName, 20)}\n\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you for voting!`,
+        ),
+        continueSession: false,
+      };
     }
+
+    // Pending - user needs to approve on their phone
+    session.isActive = false;
+    const offlineInstructions = getOfflineInstructions(
+      provider,
+      session.data.amount,
+    );
+    
+    // Create a short reference for display
+    const shortRef = paymentReference.substring(5, 20); // Remove "USSD-" prefix and truncate
+    
+    return {
+      message: compressMessage(
+        `Payment Initiated!\n\n${offlineInstructions}\n\nYour vote will be counted once payment is approved.\n\nFor: ${truncateName(session.data.nomineeName, 20)}\nVotes: ${session.data.numberOfVotes}\n\nRef: ${shortRef}\n\nTo check status, dial this code again.\n\nThank you!`,
+      ),
+      continueSession: false,
+    };
   } catch (error: any) {
     console.error("processPayment error:", error);
     return {
@@ -1353,7 +1227,7 @@ async function processPayment(
   }
 }
 
-async function initiatePaystackCharge(
+async function initiateHubtelCharge(
   email: string,
   amount: number,
   phoneNumber: string,
@@ -1361,181 +1235,97 @@ async function initiatePaystackCharge(
   provider: string,
 ) {
   try {
-    const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
+    const hubtelApiId = process.env.HUBTEL_API_ID;
+    const hubtelApiKey = process.env.HUBTEL_API_KEY;
+    const hubtelMerchantAccount = process.env.HUBTEL_MERCHANT_ACCOUNT;
+    const callbackUrl = process.env.HUBTEL_CALLBACK_URL || `${process.env.NEXT_PUBLIC_API_URL}/api/webhooks/hubtel`;
     
-    if (!paystackSecretKey) {
-      console.error("PAYSTACK_SECRET_KEY is not configured");
+    if (!hubtelApiId || !hubtelApiKey || !hubtelMerchantAccount) {
+      console.error("Hubtel credentials not configured");
       return { success: false, error: "Payment configuration error" };
     }
 
-    const amountInKobo = Math.round(amount * 100);
-    const formattedPhone = formatPhoneForPaystack(phoneNumber);
+    // Format phone number to international format (233XXXXXXXXX)
+    let formattedPhone = phoneNumber.replace(/[\s\-+]/g, "");
+    if (formattedPhone.startsWith("0")) {
+      formattedPhone = "233" + formattedPhone.substring(1);
+    } else if (!formattedPhone.startsWith("233")) {
+      formattedPhone = "233" + formattedPhone;
+    }
+
+    // Map provider codes to Hubtel channel names
+    const channelMap: { [key: string]: string } = {
+      "mtn": "mtn-gh",
+      "vod": "vodafone-gh",
+      "tgo": "tigo-gh",
+    };
+
+    const channel = channelMap[provider] || "mtn-gh";
 
     console.log(
-      `Original: ${phoneNumber} → Formatted: ${formattedPhone}, Provider: ${provider}`,
+      `Original: ${phoneNumber} → Formatted: ${formattedPhone}, Provider: ${provider} → Channel: ${channel}`,
     );
 
-    // Paystack charge request following official documentation
-    const chargeRequest: any = {
-      email,
-      amount: amountInKobo.toString(),
-      currency: "GHS",
-      reference,
-      mobile_money: {
-        phone: formattedPhone,
-        provider: provider,
-      },
-      metadata: {
-        custom_fields: [
-          {
-            display_name: "Phone Number",
-            variable_name: "phone_number",
-            value: formattedPhone,
-          },
-          {
-            display_name: "Payment Method",
-            variable_name: "payment_method",
-            value: "mobile_money",
-          },
-          {
-            display_name: "Provider",
-            variable_name: "provider",
-            value: provider,
-          },
-        ],
-      },
+    // Hubtel Receive Money request
+    const hubtelRequest = {
+      CustomerName: email.split("@")[0],
+      CustomerMsisdn: formattedPhone,
+      CustomerEmail: email,
+      Channel: channel,
+      Amount: amount,
+      PrimaryCallbackUrl: callbackUrl,
+      Description: `Vote payment - ${reference}`,
+      ClientReference: reference,
     };
 
     console.log(
-      "Paystack charge request:",
-      JSON.stringify(chargeRequest, null, 2),
+      "Hubtel charge request:",
+      JSON.stringify(hubtelRequest, null, 2),
     );
 
-    const response = await fetch("https://api.paystack.co/charge", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${paystackSecretKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(chargeRequest),
-    });
-
-    const data = await response.json();
-    console.log("Paystack charge response:", JSON.stringify(data, null, 2));
-
-    if (!response.ok) {
-      console.error("Paystack API error:", data);
-      return { 
-        success: false, 
-        error: data.message || "Payment service error",
-        data 
-      };
-    }
-
-    return { success: data.status === true, data };
-  } catch (error: any) {
-    console.error("Paystack charge error:", error);
-    return { success: false, error: error.message };
-  }
-}
-
-async function submitPaystackOTP(otp: string, reference: string) {
-  try {
-    const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
-
-    if (!paystackSecretKey) {
-      console.error("PAYSTACK_SECRET_KEY is not configured");
-      return { success: false, error: "Payment configuration error" };
-    }
-
-    const otpRequest = {
-      otp: otp,
-      reference: reference,
-    };
-
-    console.log("Submitting OTP for reference:", reference);
-
-    const response = await fetch("https://api.paystack.co/charge/submit_otp", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${paystackSecretKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(otpRequest),
-    });
-
-    const data = await response.json();
-    console.log("Paystack OTP response:", JSON.stringify(data, null, 2));
-
-    if (!response.ok) {
-      console.error("Paystack OTP submission error:", data);
-      return { 
-        success: false, 
-        error: data.message || "OTP verification failed",
-        data 
-      };
-    }
-
-    const chargeStatus = data.data?.status;
-    
-    // Handle different charge statuses
-    // success: Payment completed
-    // pay_offline: User needs to approve on phone (treat as success for mobile money)
-    // requery: Payment being confirmed (treat as success)
-    const successStatuses = ["success", "pay_offline", "requery"];
-    const isSuccess = data.status === true && successStatuses.includes(chargeStatus);
-
-    return {
-      success: isSuccess,
-      status: chargeStatus,
-      data,
-    };
-  } catch (error: any) {
-    console.error("Paystack OTP error:", error);
-    return { success: false, error: error.message };
-  }
-}
-
-async function checkPaystackChargeStatus(reference: string) {
-  try {
-    const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
-
-    if (!paystackSecretKey) {
-      console.error("PAYSTACK_SECRET_KEY is not configured");
-      return { success: false, error: "Payment configuration error" };
-    }
-
-    console.log("Checking charge status for reference:", reference);
+    const authString = `${hubtelApiId}:${hubtelApiKey}`;
+    const base64Auth = Buffer.from(authString).toString('base64');
 
     const response = await fetch(
-      `https://api.paystack.co/charge/${reference}`,
+      `https://rmp.hubtel.com/merchantaccount/merchants/${hubtelMerchantAccount}/receive/mobilemoney`,
       {
-        method: "GET",
+        method: "POST",
         headers: {
-          Authorization: `Bearer ${paystackSecretKey}`,
+          Authorization: `Basic ${base64Auth}`,
           "Content-Type": "application/json",
         },
+        body: JSON.stringify(hubtelRequest),
       }
     );
 
     const data = await response.json();
-    console.log("Paystack charge status response:", JSON.stringify(data, null, 2));
+    console.log("Hubtel charge response:", JSON.stringify(data, null, 2));
 
     if (!response.ok) {
-      console.error("Paystack charge status error:", data);
+      console.error("Hubtel API error:", data);
       return { 
         success: false, 
-        error: data.message || "Failed to check charge status",
+        error: data.Message || "Payment service error",
         data 
       };
     }
 
-    return { success: data.status === true, data };
+    // Hubtel returns ResponseCode "0001" for pending transactions
+    // ResponseCode "0000" for immediate success (rare)
+    const isSuccess = data.ResponseCode === "0001" || data.ResponseCode === "0000";
+
+    return { 
+      success: isSuccess, 
+      data,
+      status: data.ResponseCode === "0000" ? "success" : "pending"
+    };
   } catch (error: any) {
-    console.error("Paystack charge status check error:", error);
+    console.error("Hubtel charge error:", error);
     return { success: false, error: error.message };
   }
 }
+
+// Removed Paystack OTP and charge status functions - Hubtel uses callback-based verification
 
 function getOfflineInstructions(provider: string, amount: number): string {
   const amountStr = `GHS ${amount.toFixed(2)}`;
@@ -1575,43 +1365,7 @@ function checkAwardVotingWindow(award: any, now: Date): boolean {
 }
 
 
-// Helper function to verify Paystack transaction
-async function verifyPaystackTransaction(reference: string) {
-  try {
-    const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
-    
-    if (!paystackSecretKey) {
-      console.error("Paystack secret key not configured");
-      return { success: false, error: "Payment system not configured" };
-    }
-
-    const verifyResponse = await fetch(
-      `https://api.paystack.co/transaction/verify/${reference}`,
-      {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${paystackSecretKey}`,
-        },
-      }
-    );
-
-    const verifyData = await verifyResponse.json();
-
-    if (!verifyResponse.ok || !verifyData.status) {
-      return { success: false, error: "Payment verification failed", data: verifyData };
-    }
-
-    // Check if payment was successful
-    if (verifyData.data.status !== "success") {
-      return { success: false, error: "Payment was not successful", data: verifyData };
-    }
-
-    return { success: true, data: verifyData.data };
-  } catch (error: any) {
-    console.error("Verify transaction error:", error);
-    return { success: false, error: error.message };
-  }
-}
+// Removed Paystack verification - Hubtel uses webhook callbacks for payment confirmation
 
 // Helper function to complete a pending vote
 async function completePendingVote(pendingVote: any, sessionData: any) {

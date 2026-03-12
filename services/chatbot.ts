@@ -53,7 +53,7 @@ const intents: Intent[] = [
     name: 'payment_methods',
     patterns: ['payment', 'pay', 'mobile money', 'momo', 'how to pay', 'payment options'],
     responses: [
-      'Payment Methods:\n• Mobile Money (MTN, Telecel, AirtelTigo)\n• USSD payments\n• Paystack integration\n\nAll payments are secure and instant!',
+      'Payment Methods:\n• Mobile Money (MTN, Telecel, AirtelTigo)\n• USSD payments\n• Hubtel secure payment integration\n\nAll payments are secure and instant!',
     ],
     confidence: 0.9,
   },
@@ -259,7 +259,7 @@ const intents: Intent[] = [
     name: 'security',
     patterns: ['security', 'secure', 'safe', 'is it safe', 'data protection', 'privacy'],
     responses: [
-      'Security Features:\n\n🔐 Encrypted connections (HTTPS)\n🔑 Unique voter credentials\n🚫 Duplicate prevention\n📝 Audit trails\n💳 Secure payment (Paystack)\n🔒 Data protection\n\nYour vote and data are completely secure!',
+      'Security Features:\n\n🔐 Encrypted connections (HTTPS)\n🔑 Unique voter credentials\n🚫 Duplicate prevention\n📝 Audit trails\n💳 Secure payment (Hubtel)\n🔒 Data protection\n\nYour vote and data are completely secure!',
     ],
     confidence: 0.85,
   },

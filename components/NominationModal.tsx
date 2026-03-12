@@ -50,14 +50,7 @@ const NominationModal = ({
 
   useEffect(() => {
     if (isOpen && isPaid) {
-      const existingScript = document.querySelector('script[src="https://js.paystack.co/v1/inline.js"]');
-      
-      if (!existingScript) {
-        const script = document.createElement("script");
-        script.src = "https://js.paystack.co/v1/inline.js";
-        script.async = true;
-        document.body.appendChild(script);
-      }
+      // No need to load Paystack script for Hubtel
     }
   }, [isOpen, isPaid]);
 
@@ -135,102 +128,20 @@ const NominationModal = ({
           throw new Error(initData.error || "Failed to initialize payment");
         }
 
-        const initializePaystack = () => {
-          
-          // @ts-ignore - PaystackPop is loaded from external script
-          if (typeof PaystackPop === 'undefined') {
-            toast.error("Payment system not loaded. Please refresh and try again.");
-            setLoading(false);
-            return;
-          }
-
-          console.log("PaystackPop is available, setting up handler...");
-
-          try {
-            // @ts-ignore
-            const handler = PaystackPop.setup({
-              key: initData.paystackPublicKey,
-              email: formData.email,
-              amount: nominationPrice * 100,
-              currency: "GHS",
-              ref: initData.reference,
-              callback: (response: any) => {
-                (async () => {
-                  try {
-                    // Verify payment
-                    const verifyResponse = await fetch(
-                      "/api/public/nominations/verify",
-                      {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ reference: response.reference }),
-                      }
-                    );
-
-                    const verifyData = await verifyResponse.json();
-
-                    if (verifyData.success) {
-                      toast.success("Nomination submitted successfully!");
-                      onClose();
-                      // Reset form
-                      setFormData({ name: "", email: "", phone: "", bio: "", image: "" });
-                      setImagePreview("");
-                    } else {
-                      toast.error(verifyData.error || "Payment verification failed");
-                    }
-                  } catch (error) {
-                    toast.error("Failed to verify payment");
-                  } finally {
-                    setLoading(false);
-                  }
-                })();
-              },
-              onClose: () => {
-                console.log("Payment popup closed");
-                toast.error("Payment cancelled");
-                setLoading(false);
-              },
-            });
-
-            console.log("Opening Paystack iframe...");
-            handler.openIframe();
-          } catch (error) {
-            console.error("Error setting up Paystack:", error);
-            toast.error("Failed to open payment window");
-            setLoading(false);
-          }
+        // Store nomination details in localStorage for success page
+        const nominationDetails = {
+          name: formData.name,
+          email: formData.email,
+          categoryName: categoryName,
+          awardName: awardName,
+          amount: nominationPrice,
+          reference: initData.reference,
+          timestamp: Date.now(),
         };
-        // @ts-ignore
-        if (typeof PaystackPop !== 'undefined') {
-          initializePaystack();
-        } else {
-          const existingScript = document.querySelector('script[src="https://js.paystack.co/v1/inline.js"]');
-          
-          if (existingScript) {
-            existingScript.addEventListener('load', () => {
-              initializePaystack();
-            });
-            
-            setTimeout(() => {
-              // @ts-ignore
-              if (typeof PaystackPop !== 'undefined') {
-                initializePaystack();
-              }
-            }, 500);
-          } else {
-            const script = document.createElement("script");
-            script.src = "https://js.paystack.co/v1/inline.js";
-            script.async = true;
-            script.onload = () => {
-              initializePaystack();
-            };
-            script.onerror = () => {
-              toast.error("Failed to load payment system. Please check your internet connection.");
-              setLoading(false);
-            };
-            document.body.appendChild(script);
-          }
-        }
+        localStorage.setItem('pendingNomination', JSON.stringify(nominationDetails));
+
+        // Redirect to Hubtel checkout page
+        window.location.href = initData.checkoutUrl;
       } else {
         // Free nomination
         const response = await fetch("/api/public/nominations/submit", {
