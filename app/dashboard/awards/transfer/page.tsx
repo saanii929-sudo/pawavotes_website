@@ -38,7 +38,7 @@ interface Transfer {
   recipientAccountNumber?: string;
   recipientPhoneNumber?: string;
   transferType: "bank" | "momo";
-  status: "successful" | "pending" | "failed";
+  status: "pending" | "approved" | "completed" | "rejected" | "failed";
   initiatedBy: string;
   notes?: string;
   createdAt: string;
@@ -338,10 +338,13 @@ const TransferManagementSystem = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "successful":
+      case "completed":
         return "text-green-600";
+      case "approved":
+        return "text-blue-600";
       case "pending":
         return "text-orange-500";
+      case "rejected":
       case "failed":
         return "text-red-600";
       default:
@@ -351,10 +354,13 @@ const TransferManagementSystem = () => {
 
   const getStatusBgColor = (status: string) => {
     switch (status) {
-      case "successful":
+      case "completed":
         return "bg-green-100";
+      case "approved":
+        return "bg-blue-100";
       case "pending":
         return "bg-orange-100";
+      case "rejected":
       case "failed":
         return "bg-red-100";
       default:
@@ -364,10 +370,13 @@ const TransferManagementSystem = () => {
 
   const getStatusIconColor = (status: string) => {
     switch (status) {
-      case "successful":
+      case "completed":
         return "text-green-600";
+      case "approved":
+        return "text-blue-600";
       case "pending":
         return "text-orange-600";
+      case "rejected":
       case "failed":
         return "text-red-600";
       default:
