@@ -17,23 +17,23 @@ export async function POST(req: NextRequest) {
     
     console.log("Hubtel webhook received:", JSON.stringify(body, null, 2));
 
-    const { ResponseCode, Status, Data } = body;
+    const { ResponseCode, Data } = body;
 
-    if (ResponseCode !== "0000" || Status !== "Success") {
+    // Hubtel sends ResponseCode "0000" for successful payments
+    if (ResponseCode !== "0000") {
       console.error("Hubtel webhook - Payment not successful:", body);
       return NextResponse.json({ message: "Payment not successful" }, { status: 200 });
     }
 
     const {
       ClientReference,
-      Status: PaymentStatus,
       Amount,
       CustomerPhoneNumber,
       PaymentDetails,
       Description,
     } = Data;
 
-    console.log(`Hubtel payment successful - Reference: ${ClientReference}, Status: ${PaymentStatus}, Amount: ${Amount}`);
+    console.log(`Hubtel payment successful - Reference: ${ClientReference}, Amount: ${Amount}`);
 
     if (ClientReference.startsWith("VOTE") || ClientReference.startsWith("USSD-")) {
       await processVotePayment(ClientReference, Amount, CustomerPhoneNumber, PaymentDetails, Data);
