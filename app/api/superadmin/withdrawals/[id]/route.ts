@@ -33,7 +33,12 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await req.json();
-    const { status } = body;
+    let { status } = body;
+
+    // Map 'successful' to 'completed' for backward compatibility
+    if (status === 'successful') {
+      status = 'completed';
+    }
 
     if (!status || !['completed', 'failed', 'approved'].includes(status)) {
       return NextResponse.json(

@@ -19,17 +19,17 @@ export async function POST(req: NextRequest) {
     const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD,
+        user: process.env.SMTP_USERNAME || process.env.EMAIL_USER,
+        pass: process.env.SMTP_PASSWORD || process.env.EMAIL_PASSWORD,
       },
     });
 
-    const approveUrl = `${process.env.NEXT_PUBLIC_API_URL}/admin/transfers/${transferId}/approve`;
-    const rejectUrl = `${process.env.NEXT_PUBLIC_API_URL}/admin/transfers/${transferId}/reject`;
+    const approveUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/admin/transfers/${transferId}/approve`;
+    const rejectUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/admin/transfers/${transferId}/reject`;
 
     // Email content
     const mailOptions = {
-      from: process.env.EMAIL_USER,
+      from: process.env.SMTP_FROM || process.env.EMAIL_USER,
       to: 'pawavotes@gmail.com',
       subject: `🔔 New Transfer Request - ${referenceId}`,
       html: `
