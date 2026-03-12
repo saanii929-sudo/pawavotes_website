@@ -11,6 +11,7 @@ export interface IPendingNomination extends Document {
   image?: string;
   amount: number;
   status: 'pending' | 'completed' | 'failed';
+  paymentData?: any;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -52,6 +53,9 @@ const PendingNominationSchema: Schema = new Schema(
       type: String,
       enum: ['pending', 'completed', 'failed'],
       default: 'pending',
+    },
+    paymentData: {
+      type: Schema.Types.Mixed,
     },
   },
   {

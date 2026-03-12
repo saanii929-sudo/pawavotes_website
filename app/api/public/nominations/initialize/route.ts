@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Initialize Hubtel payment
-    const hubtelPayload = {
+    const hubtelPayload: any = {
       totalAmount: amount / 100, // Convert from pesewas to cedis
       description: `Nomination fee for ${name} in ${category.name}`,
       callbackUrl,

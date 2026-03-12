@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
         status: 'completed',
         message: 'Vote has been recorded successfully',
         vote: {
-          nominee: vote?.nomineeId?.name || 'Unknown',
+          nominee: (vote?.nomineeId as any)?.name || 'Unknown',
           votes: pendingVote.numberOfVotes,
           amount: pendingVote.amount,
           reference: pendingVote.reference,

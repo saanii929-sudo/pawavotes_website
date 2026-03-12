@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
     });
 
     // Initialize Hubtel payment
-    const hubtelPayload = {
+    const hubtelPayload: any = {
       totalAmount: amount,
       description: `Vote for nominee - ${numberOfVotes} vote${numberOfVotes > 1 ? 's' : ''}`,
       callbackUrl,
