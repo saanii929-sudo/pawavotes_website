@@ -68,21 +68,25 @@ export async function GET(req: NextRequest) {
     try {
       const hubtelApiId = process.env.HUBTEL_API_ID;
       const hubtelApiKey = process.env.HUBTEL_API_KEY;
-      const hubtelMerchantAccount = process.env.HUBTEL_MERCHANT_ACCOUNT;
+      const hubtelPrepaidDepositId = process.env.HUBTEL_PREPAID_DEPOSIT_ID;
 
-      if (!hubtelApiId || !hubtelApiKey || !hubtelMerchantAccount) {
+      if (!hubtelApiId || !hubtelApiKey || !hubtelPrepaidDepositId) {
         throw new Error('Hubtel credentials not configured');
       }
 
-      // Call Hubtel Transaction Status Check API
-      const statusUrl = `https://api-txnstatus.hubtel.com/transactions/${hubtelMerchantAccount}/status?clientReference=${pendingVote.reference}`;
+      // Call Hubtel Receive Money Transaction Status Check API
+      // Note: Only requests from whitelisted IPs can reach this endpoint
+      const statusUrl = `https://smrsc.hubtel.com/api/merchants/${hubtelPrepaidDepositId}/transactions/status?clientReference=${pendingVote.reference}`;
       
-      console.log('Calling Hubtel Status Check API:', statusUrl);
+      console.log('Calling Hubtel Receive Money Status Check API:', statusUrl);
+
+      const authString = `${hubtelApiId}:${hubtelApiKey}`;
+      const base64Auth = Buffer.from(authString).toString('base64');
 
       const statusResponse = await fetch(statusUrl, {
         method: 'GET',
         headers: {
-          'Authorization': `Basic ${Buffer.from(`${hubtelApiId}:${hubtelApiKey}`).toString('base64')}`,
+          'Authorization': `Basic ${base64Auth}`,
         },
       });
 
@@ -90,14 +94,14 @@ export async function GET(req: NextRequest) {
       
       console.log('Hubtel status response:', statusData);
 
-      if (statusResponse.ok && statusData.responseCode === '0000') {
-        const paymentStatus = statusData.data.status; // Paid, Unpaid, or Refunded
+      if (statusResponse.ok && statusData.ResponseCode === 'success') {
+        const transactionStatus = statusData.Data.transactionStatus; // success, pending, or failed
         
-        if (paymentStatus === 'Paid') {
+        if (transactionStatus === 'success') {
           // Payment confirmed! Process the vote locally
           console.log('Payment confirmed by Hubtel, processing vote locally');
           
-          await processVoteLocally(pendingVote, statusData.data);
+          await processVoteLocally(pendingVote, statusData.Data);
           
           const nominee = await Nominee.findById(pendingVote.nomineeId).select('name').lean();
           
@@ -112,21 +116,22 @@ export async function GET(req: NextRequest) {
               reference: pendingVote.reference,
             },
           });
-        } else if (paymentStatus === 'Unpaid') {
+        } else if (transactionStatus === 'pending') {
           return NextResponse.json({
             success: false,
             status: 'pending',
             message: 'Payment is still pending. Please approve the payment on your phone.',
           });
-        } else if (paymentStatus === 'Refunded') {
+        } else if (transactionStatus === 'failed') {
           // Mark as failed
           pendingVote.status = 'failed';
+          pendingVote.paymentData = statusData.Data;
           await pendingVote.save();
           
           return NextResponse.json({
             success: false,
             status: 'failed',
-            message: 'Payment was refunded',
+            message: 'Payment failed',
           });
         }
       } else {

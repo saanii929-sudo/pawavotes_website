@@ -1187,9 +1187,31 @@ async function processPayment(
           
           const errorMessage = hubtelResponse.error || "Payment initiation failed";
           console.error(`[${paymentReference}] Hubtel charge failed:`, errorMessage);
-        } else {
-          console.log(`[${paymentReference}] Hubtel charge initiated successfully`);
+          return;
         }
+        
+        console.log(`[${paymentReference}] Hubtel charge initiated successfully`);
+        
+        // Schedule automatic status check after 5 minutes (as fallback if webhook not received)
+        setTimeout(async () => {
+          try {
+            console.log(`[${paymentReference}] Running automatic status check (5 min after initiation)`);
+            
+            // Check if vote is still pending
+            const checkPendingVote = await PendingVote.findOne({ reference: paymentReference });
+            
+            if (!checkPendingVote || checkPendingVote.status !== 'pending') {
+              console.log(`[${paymentReference}] Vote already processed, skipping status check`);
+              return;
+            }
+            
+            // Call Hubtel Transaction Status Check API
+            await checkHubtelTransactionStatus(paymentReference, pendingVote._id);
+          } catch (statusError: any) {
+            console.error(`[${paymentReference}] Automatic status check error:`, statusError);
+          }
+        }, 5 * 60 * 1000); // 5 minutes after payment initiation
+        
       } catch (error: any) {
         console.error(`[${paymentReference}] Error in delayed Hubtel charge:`, error);
         await PendingVote.findByIdAndUpdate(pendingVote._id, { status: "failed" });
@@ -1396,3 +1418,112 @@ async function completePendingVote(pendingVote: any, sessionData: any) {
     return { success: false, error: error.message };
   }
 }
+
+// Helper function to check Hubtel transaction status (fallback if webhook not received)
+async function checkHubtelTransactionStatus(clientReference: string, pendingVoteId: any) {
+  try {
+    const hubtelApiId = process.env.HUBTEL_API_ID;
+    const hubtelApiKey = process.env.HUBTEL_API_KEY;
+    const hubtelPrepaidDepositId = process.env.HUBTEL_PREPAID_DEPOSIT_ID;
+
+    if (!hubtelApiId || !hubtelApiKey || !hubtelPrepaidDepositId) {
+      console.error('Hubtel credentials not configured for status check');
+      return { success: false, error: 'Configuration error' };
+    }
+
+    // Hubtel Receive Money Status Check API
+    const statusUrl = `https://smrsc.hubtel.com/api/merchants/${hubtelPrepaidDepositId}/transactions/status?clientReference=${clientReference}`;
+
+    console.log(`[${clientReference}] Calling Hubtel Status Check API`);
+
+    const authString = `${hubtelApiId}:${hubtelApiKey}`;
+    const base64Auth = Buffer.from(authString).toString('base64');
+
+    const response = await fetch(statusUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Basic ${base64Auth}`,
+      },
+    });
+
+    const data = await response.json();
+
+    console.log(`[${clientReference}] Hubtel Status Check response:`, JSON.stringify(data, null, 2));
+
+    if (!response.ok) {
+      console.error(`[${clientReference}] Status check failed:`, data);
+      return { success: false, error: data.Message || 'Status check failed', data };
+    }
+
+    // Check if transaction was successful
+    if (data.ResponseCode === 'success' && data.Data?.transactionStatus === 'success') {
+      console.log(`[${clientReference}] Payment confirmed via status check, processing vote`);
+
+      // Get the pending vote
+      const pendingVote = await PendingVote.findById(pendingVoteId);
+
+      if (!pendingVote) {
+        console.error(`[${clientReference}] Pending vote not found`);
+        return { success: false, error: 'Pending vote not found' };
+      }
+
+      if (pendingVote.status === 'completed') {
+        console.log(`[${clientReference}] Vote already completed`);
+        return { success: true, message: 'Already processed' };
+      }
+
+      // Process the vote
+      const voteData = {
+        awardId: pendingVote.awardId,
+        categoryId: pendingVote.categoryId,
+        nomineeId: pendingVote.nomineeId,
+        voterEmail: pendingVote.email,
+        voterPhone: pendingVote.phone,
+        numberOfVotes: pendingVote.numberOfVotes,
+        amount: pendingVote.amount,
+        paymentReference: clientReference,
+        paymentMethod: data.Data?.Channel || 'mobile_money',
+        paymentStatus: 'completed' as const,
+      };
+
+      await Vote.create(voteData);
+
+      // Update counts
+      await Nominee.findByIdAndUpdate(pendingVote.nomineeId, {
+        $inc: { voteCount: pendingVote.numberOfVotes },
+      });
+      await Category.findByIdAndUpdate(pendingVote.categoryId, {
+        $inc: { voteCount: pendingVote.numberOfVotes },
+      });
+      await Award.findByIdAndUpdate(pendingVote.awardId, {
+        $inc: { totalVotes: pendingVote.numberOfVotes },
+      });
+
+      // Mark as completed
+      pendingVote.status = 'completed';
+      pendingVote.paymentData = data.Data;
+      await pendingVote.save();
+
+      console.log(`[${clientReference}] Vote processed successfully via status check`);
+
+      return { success: true, data };
+    } else if (data.Data?.transactionStatus === 'failed') {
+      console.log(`[${clientReference}] Payment failed according to status check`);
+
+      // Mark as failed
+      await PendingVote.findByIdAndUpdate(pendingVoteId, {
+        status: 'failed',
+        paymentData: data.Data
+      });
+
+      return { success: false, status: 'failed', data };
+    } else {
+      console.log(`[${clientReference}] Payment still pending according to status check`);
+      return { success: false, status: 'pending', data };
+    }
+  } catch (error: any) {
+    console.error(`[${clientReference}] Status check error:`, error);
+    return { success: false, error: error.message };
+  }
+}
+
