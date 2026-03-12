@@ -15,9 +15,9 @@ export default function RejectTransferPage() {
         // Check if user is logged in
         const token = localStorage.getItem("token");
         if (!token) {
-          // Redirect to login with return URL
+          // Redirect to superadmin login with return URL
           const returnUrl = encodeURIComponent(window.location.pathname);
-          router.push(`/login?redirect=${returnUrl}`);
+          router.push(`/superadmin/login?redirect=${returnUrl}`);
           return;
         }
 

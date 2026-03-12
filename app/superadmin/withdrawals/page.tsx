@@ -59,12 +59,25 @@ const WithdrawalsPage = () => {
     const loadingToast = toast.loading(`${action === 'approve' ? 'Approving' : 'Rejecting'} transfer...`);
     
     try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        toast.error("Please login to continue", { id: loadingToast });
+        return;
+      }
+
       const endpoint = action === 'approve' 
         ? `/api/admin/transfers/${transferId}/approve`
         : `/api/admin/transfers/${transferId}/reject`;
         
       const response = await fetch(endpoint, {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        ...(action === 'reject' && {
+          body: JSON.stringify({ reason: 'Rejected by superadmin' })
+        })
       });
 
       if (response.ok) {
