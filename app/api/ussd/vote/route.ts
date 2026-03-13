@@ -1160,7 +1160,7 @@ async function processPayment(
         await PendingVote.findByIdAndUpdate(pendingVote._id, { status: "failed" });
       }
     }, 4000);
-    const finalMessage = `Payment request sent!\n\n${offlineInstructions}\n\nVote: ${truncateName(session.data.nomineeName, 20)}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you!`;
+    const finalMessage = `Payment request sent!\nReference: ${shortRef}\n\nVote: ${truncateName(session.data.nomineeName, 20)}\nAmount: GHS ${session.data.amount.toFixed(2)}\n\nThank you!`;
     
     return {
       message: compressMessage(finalMessage),
