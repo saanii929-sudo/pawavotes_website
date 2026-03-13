@@ -1120,10 +1120,10 @@ async function processPayment(
     session.markModified('data');
     session.isActive = false;
     
-    const offlineInstructions = getOfflineInstructions(
-      provider,
-      session.data.amount,
-    );
+    // const offlineInstructions = getOfflineInstructions(
+    //   provider,
+    //   session.data.amount,
+    // );
     const shortRef = paymentReference.substring(5, 20);
     setTimeout(async () => {
       try {
@@ -1264,19 +1264,19 @@ async function initiateHubtelCharge(
   }
 }
 
-function getOfflineInstructions(provider: string, amount: number): string {
-  const amountStr = `GHS ${amount.toFixed(2)}`;
-  switch (provider) {
-    case "mtn":
-      return `Dial *170# > My Approvals > Approve ${amountStr}`;
-    case "vod":
-      return `Dial *110# > Pending Payments > Approve ${amountStr}`;
-    case "tgo":
-      return `Check phone > Approve ${amountStr}`;
-    default:
-      return `Check phone > Approve ${amountStr}`;
-  }
-}
+// function getOfflineInstructions(provider: string, amount: number): string {
+//   const amountStr = `GHS ${amount.toFixed(2)}`;
+//   switch (provider) {
+//     case "mtn":
+//       return `Dial *170# > My Approvals > Approve ${amountStr}`;
+//     case "vod":
+//       return `Dial *110# > Pending Payments > Approve ${amountStr}`;
+//     case "tgo":
+//       return `Check phone > Approve ${amountStr}`;
+//     default:
+//       return `Check phone > Approve ${amountStr}`;
+//   }
+// }
 
 function checkAwardVotingWindow(award: any, now: Date): boolean {
   if (!award.votingStartDate || !award.votingEndDate) return true;
