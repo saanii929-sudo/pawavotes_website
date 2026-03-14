@@ -105,13 +105,29 @@ async function getNominees(req: NextRequest) {
     }
 
     const nominees = await Nominee.find(query)
-      .populate('categoryId', 'name')
       .sort({ createdAt: -1 })
       .lean();
 
+    // Batch-fetch category names instead of N+1 populate
+    const categoryIds = [...new Set(nominees.map((n: any) => n.categoryId?.toString()).filter(Boolean))];
+    let categoryMap = new Map<string, string>();
+    if (categoryIds.length > 0) {
+      const cats = await Category.find({ _id: { $in: categoryIds } }).select('name').lean();
+      categoryMap = new Map(cats.map((c: any) => [c._id.toString(), c.name]));
+    }
+
+    // Attach category info in the same shape the frontend expects
+    const data = nominees.map((n: any) => ({
+      ...n,
+      categoryId: {
+        _id: n.categoryId?.toString() || '',
+        name: categoryMap.get(n.categoryId?.toString()) || 'Unknown',
+      },
+    }));
+
     return NextResponse.json({
       success: true,
-      data: nominees,
+      data,
     });
   } catch (error: any) {
     return NextResponse.json(

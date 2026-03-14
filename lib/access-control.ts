@@ -9,10 +9,11 @@ export async function hasAwardAccess(
 ): Promise<boolean> {
   try {
     if (userRole === 'organization') {
+      // Use lean + select for minimal overhead
       const award = await Award.findOne({
         _id: awardId,
         organizationId: userId,
-      });
+      }).select('_id').lean();
       return !!award;
     }
 

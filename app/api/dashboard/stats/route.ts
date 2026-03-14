@@ -43,9 +43,12 @@ export async function GET(req: NextRequest) {
 
     // Get award IDs in one query
     const awards = await Award.find(awardFilter).select('_id').lean();
-    const awardIds = awards.map(a => a._id.toString());
+    // ObjectId array for models that use Schema.Types.ObjectId (Vote, Nominee, Payment)
+    const awardObjectIds = awards.map(a => a._id);
+    // String array for models that use String type (Category)
+    const awardStringIds = awards.map(a => a._id.toString());
 
-    if (awardIds.length === 0) {
+    if (awardObjectIds.length === 0) {
       return NextResponse.json({
         success: true,
         data: {
@@ -56,7 +59,11 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const awardIdFilter = { awardId: { $in: awardIds } };
+    // Category uses String awardId; Nominee/Vote/Payment use ObjectId in schema
+    // but their TS interfaces declare awardId as string, so Mongoose typed methods
+    // (.find, .countDocuments) need string[]. Aggregate pipelines are untyped and
+    // work with either, but ObjectIds match the actual stored BSON type.
+    const stringIdFilter = { awardId: { $in: awardStringIds } };
 
     // Run ALL aggregations in parallel — single DB round trip per collection
     const [
@@ -68,31 +75,31 @@ export async function GET(req: NextRequest) {
       recentVotes,
       recentPayments,
     ] = await Promise.all([
-      Category.countDocuments(awardIdFilter),
-      Nominee.countDocuments(awardIdFilter),
+      Category.countDocuments(stringIdFilter),
+      Nominee.countDocuments(stringIdFilter as any),
       // Sum voteCount from nominees (the displayed "total votes")
       Nominee.aggregate([
-        { $match: awardIdFilter },
+        { $match: { awardId: { $in: awardObjectIds } } },
         { $group: { _id: null, total: { $sum: '$voteCount' } } },
       ]),
       // Vote collection stats (count + amount)
       Vote.aggregate([
-        { $match: { ...awardIdFilter, paymentStatus: 'completed' } },
+        { $match: { awardId: { $in: awardObjectIds }, paymentStatus: 'completed' } },
         { $group: { _id: null, count: { $sum: 1 }, amount: { $sum: '$amount' } } },
       ]),
       // Payment collection stats (count + amount)
       Payment.aggregate([
-        { $match: { awardId: { $in: awardIds }, status: 'successful' } },
+        { $match: { awardId: { $in: awardObjectIds }, status: 'successful' } },
         { $group: { _id: null, count: { $sum: 1 }, amount: { $sum: '$amount' } } },
       ]),
       // Recent votes (last 10) for the feed
-      Vote.find({ ...awardIdFilter, paymentStatus: 'completed' })
+      Vote.find({ awardId: { $in: awardStringIds } as any, paymentStatus: 'completed' })
         .sort({ createdAt: -1 })
         .limit(10)
         .select('amount numberOfVotes createdAt')
         .lean(),
       // Recent payments (last 10)
-      Payment.find({ awardId: { $in: awardIds }, status: 'successful' })
+      Payment.find({ awardId: { $in: awardStringIds } as any, status: 'successful' })
         .sort({ createdAt: -1 })
         .limit(10)
         .select('amount createdAt')
@@ -113,7 +120,7 @@ export async function GET(req: NextRequest) {
     const velocityData = await Vote.aggregate([
       {
         $match: {
-          ...awardIdFilter,
+          awardId: { $in: awardObjectIds },
           paymentStatus: 'completed',
           createdAt: { $gte: sevenDaysAgo },
         },
@@ -146,7 +153,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        totalAwards: awardIds.length,
+        totalAwards: awardObjectIds.length,
         totalCategories,
         totalNominees,
         totalVotes,

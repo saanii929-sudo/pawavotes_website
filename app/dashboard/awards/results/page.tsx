@@ -68,10 +68,22 @@ const ManageResultsComplete = () => {
 
   useEffect(() => {
     if (selectedAward) {
-      fetchCategories(selectedAward._id);
-      fetchNominees(selectedAward._id);
+      // Fetch categories and nominees in parallel on award selection
+      Promise.all([
+        fetchCategories(selectedAward._id),
+        fetchNominees(selectedAward._id),
+      ]);
     }
-  }, [selectedAward, selectedCategory, searchQuery]);
+  }, [selectedAward]);
+
+  // Debounce search/filter changes
+  useEffect(() => {
+    if (!selectedAward) return;
+    const timer = setTimeout(() => {
+      fetchNominees(selectedAward._id);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [selectedCategory, searchQuery]);
 
   
   const fetchServiceFee = async () => {
