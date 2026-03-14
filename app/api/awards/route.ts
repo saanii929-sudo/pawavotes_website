@@ -79,7 +79,8 @@ async function getAwards(req: NextRequest) {
       Award.find(query)
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(limit),
+        .limit(limit)
+        .lean(),
       Award.countDocuments(query),
     ]);
 

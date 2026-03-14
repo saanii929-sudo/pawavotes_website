@@ -31,8 +31,12 @@ async function connectDB() {
       bufferCommands: false,
     };
 
-    cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
-      console.log(' MongoDB connected successfully');
+    cached.promise = mongoose.connect(MONGODB_URI, opts).then(async (mongoose) => {
+      // Ensure compound indexes exist for performance
+      try {
+        const { ensureIndexes } = await import('./ensure-indexes');
+        await ensureIndexes();
+      } catch (_) {}
       return mongoose;
     });
   }

@@ -7,16 +7,6 @@ import { verifyToken } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
   try {
-    // Require authentication to list packages
-    const token = req.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 });
-    }
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ success: false, message: 'Invalid token' }, { status: 401 });
-    }
-
     const awardId = req.nextUrl.searchParams.get('awardId');
     const onlyActive = req.nextUrl.searchParams.get('onlyActive') !== 'false';
     

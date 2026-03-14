@@ -85,11 +85,12 @@ const AwardsManagementSystem = () => {
   
   useEffect(() => { 
     if (selectedAward) { 
-      fetchCategories(selectedAward._id); 
-      fetchNominees(selectedAward._id);
+      // Fetch categories and nominees in parallel
+      Promise.all([
+        fetchCategories(selectedAward._id),
+        fetchNominees(selectedAward._id),
+      ]);
       // Check if nomination link was already generated for this award
-      console.log('Selected Award Settings:', selectedAward.settings);
-      console.log('Nomination Link Generated:', selectedAward.settings?.nominationLinkGenerated);
       if (selectedAward.settings?.nominationLinkGenerated) {
         const baseUrl = window.location.origin;
         const link = `${baseUrl}/nominate/${selectedAward._id}`;
@@ -136,8 +137,6 @@ const AwardsManagementSystem = () => {
       });
       if (response.ok) { 
         const data = await response.json(); 
-        console.log('Fetched awards:', data.data);
-        console.log('First award settings:', data.data[0]?.settings);
         setAwards(data.data); 
       } else { 
         toast.error("Failed to fetch awards"); 

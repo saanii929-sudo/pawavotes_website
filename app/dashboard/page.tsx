@@ -38,117 +38,36 @@ const DashboardOverview = () => {
     try {
       const token = localStorage.getItem("token");
       
-      // Fetch awards
-      const awardsResponse = await fetch("/api/awards", {
+      const res = await fetch("/api/dashboard/stats", {
         headers: { Authorization: `Bearer ${token}` },
       });
       
-      let totalAwards = 0;
-      let totalCategories = 0;
-      let totalNominees = 0;
-      let totalVotes = 0;
-      let allPayments: any[] = [];
-      let allVotingPayments: any[] = [];
+      if (!res.ok) throw new Error('Failed to fetch stats');
       
-      if (awardsResponse.ok) {
-        const awardsData = await awardsResponse.json();
-        const awards = awardsData.data || [];
-        totalAwards = awards.length;
-        
-        // Fetch data for ALL awards in parallel instead of sequentially
-        const results = await Promise.all(
-          awards.map(async (award: any) => {
-            const headers = { Authorization: `Bearer ${token}` };
-            
-            // Fire all 4 requests for this award simultaneously
-            const [categoriesRes, nomineesRes, paymentsRes, votesRes] = await Promise.all([
-              fetch(`/api/categories?awardId=${award._id}`, { headers }),
-              fetch(`/api/nominees?awardId=${award._id}`, { headers }),
-              fetch(`/api/payments?awardId=${award._id}`),
-              fetch(`/api/votes?awardId=${award._id}`, { headers }),
-            ]);
-            
-            const [categoriesData, nomineesData, paymentsData, votesData] = await Promise.all([
-              categoriesRes.ok ? categoriesRes.json() : { data: [] },
-              nomineesRes.ok ? nomineesRes.json() : { data: [] },
-              paymentsRes.ok ? paymentsRes.json() : { data: [] },
-              votesRes.ok ? votesRes.json() : { data: [] },
-            ]);
-            
-            const nominees = nomineesData.data || [];
-            return {
-              categories: (categoriesData.data || []).length,
-              nominees: nominees.length,
-              votes: nominees.reduce((sum: number, n: any) => sum + (n.voteCount || 0), 0),
-              payments: paymentsData.data || [],
-              votingPayments: votesData.data || [],
-            };
-          })
-        );
-        
-        // Aggregate results
-        for (const result of results) {
-          totalCategories += result.categories;
-          totalNominees += result.nominees;
-          totalVotes += result.votes;
-          allPayments = [...allPayments, ...result.payments];
-          allVotingPayments = [...allVotingPayments, ...result.votingPayments];
-        }
-      }
-      
-      // Calculate total amount from both nomination and voting payments
-      const nominationAmount = allPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
-      const votingAmount = allVotingPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
-      const totalAmount = nominationAmount + votingAmount;
-
-      // Combine all payments for velocity calculation
-      const combinedPayments = [
-        ...allPayments.map(p => ({ ...p, type: 'nomination' })),
-        ...allVotingPayments.map(p => ({ ...p, type: 'voting', voteCount: p.numberOfVotes }))
-      ];
-      
-      // Calculate voting velocity (last 7 days)
-      const velocity = calculateVotingVelocity(combinedPayments);
-      setVotingVelocity(velocity);
+      const { data } = await res.json();
       
       setStats({
-        totalAwards,
-        totalPayments: allPayments.length + allVotingPayments.length,
-        totalAmount,
-        totalVotes,
-        totalNominees,
-        totalCategories,
-        recentPayments: combinedPayments.slice(0, 10),
+        totalAwards: data.totalAwards,
+        totalPayments: data.totalPayments,
+        totalAmount: data.totalAmount,
+        totalVotes: data.totalVotes,
+        totalNominees: data.totalNominees,
+        totalCategories: data.totalCategories,
+        recentPayments: data.recentPayments,
       });
+      
+      // Convert velocity data to chart format
+      setVotingVelocity(
+        (data.votingVelocity || []).map((d: any, i: number) => ({
+          day: i,
+          votes: d.votes,
+        }))
+      );
     } catch (error) {
-      console.error("Failed to fetch dashboard stats:", error);
       toast.error("Failed to load dashboard statistics");
     } finally {
       setLoading(false);
     }
-  };
-
-  const calculateVotingVelocity = (payments: any[]) => {
-    const last7Days = Array.from({ length: 7 }, (_, i) => {
-      const date = new Date();
-      date.setDate(date.getDate() - (6 - i));
-      date.setHours(0, 0, 0, 0);
-      return date;
-    });
-    
-    return last7Days.map((date, index) => {
-      const nextDay = new Date(date);
-      nextDay.setDate(nextDay.getDate() + 1);
-      
-      const dayVotes = payments
-        .filter(p => {
-          const paymentDate = new Date(p.createdAt);
-          return paymentDate >= date && paymentDate < nextDay;
-        })
-        .reduce((sum, p) => sum + (p.voteCount || 0), 0);
-      
-      return { day: index, votes: dayVotes };
-    });
   };
 
   // Chart rendering logic
