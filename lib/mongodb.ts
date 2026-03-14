@@ -31,12 +31,9 @@ async function connectDB() {
       bufferCommands: false,
     };
 
-    cached.promise = mongoose.connect(MONGODB_URI, opts).then(async (mongoose) => {
-      // Ensure compound indexes exist for performance
-      try {
-        const { ensureIndexes } = await import('./ensure-indexes');
-        await ensureIndexes();
-      } catch (_) {}
+    cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
+      // Ensure compound indexes exist for performance (non-blocking)
+      import('./ensure-indexes').then(m => m.ensureIndexes()).catch(() => {});
       return mongoose;
     });
   }

@@ -65,18 +65,29 @@ async function getNominees(req: NextRequest) {
     const query: any = {};
 
     if (awardId) {
-      const hasAccess = await hasAwardAccess(
-        user.id,
-        user.role,
-        awardId,
-        user.assignedAwards
-      );
-
-      if (!hasAccess) {
-        return NextResponse.json(
-          { error: 'You do not have access to this award' },
-          { status: 403 }
+      // For organization role, filter by organizationId directly instead of
+      // doing a separate Award.findOne lookup — saves a DB round trip
+      if (user.role === 'organization') {
+        const awardExists = await Award.exists({ _id: awardId, organizationId: user.id });
+        if (!awardExists) {
+          return NextResponse.json(
+            { error: 'You do not have access to this award' },
+            { status: 403 }
+          );
+        }
+      } else {
+        const hasAccess = await hasAwardAccess(
+          user.id,
+          user.role,
+          awardId,
+          user.assignedAwards
         );
+        if (!hasAccess) {
+          return NextResponse.json(
+            { error: 'You do not have access to this award' },
+            { status: 403 }
+          );
+        }
       }
 
       query.awardId = awardId;
@@ -104,9 +115,13 @@ async function getNominees(req: NextRequest) {
       query.name = { $regex: search, $options: 'i' };
     }
 
-    const nominees = await Nominee.find(query)
+    // Run nominee query and category batch-fetch in parallel
+    const nomineesPromise = Nominee.find(query)
+      .select('name nomineeCode awardId categoryId image bio email phone status nominationStatus nominationType voteCount createdAt')
       .sort({ createdAt: -1 })
       .lean();
+
+    const nominees = await nomineesPromise;
 
     // Batch-fetch category names instead of N+1 populate
     const categoryIds = [...new Set(nominees.map((n: any) => n.categoryId?.toString()).filter(Boolean))];

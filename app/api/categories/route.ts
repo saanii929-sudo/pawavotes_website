@@ -17,18 +17,28 @@ async function getCategories(req: NextRequest) {
 
     let query: any = {};
     if (awardId) {
-      const hasAccess = await hasAwardAccess(
-        user.id,
-        user.role,
-        awardId,
-        user.assignedAwards
-      );
-
-      if (!hasAccess) {
-        return NextResponse.json(
-          { error: 'You do not have access to this award' },
-          { status: 403 }
+      // For organization role, filter directly instead of separate lookup
+      if (user.role === 'organization') {
+        const awardExists = await Award.exists({ _id: awardId, organizationId: user.id });
+        if (!awardExists) {
+          return NextResponse.json(
+            { error: 'You do not have access to this award' },
+            { status: 403 }
+          );
+        }
+      } else {
+        const hasAccess = await hasAwardAccess(
+          user.id,
+          user.role,
+          awardId,
+          user.assignedAwards
         );
+        if (!hasAccess) {
+          return NextResponse.json(
+            { error: 'You do not have access to this award' },
+            { status: 403 }
+          );
+        }
       }
 
       query.awardId = awardId;
