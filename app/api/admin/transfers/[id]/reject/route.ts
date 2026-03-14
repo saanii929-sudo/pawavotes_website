@@ -56,16 +56,6 @@ export async function POST(
     transfer.rejectionReason = reason;
     await transfer.save();
 
-    console.log('Transfer rejected:', {
-      transferId,
-      referenceId: transfer.referenceId,
-      amount: transfer.amount,
-      rejectedBy: decoded.email,
-      reason,
-    });
-
-    // TODO: Send rejection email to organizer
-
     return NextResponse.json({
       success: true,
       message: 'Transfer rejected successfully',
@@ -74,7 +64,7 @@ export async function POST(
   } catch (error: any) {
     console.error('Transfer rejection error:', error);
     return NextResponse.json(
-      { error: 'Failed to reject transfer', details: error.message },
+      { error: 'Failed to reject transfer', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

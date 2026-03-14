@@ -8,14 +8,14 @@ export interface JWTPayload {
 }
 
 export const generateToken = (payload: JWTPayload, expiresIn: string | number = '7d'): string => {
-  const secret = process.env.JWT_SECRET || 'your-secret-key';
+  const secret = process.env.JWT_SECRET!;
   return jwt.sign(payload, secret, {
     expiresIn,
   } as jwt.SignOptions);
 };
 
 export const verifyToken = (token: string): JWTPayload => {
-  const secret = process.env.JWT_SECRET || 'your-secret-key';
+  const secret = process.env.JWT_SECRET!;
   return jwt.verify(token, secret) as JWTPayload;
 };
 

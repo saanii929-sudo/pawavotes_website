@@ -39,13 +39,6 @@ export async function GET(
         { status: 400 }
       );
     }
-
-    console.log('Checking transfer status with Hubtel:', {
-      transferId,
-      referenceId: transfer.referenceId,
-    });
-
-    // Call Hubtel Status Check API
     const statusResponse = await checkHubtelTransferStatus(transfer.referenceId);
 
     if (!statusResponse.success) {
@@ -57,10 +50,6 @@ export async function GET(
     }
 
     const statusData = statusResponse.data;
-    
-    console.log('Hubtel status check response:', statusData);
-
-    // Update transfer based on status
     if (statusData.transactionStatus === 'success') {
       transfer.status = 'completed';
       transfer.hubtelData = {
@@ -92,7 +81,6 @@ export async function GET(
         data: transfer,
       });
     } else {
-      // Still pending
       return NextResponse.json({
         success: true,
         message: 'Transfer is still being processed',
@@ -106,13 +94,12 @@ export async function GET(
   } catch (error: any) {
     console.error('Transfer status check error:', error);
     return NextResponse.json(
-      { error: 'Failed to check transfer status', details: error.message },
+      { error: 'Failed to check transfer status', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }
 }
 
-// Helper function to check Hubtel transfer status
 async function checkHubtelTransferStatus(clientReference: string) {
   try {
     const hubtelApiId = process.env.HUBTEL_API_ID;
@@ -128,8 +115,6 @@ async function checkHubtelTransferStatus(clientReference: string) {
     const base64Auth = Buffer.from(authString).toString('base64');
 
     const url = `https://smrsc.hubtel.com/api/merchants/${hubtelPrepaidDepositId}/transactions/status?clientReference=${clientReference}`;
-    
-    console.log('Calling Hubtel Status Check API:', url);
 
     const response = await fetch(url, {
       method: 'GET',
@@ -140,7 +125,6 @@ async function checkHubtelTransferStatus(clientReference: string) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Hubtel status check failed:', response.status, errorText);
       
       if (response.status === 403) {
         return { 
@@ -156,7 +140,6 @@ async function checkHubtelTransferStatus(clientReference: string) {
     }
 
     const responseText = await response.text();
-    console.log('Hubtel status check raw response:', responseText);
 
     let data;
     try {

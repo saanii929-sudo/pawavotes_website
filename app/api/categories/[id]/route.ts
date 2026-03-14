@@ -5,7 +5,6 @@ import Award from '@/models/Award';
 import { withAuth } from '@/middleware/auth';
 import { hasAwardAccess } from '@/lib/access-control';
 
-// GET single category
 async function getCategory(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -24,8 +23,6 @@ async function getCategory(
         { status: 404 }
       );
     }
-
-    // Check if user has access to this category's award
     const hasAccess = await hasAwardAccess(
       user.id,
       user.role,
@@ -47,13 +44,12 @@ async function getCategory(
   } catch (error: any) {
     console.error('Get category error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch category', details: error.message },
+      { error: 'Failed to fetch category', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }
 }
 
-// PUT update category
 async function updateCategory(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -65,7 +61,6 @@ async function updateCategory(
     const body = await req.json();
     const { id } = await params;
 
-    // First, find the category to check access
     const existingCategory = await Category.findById(id);
 
     if (!existingCategory) {
@@ -75,7 +70,6 @@ async function updateCategory(
       );
     }
 
-    // Check if user has access to this category's award
     const hasAccess = await hasAwardAccess(
       user.id,
       user.role,
@@ -90,7 +84,6 @@ async function updateCategory(
       );
     }
 
-    // Update the category
     const category = await Category.findByIdAndUpdate(
       id,
       body,
@@ -105,13 +98,12 @@ async function updateCategory(
   } catch (error: any) {
     console.error('Update category error:', error);
     return NextResponse.json(
-      { error: 'Failed to update category', details: error.message },
+      { error: 'Failed to update category', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }
 }
 
-// DELETE category
 async function deleteCategory(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -121,8 +113,6 @@ async function deleteCategory(
 
     const user = (req as any).user;
     const { id } = await params;
-    
-    // First, find the category to check access
     const category = await Category.findById(id);
 
     if (!category) {
@@ -131,8 +121,6 @@ async function deleteCategory(
         { status: 404 }
       );
     }
-
-    // Check if user has access to this category's award
     const hasAccess = await hasAwardAccess(
       user.id,
       user.role,
@@ -146,11 +134,7 @@ async function deleteCategory(
         { status: 403 }
       );
     }
-
-    // Delete the category
     await Category.findByIdAndDelete(id);
-
-    // Update award categories count
     await Award.findByIdAndUpdate(category.awardId, {
       $inc: { categories: -1 },
     });
@@ -162,7 +146,7 @@ async function deleteCategory(
   } catch (error: any) {
     console.error('Delete category error:', error);
     return NextResponse.json(
-      { error: 'Failed to delete category', details: error.message },
+      { error: 'Failed to delete category', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

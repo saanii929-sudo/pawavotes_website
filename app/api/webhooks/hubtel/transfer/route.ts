@@ -7,13 +7,11 @@ export async function POST(req: NextRequest) {
     await connectDB();
 
     const body = await req.json();
-    
-    console.log('Hubtel transfer callback received:', JSON.stringify(body, null, 2));
 
     const { ResponseCode, Data } = body;
 
     if (!Data || !Data.ClientReference) {
-      console.error('Invalid callback payload:', body);
+      console.error('Invalid callback payload');
       return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
     }
 
@@ -27,10 +25,6 @@ export async function POST(req: NextRequest) {
       Charges,
       RecipientName,
     } = Data;
-
-    console.log(`Hubtel transfer callback - Reference: ${ClientReference}, ResponseCode: ${ResponseCode}`);
-
-    // Find transfer by reference
     const transfer = await Transfer.findOne({ referenceId: ClientReference });
 
     if (!transfer) {
@@ -38,22 +32,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Transfer not found' }, { status: 404 });
     }
 
-    // Update transfer with callback data
     transfer.hubtelData = body;
 
     if (ResponseCode === '0000') {
       // Successful transfer
       transfer.status = 'completed';
       transfer.notes = `${transfer.notes || ''}\nCompleted: ${Description}`.trim();
-      
-      console.log(`Transfer completed successfully:`, {
-        reference: ClientReference,
-        transactionId: TransactionId,
-        externalTransactionId: ExternalTransactionId,
-        amount: Amount,
-        charges: Charges,
-        recipient: RecipientName,
-      });
+    
 
       await transfer.save();
 
@@ -68,15 +53,9 @@ export async function POST(req: NextRequest) {
       transfer.status = 'failed';
       transfer.notes = `${transfer.notes || ''}\nFailed: ${Description}`.trim();
       
-      console.error(`Transfer failed:`, {
-        reference: ClientReference,
-        responseCode: ResponseCode,
-        description: Description,
-      });
+      console.error('Transfer failed:', { reference: ClientReference, responseCode: ResponseCode });
 
       await transfer.save();
-
-      // TODO: Send failure email to organizer and admin
       
       return NextResponse.json({ 
         message: 'Transfer failed',
@@ -84,9 +63,9 @@ export async function POST(req: NextRequest) {
       });
     }
   } catch (error: any) {
-    console.error('Hubtel transfer callback error:', error);
+    console.error('Hubtel transfer callback error');
     return NextResponse.json(
-      { error: 'Callback processing failed', details: error.message },
+      { error: 'Callback processing failed', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

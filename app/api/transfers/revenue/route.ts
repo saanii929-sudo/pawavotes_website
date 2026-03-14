@@ -103,7 +103,7 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     console.error('Get revenue info error:', error);
     return NextResponse.json(
-      { success: false, message: 'Failed to fetch revenue info', details: error.message },
+      { success: false, message: 'Failed to fetch revenue info', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

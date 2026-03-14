@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Failed to create campaign', details: error.message },
+      { error: 'Failed to create campaign', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }
@@ -107,7 +107,7 @@ export async function GET(req: NextRequest) {
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Failed to fetch campaigns', details: error.message },
+      { error: 'Failed to fetch campaigns', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

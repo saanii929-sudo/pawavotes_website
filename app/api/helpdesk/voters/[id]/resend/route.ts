@@ -5,7 +5,7 @@ import Election from '@/models/Election';
 import jwt from 'jsonwebtoken';
 import nodemailer from 'nodemailer';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET!;
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,

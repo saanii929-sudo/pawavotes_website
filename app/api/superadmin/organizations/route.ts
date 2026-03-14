@@ -3,6 +3,7 @@ import connectDB from "@/lib/mongodb";
 import Organization from "@/models/Organization";
 import { hashPassword } from "@/lib/auth";
 import { withAuth } from "@/middleware/auth";
+import { sanitizeSearch } from "@/lib/security";
 
 async function getOrganizations(req: NextRequest) {
   try {
@@ -11,7 +12,7 @@ async function getOrganizations(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
-    const search = searchParams.get("search") || "";
+    const search = sanitizeSearch(searchParams.get("search"));
     const status = searchParams.get("status") || "";
 
     const query: any = {};
@@ -50,7 +51,7 @@ async function getOrganizations(req: NextRequest) {
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: "Failed to fetch organizations", details: error.message },
+      { error: "Failed to fetch organizations", details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 },
     );
   }
@@ -229,7 +230,7 @@ async function createOrganization(req: NextRequest) {
     );
   } catch (error: any) {
     return NextResponse.json(
-      { error: "Failed to create organization", details: error.message },
+      { error: "Failed to create organization", details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 },
     );
   }

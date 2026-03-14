@@ -39,21 +39,17 @@ export async function POST(
         { status: 400 }
       );
     }
-
-    // Mark as approved first
     transfer.status = 'approved';
     transfer.approvedBy = decoded.email || decoded.id;
     transfer.approvedAt = new Date();
     await transfer.save();
 
-    console.log('Transfer approved, initiating Hubtel Send Money:', {
+     console.log('Transfer approved, initiating Hubtel Send Money:', {
       transferId,
       referenceId: transfer.referenceId,
       amount: transfer.amount,
       approvedBy: decoded.email,
     });
-
-    // Call Hubtel Send Money API for mobile money transfers
     if (transfer.transferType === 'mobile_money') {
       try {
         const hubtelResponse = await initiateHubtelSendMoney(transfer);
@@ -67,16 +63,11 @@ export async function POST(
             transferId,
             transactionId: hubtelResponse.data?.TransactionId,
           });
-
-          // Schedule status check after 5 minutes if callback not received
           setTimeout(async () => {
             try {
               const updatedTransfer = await Transfer.findById(transferId);
-              
-              // Only check if still in 'completed' status (which means callback not received)
-              // 'completed' here means API accepted (0001), but final status pending
               if (updatedTransfer && updatedTransfer.status === 'completed') {
-                console.log(`[${transfer.referenceId}] No callback received after 5 minutes, checking status`);
+                 // console.log(`[${transfer.referenceId}] No callback received after 5 minutes, checking status`);
                 
                 const statusResponse = await checkTransferStatus(transfer.referenceId);
                 
@@ -91,7 +82,7 @@ export async function POST(
                     };
                     updatedTransfer.notes = `${updatedTransfer.notes || ''}\nCompleted via status check (callback not received)`.trim();
                     await updatedTransfer.save();
-                    console.log(`[${transfer.referenceId}] Transfer completed via status check`);
+                     // console.log(`[${transfer.referenceId}] Transfer completed via status check`);
                   } else if (statusData.transactionStatus === 'failed') {
                     updatedTransfer.status = 'failed';
                     updatedTransfer.hubtelData = {
@@ -100,9 +91,9 @@ export async function POST(
                     };
                     updatedTransfer.notes = `${updatedTransfer.notes || ''}\nFailed (verified via status check)`.trim();
                     await updatedTransfer.save();
-                    console.log(`[${transfer.referenceId}] Transfer failed (verified via status check)`);
+                     // console.log(`[${transfer.referenceId}] Transfer failed (verified via status check)`);
                   } else {
-                    console.log(`[${transfer.referenceId}] Transfer still pending after status check`);
+                     // console.log(`[${transfer.referenceId}] Transfer still pending after status check`);
                   }
                 }
               }
@@ -136,12 +127,11 @@ export async function POST(
         return NextResponse.json({
           success: false,
           error: 'Failed to process transfer',
-          details: error.message,
+          details: process.env.NODE_ENV === 'development' ? error.message : undefined,
           data: transfer,
         }, { status: 500 });
       }
     } else if (transfer.transferType === 'bank') {
-      // Bank transfers - Call Hubtel Send-To-Bank API
       try {
         const hubtelResponse = await initiateHubtelSendToBank(transfer);
 
@@ -150,18 +140,16 @@ export async function POST(
           transfer.hubtelData = hubtelResponse.data;
           await transfer.save();
 
-          console.log('Hubtel Send-To-Bank initiated successfully:', {
+           console.log('Hubtel Send-To-Bank initiated successfully:', {
             transferId,
             transactionId: hubtelResponse.data?.TransactionId,
           });
-
-          // Schedule status check after 5 minutes if callback not received
           setTimeout(async () => {
             try {
               const updatedTransfer = await Transfer.findById(transferId);
               
               if (updatedTransfer && updatedTransfer.status === 'completed') {
-                console.log(`[${transfer.referenceId}] No callback received after 5 minutes, checking status`);
+                // console.log(`[${transfer.referenceId}] No callback received after 5 minutes, checking status`);
                 
                 const statusResponse = await checkTransferStatus(transfer.referenceId);
                 
@@ -176,7 +164,7 @@ export async function POST(
                     };
                     updatedTransfer.notes = `${updatedTransfer.notes || ''}\nCompleted via status check (callback not received)`.trim();
                     await updatedTransfer.save();
-                    console.log(`[${transfer.referenceId}] Bank transfer completed via status check`);
+                     // console.log(`[${transfer.referenceId}] Bank transfer completed via status check`);
                   } else if (statusData.transactionStatus === 'failed') {
                     updatedTransfer.status = 'failed';
                     updatedTransfer.hubtelData = {
@@ -185,14 +173,14 @@ export async function POST(
                     };
                     updatedTransfer.notes = `${updatedTransfer.notes || ''}\nFailed (verified via status check)`.trim();
                     await updatedTransfer.save();
-                    console.log(`[${transfer.referenceId}] Bank transfer failed (verified via status check)`);
+                     // console.log(`[${transfer.referenceId}] Bank transfer failed (verified via status check)`);
                   }
                 }
               }
             } catch (statusError) {
               console.error(`[${transfer.referenceId}] Error in scheduled status check:`, statusError);
             }
-          }, 5 * 60 * 1000); // 5 minutes
+          }, 5 * 60 * 1000);
 
           return NextResponse.json({
             success: true,
@@ -219,7 +207,7 @@ export async function POST(
         return NextResponse.json({
           success: false,
           error: 'Failed to process bank transfer',
-          details: error.message,
+          details: process.env.NODE_ENV === 'development' ? error.message : undefined,
           data: transfer,
         }, { status: 500 });
       }
@@ -233,13 +221,12 @@ export async function POST(
   } catch (error: any) {
     console.error('Transfer approval error:', error);
     return NextResponse.json(
-      { error: 'Failed to approve transfer', details: error.message },
+      { error: 'Failed to approve transfer', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }
 }
 
-// Bank codes mapping for Hubtel Send-To-Bank API
 const BANK_CODES: { [key: string]: string } = {
   'STANDARD CHARTERED BANK': '300302',
   'ABSA BANK': '300303',
@@ -277,13 +264,11 @@ const BANK_CODES: { [key: string]: string } = {
   'GHL BANK': '300362',
 };
 
-// Helper function to get bank code
 function getBankCode(bankName: string): string | null {
   const normalized = bankName.toUpperCase().trim();
   return BANK_CODES[normalized] || null;
 }
 
-// Helper function to initiate Hubtel Send Money
 async function initiateHubtelSendMoney(transfer: any) {
   try {
     const hubtelApiId = process.env.HUBTEL_API_ID;
@@ -295,8 +280,6 @@ async function initiateHubtelSendMoney(transfer: any) {
       console.error('Hubtel credentials not configured');
       return { success: false, error: 'Hubtel credentials not configured' };
     }
-
-    // Format phone number to international format (233XXXXXXXXX)
     let formattedPhone = transfer.recipientPhoneNumber.replace(/[\s\-+]/g, '');
     if (formattedPhone.startsWith('0')) {
       formattedPhone = '233' + formattedPhone.substring(1);
@@ -304,7 +287,6 @@ async function initiateHubtelSendMoney(transfer: any) {
       formattedPhone = '233' + formattedPhone;
     }
 
-    // Extract network from notes (format: "Network: mtn")
     let channel = 'mtn-gh'; // default
     if (transfer.notes && transfer.notes.includes('Network:')) {
       const network = transfer.notes.split('Network:')[1].trim().toLowerCase();
@@ -318,7 +300,7 @@ async function initiateHubtelSendMoney(transfer: any) {
       channel = channelMap[network] || 'mtn-gh';
     }
 
-    console.log('Hubtel Send Money request:', {
+     console.log('Hubtel Send Money request:', {
       recipientName: transfer.recipientName,
       recipientPhone: formattedPhone,
       channel,
@@ -353,9 +335,7 @@ async function initiateHubtelSendMoney(transfer: any) {
     );
 
     const responseText = await response.text();
-    console.log('Hubtel Send Money raw response:', responseText);
-
-    // Check if response is HTML (403 Forbidden page)
+    // console.log('Hubtel Send Money raw response:', responseText);
     if (responseText.trim().startsWith('<')) {
       console.error('Hubtel returned HTML (likely 403 Forbidden - IP not whitelisted)');
       return { 
@@ -376,7 +356,7 @@ async function initiateHubtelSendMoney(transfer: any) {
       };
     }
 
-    console.log('Hubtel Send Money parsed response:', data);
+     // console.log('Hubtel Send Money parsed response:', data);
 
     if (!response.ok) {
       return { 
@@ -385,9 +365,6 @@ async function initiateHubtelSendMoney(transfer: any) {
         data 
       };
     }
-
-    // ResponseCode "0001" means accepted, awaiting callback
-    // ResponseCode "0000" means immediate success (rare)
     if (data.ResponseCode === '0001' || data.ResponseCode === '0000') {
       return { success: true, data: data.Data };
     } else {
@@ -402,8 +379,6 @@ async function initiateHubtelSendMoney(transfer: any) {
     return { success: false, error: error.message };
   }
 }
-
-// Helper function to initiate Hubtel Send-To-Bank
 async function initiateHubtelSendToBank(transfer: any) {
   try {
     const hubtelApiId = process.env.HUBTEL_API_ID;
@@ -419,8 +394,6 @@ async function initiateHubtelSendToBank(transfer: any) {
     if (!transfer.recipientBank || !transfer.recipientAccountNumber) {
       return { success: false, error: 'Bank name and account number are required' };
     }
-
-    // Get bank code from bank name
     const bankCode = getBankCode(transfer.recipientBank);
     if (!bankCode) {
       return { 
@@ -429,7 +402,7 @@ async function initiateHubtelSendToBank(transfer: any) {
       };
     }
 
-    console.log('Hubtel Send-To-Bank request:', {
+   console.log('Hubtel Send-To-Bank request:', {
       recipientName: transfer.recipientName,
       bankName: transfer.recipientBank,
       bankCode,
@@ -467,9 +440,7 @@ async function initiateHubtelSendToBank(transfer: any) {
     );
 
     const responseText = await response.text();
-    console.log('Hubtel Send-To-Bank raw response:', responseText);
-
-    // Check if response is HTML (403 Forbidden page)
+     // console.log('Hubtel Send-To-Bank raw response:', responseText);
     if (responseText.trim().startsWith('<')) {
       console.error('Hubtel returned HTML (likely 403 Forbidden - IP not whitelisted)');
       return { 
@@ -490,7 +461,7 @@ async function initiateHubtelSendToBank(transfer: any) {
       };
     }
 
-    console.log('Hubtel Send-To-Bank parsed response:', data);
+     // console.log('Hubtel Send-To-Bank parsed response:', data);
 
     if (!response.ok) {
       return { 
@@ -499,9 +470,6 @@ async function initiateHubtelSendToBank(transfer: any) {
         data 
       };
     }
-
-    // ResponseCode "0001" means accepted, awaiting callback
-    // ResponseCode "0000" means immediate success (rare)
     if (data.ResponseCode === '0001' || data.ResponseCode === '0000') {
       return { success: true, data: data.Data };
     } else {
@@ -517,7 +485,6 @@ async function initiateHubtelSendToBank(transfer: any) {
   }
 }
 
-// Helper function to check transfer status (used by scheduled check)
 async function checkTransferStatus(clientReference: string) {
   try {
     const hubtelApiId = process.env.HUBTEL_API_ID;

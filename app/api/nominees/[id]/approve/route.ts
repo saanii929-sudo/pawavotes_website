@@ -5,10 +5,7 @@ import Award from '@/models/Award';
 import { withAuth } from '@/middleware/auth';
 import { sendNomineeApprovalEmail } from '@/lib/email';
 
-// Generate award code from name (e.g., "Ghana Music Awards" -> "GMA")
-// Numbers in the name are excluded (e.g., "Ghana Music Awards 2024" -> "GMA")
 function generateAwardCode(name: string): string {
-  // Split by spaces and filter out words that are purely numeric
   const words = name.trim().split(/\s+/).filter(word => !/^\d+$/.test(word));
   const code = words.map(word => word.charAt(0).toUpperCase()).join('');
   return code;
@@ -25,16 +22,12 @@ async function generateNomineeCode(awardId: string): Promise<string> {
     await Award.findByIdAndUpdate(awardId, { code: newCode }, { runValidators: false });
     award.code = newCode;
   }
-
-  // Get all nominees with codes for this award
   const nominees = await Nominee.find({
     awardId,
     nomineeCode: { $exists: true, $ne: null },
   }).select('nomineeCode');
 
   let maxNumber = 0;
-
-  // Extract all numbers and find the maximum
   nominees.forEach(nominee => {
     if (nominee.nomineeCode) {
       const match = nominee.nomineeCode.match(/\d+$/);
@@ -80,7 +73,6 @@ async function approveNominee(req: NextRequest, { params }: { params: Promise<{ 
     
     // Send approval email
     if (nominee.email) {
-      console.log('Attempting to send approval email to:', nominee.email);
       const emailSent = await sendNomineeApprovalEmail(
         nominee.email,
         nominee.name,
@@ -89,12 +81,10 @@ async function approveNominee(req: NextRequest, { params }: { params: Promise<{ 
       );
       
       if (emailSent) {
-        console.log('Approval email sent successfully to:', nominee.email);
       } else {
         console.error('Failed to send approval email to:', nominee.email);
       }
     } else {
-      console.log('No email address found for nominee:', nominee.name);
     }
 
     return NextResponse.json({
@@ -104,7 +94,7 @@ async function approveNominee(req: NextRequest, { params }: { params: Promise<{ 
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Failed to approve nominee', details: error.message },
+      { error: 'Failed to approve nominee', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

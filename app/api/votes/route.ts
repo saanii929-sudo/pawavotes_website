@@ -74,25 +74,40 @@ export async function GET(req: NextRequest) {
     const votes = await Vote.find(query)
       .sort({ createdAt: -1 })
       .lean();
+
     const Nominee = (await import('@/models/Nominee')).default;
     const Category = (await import('@/models/Category')).default;
     const Stage = (await import('@/models/Stage')).default;
 
-    const votesWithDetails = await Promise.all(
-      votes.map(async (vote) => {
-        const nominee = await Nominee.findById(vote.nomineeId).select('name image').lean();
-        const category = await Category.findById(vote.categoryId).select('name').lean();
-        const stage = vote.stageId ? await Stage.findById(vote.stageId).select('name order').lean() : null;
-        
-        return {
-          ...vote,
-          bulkPackageId: vote.bulkPackageId || null,
-          nominee,
-          category,
-          stage,
-        };
-      })
-    );
+    // Batch-fetch all related documents instead of N+1 individual queries
+    const nomineeIds = [...new Set(votes.map(v => v.nomineeId?.toString()).filter((id): id is string => !!id))];
+    const categoryIds = [...new Set(votes.map(v => v.categoryId?.toString()).filter((id): id is string => !!id))];
+    const stageIds = [...new Set(votes.map(v => v.stageId?.toString()).filter((id): id is string => !!id))];
+
+    const [nominees, categories, stages] = await Promise.all([
+      nomineeIds.length > 0
+        ? Nominee.find({ _id: { $in: nomineeIds } }).select('name image').lean()
+        : [],
+      categoryIds.length > 0
+        ? Category.find({ _id: { $in: categoryIds } }).select('name').lean()
+        : [],
+      stageIds.length > 0
+        ? Stage.find({ _id: { $in: stageIds } }).select('name order').lean()
+        : [],
+    ]);
+
+    // Build lookup maps for O(1) access
+    const nomineeMap = new Map(nominees.map((n: any) => [n._id.toString(), n]));
+    const categoryMap = new Map(categories.map((c: any) => [c._id.toString(), c]));
+    const stageMap = new Map(stages.map((s: any) => [s._id.toString(), s]));
+
+    const votesWithDetails = votes.map((vote) => ({
+      ...vote,
+      bulkPackageId: vote.bulkPackageId || null,
+      nominee: nomineeMap.get(vote.nomineeId?.toString()) || null,
+      category: categoryMap.get(vote.categoryId?.toString()) || null,
+      stage: vote.stageId ? stageMap.get(vote.stageId?.toString()) || null : null,
+    }));
 
     return NextResponse.json({
       success: true,
@@ -100,7 +115,7 @@ export async function GET(req: NextRequest) {
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Failed to fetch votes', details: error.message },
+      { error: 'Failed to fetch votes', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

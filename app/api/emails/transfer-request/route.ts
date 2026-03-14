@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('Email sending error:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to send email', details: error.message },
+      { success: false, error: 'Failed to send email', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

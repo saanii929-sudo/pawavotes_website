@@ -1,6 +1,4 @@
-/**
- * API Client utility for making authenticated requests
- */
+
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
@@ -65,12 +63,10 @@ export class ApiClient {
 
       return data;
     } catch (error: any) {
-      console.error('API request failed:', error);
       throw error;
     }
   }
 
-  // Auth endpoints
   static async login(email: string, password: string, userType: string) {
     return this.request('/api/auth/login', {
       method: 'POST',

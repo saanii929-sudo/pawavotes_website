@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     }, { status: 201 });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Failed to create superadmin', details: error.message },
+      { error: 'Failed to create superadmin', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

@@ -51,13 +51,12 @@ export async function POST(req: NextRequest) {
     } else if (ClientReference.startsWith("NOM")) {
       await processNominationPayment(ClientReference, Amount, CustomerPhoneNumber, PaymentDetails, Data);
     } else {
-      console.error(`Unknown reference format: ${ClientReference}`);
       return NextResponse.json({ error: "Unknown reference format" }, { status: 400 });
     }
 
     return NextResponse.json({ message: "Webhook processed successfully" });
   } catch (error: any) {
-    console.error("Hubtel webhook error:", error);
+    console.error("Hubtel webhook processing error");
     return NextResponse.json({ error: "Webhook processing failed" }, { status: 500 });
   }
 }
@@ -135,7 +134,7 @@ async function processVotePayment(
       await campaign.save();
     }
   } catch (campaignError) {
-    console.error("Failed to update campaign:", campaignError);
+    // Campaign update failed silently
   }
   pendingVote.status = "completed";
   pendingVote.paymentData = fullData;

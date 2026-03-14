@@ -17,8 +17,6 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-
-    // Find voter by token
     const voter = await Voter.findOne({ token: token.toUpperCase() });
 
     if (!voter) {
@@ -28,7 +26,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check if voter status is active
     if (voter.status !== 'active') {
       if (voter.status === 'expired') {
         return NextResponse.json(
@@ -42,7 +39,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verify password
     const isValidPassword = await verifyPassword(password, voter.password);
 
     if (!isValidPassword) {
@@ -51,8 +47,6 @@ export async function POST(req: NextRequest) {
         { status: 401 }
       );
     }
-
-    // Get election details
     const election = await Election.findById(voter.electionId);
 
     if (!election) {
@@ -61,8 +55,6 @@ export async function POST(req: NextRequest) {
         { status: 404 }
       );
     }
-
-    // Check if election is active
     const now = new Date();
     const startDate = new Date(election.startDate);
     const endDate = new Date(election.endDate);
@@ -73,8 +65,6 @@ export async function POST(req: NextRequest) {
     } else if (now > endDate) {
       electionStatus = 'ended';
     }
-
-    // Return voter data (without password)
     const voterData = {
       id: voter._id,
       name: voter.name,
@@ -101,7 +91,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('Voter login error:', error);
     return NextResponse.json(
-      { error: 'Login failed', details: error.message },
+      { error: 'Login failed', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

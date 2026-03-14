@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
 import ChatbotWidget from "@/components/chatbot-widget";
+import VisitorTracker from "@/components/VisitorTracker";
 
 // Using system fonts as fallback to avoid Google Fonts connection issues during build
 const geistSans = {
@@ -66,6 +67,7 @@ export default function RootLayout({
             },
           }}
         />
+        <VisitorTracker />
         {children}
 
       {/* Chatbot Widget */}

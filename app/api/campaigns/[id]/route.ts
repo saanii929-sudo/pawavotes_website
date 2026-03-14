@@ -50,7 +50,7 @@ export async function GET(
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Failed to fetch campaign', details: error.message },
+      { error: 'Failed to fetch campaign', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

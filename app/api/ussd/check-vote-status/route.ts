@@ -142,7 +142,7 @@ export async function GET(req: NextRequest) {
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Failed to check vote status', details: error.message },
+      { error: 'Failed to check vote status', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

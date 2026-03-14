@@ -3,7 +3,6 @@ import connectDB from '@/lib/mongodb';
 import Election from '@/models/Election';
 import { verifyToken } from '@/lib/auth';
 
-// PUT update election
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -24,8 +23,6 @@ export async function PUT(
     const { id } = await params;
     const body = await req.json();
     const { title, description, startDate, endDate, settings, status } = body;
-
-    // Verify election belongs to organization
     const election = await Election.findOne({
       _id: id,
       organizationId: decoded.id,
@@ -37,8 +34,6 @@ export async function PUT(
         { status: 404 }
       );
     }
-
-    // Validate dates if provided
     if (startDate && endDate) {
       const start = new Date(startDate);
       const end = new Date(endDate);
@@ -51,7 +46,6 @@ export async function PUT(
       }
     }
 
-    // Update election
     const updateData: any = {};
     if (title) updateData.title = title;
     if (description !== undefined) updateData.description = description;
@@ -74,13 +68,11 @@ export async function PUT(
   } catch (error: any) {
     console.error('Update election error:', error);
     return NextResponse.json(
-      { error: 'Failed to update election', details: error.message },
+      { error: 'Failed to update election', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }
 }
-
-// DELETE election
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -99,8 +91,6 @@ export async function DELETE(
     }
 
     const { id } = await params;
-
-    // Verify election belongs to organization
     const election = await Election.findOneAndDelete({
       _id: id,
       organizationId: decoded.id,
@@ -120,7 +110,7 @@ export async function DELETE(
   } catch (error: any) {
     console.error('Delete election error:', error);
     return NextResponse.json(
-      { error: 'Failed to delete election', details: error.message },
+      { error: 'Failed to delete election', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

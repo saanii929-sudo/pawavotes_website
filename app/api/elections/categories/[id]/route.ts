@@ -3,7 +3,6 @@ import connectDB from '@/lib/mongodb';
 import ElectionCategory from '@/models/ElectionCategory';
 import { verifyToken } from '@/lib/auth';
 
-// PUT update category
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -24,8 +23,6 @@ export async function PUT(
     const { id } = await params;
     const body = await req.json();
     const { name, description, maxSelections, order } = body;
-
-    // Verify category belongs to organization
     const category = await ElectionCategory.findOne({
       _id: id,
       organizationId: decoded.id,
@@ -37,8 +34,6 @@ export async function PUT(
         { status: 404 }
       );
     }
-
-    // Update category
     const updateData: any = {};
     if (name) updateData.name = name;
     if (description !== undefined) updateData.description = description;
@@ -59,13 +54,12 @@ export async function PUT(
   } catch (error: any) {
     console.error('Update category error:', error);
     return NextResponse.json(
-      { error: 'Failed to update position', details: error.message },
+      { error: 'Failed to update position', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }
 }
 
-// DELETE category
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -84,8 +78,6 @@ export async function DELETE(
     }
 
     const { id } = await params;
-
-    // Verify category belongs to organization
     const category = await ElectionCategory.findOneAndDelete({
       _id: id,
       organizationId: decoded.id,
@@ -105,7 +97,7 @@ export async function DELETE(
   } catch (error: any) {
     console.error('Delete category error:', error);
     return NextResponse.json(
-      { error: 'Failed to delete position', details: error.message },
+      { error: 'Failed to delete position', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

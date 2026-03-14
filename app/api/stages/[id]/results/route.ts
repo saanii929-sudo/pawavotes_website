@@ -5,7 +5,6 @@ import Stage from '@/models/Stage';
 import { successResponse } from '@/utils/api-response';
 import { handleError } from '@/utils/error-handler';
 
-// GET /api/stages/[id]/results - Get stage results
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -13,8 +12,6 @@ export async function GET(
   try {
     const { id: stageId } = await params;
     const categoryId = req.nextUrl.searchParams.get('categoryId');
-
-    // Get stage to verify it exists and is completed
     const stage = await Stage.findById(stageId);
 
     if (!stage) {
@@ -23,8 +20,6 @@ export async function GET(
         { status: 404 }
       );
     }
-
-    // Get results from snapshot
     const results = await leaderboardService.getHistoricalLeaderboard(
       stageId,
       categoryId || undefined

@@ -6,9 +6,8 @@ import jwt from 'jsonwebtoken';
 import { hashPassword } from '@/lib/auth';
 import { sendInvitationEmail, generateRandomPassword, generateInvitationToken } from '@/lib/email';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET!;
 
-// GET all admins for organization
 export async function GET(req: NextRequest) {
   try {
     const token = req.headers.get('authorization')?.replace('Bearer ', '');
@@ -43,7 +42,7 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     console.error('Get admins error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch admins', details: error.message },
+      { error: 'Failed to fetch admins', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }
@@ -135,10 +134,6 @@ export async function POST(req: NextRequest) {
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
     const invitationLink = `${baseUrl}/accept-invitation?token=${invitationToken}`;
 
-    // Send invitation email
-    console.log('Sending invitation email to:', email);
-    console.log('Organization name:', organization?.name);
-    console.log('Invitation link:', invitationLink);
     
     const emailSent = await sendInvitationEmail(
       email,
@@ -148,13 +143,10 @@ export async function POST(req: NextRequest) {
       randomPassword
     );
 
-    console.log('Email sent status:', emailSent);
-
     if (!emailSent) {
       console.warn('Failed to send invitation email');
     }
 
-    // Return admin without password
     const adminData = await OrganizationAdmin.findById(admin._id)
       .populate('assignedAwards', 'name')
       .select('-password');
@@ -167,7 +159,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('Create admin error:', error);
     return NextResponse.json(
-      { error: 'Failed to create admin', details: error.message },
+      { error: 'Failed to create admin', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

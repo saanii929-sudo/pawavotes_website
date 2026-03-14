@@ -3,7 +3,7 @@ import connectDB from '@/lib/mongodb';
 import Organization from '@/models/Organization';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET!;
 
 // GET organization profile
 export async function GET(req: NextRequest) {
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     console.error('Get profile error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch profile', details: error.message },
+      { error: 'Failed to fetch profile', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }
@@ -101,7 +101,7 @@ export async function PUT(req: NextRequest) {
   } catch (error: any) {
     console.error('Update profile error:', error);
     return NextResponse.json(
-      { error: 'Failed to update profile', details: error.message },
+      { error: 'Failed to update profile', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

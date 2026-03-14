@@ -30,7 +30,7 @@ export async function GET(
   } catch (error: any) {
     console.error('Get public award error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch award', details: error.message },
+      { error: 'Failed to fetch award', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

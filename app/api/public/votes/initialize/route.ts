@@ -3,24 +3,24 @@ import connectDB from '@/lib/mongodb';
 import PendingVote from '@/models/PendingVote';
 import Award from '@/models/Award';
 import crypto from 'crypto';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit: 10 vote initializations per minute per IP
+    const ip = getClientIp(req.headers);
+    const rl = checkRateLimit(`vote-init:${ip}`, 10, 60 * 1000);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: `Too many requests. Try again in ${rl.resetIn} seconds.` },
+        { status: 429 }
+      );
+    }
+
     await connectDB();
 
     const body = await req.json();
     const { awardId, categoryId, nomineeId, email, phone, numberOfVotes, amount, bulkPackageId } = body;
-
-    console.log('Initialize vote - received data:', {
-      awardId,
-      categoryId,
-      nomineeId,
-      numberOfVotes,
-      amount,
-      bulkPackageId,
-    });
-
-    // Validate required fields
     if (!awardId || !categoryId || !nomineeId || !email || !phone || !numberOfVotes || !amount) {
       return NextResponse.json(
         { error: 'All fields are required' },
@@ -28,7 +28,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verify award exists and allows public voting
+    // Validate vote count and amount bounds
+    if (typeof numberOfVotes !== 'number' || numberOfVotes < 1 || numberOfVotes > 10000 || !Number.isInteger(numberOfVotes)) {
+      return NextResponse.json({ error: 'Invalid vote count' }, { status: 400 });
+    }
+    if (typeof amount !== 'number' || amount <= 0 || amount > 100000) {
+      return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
+    }
+    // Basic email format check
+    if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json({ error: 'Invalid email format' }, { status: 400 });
+    }
+
     const award = await Award.findOne({
       _id: awardId,
       'settings.allowPublicVoting': true,
@@ -40,11 +51,7 @@ export async function POST(req: NextRequest) {
         { status: 404 }
       );
     }
-
-    // Generate unique reference (max 32 characters as per Hubtel requirement)
     const reference = `VOTE${Date.now()}${crypto.randomBytes(2).toString('hex')}`.substring(0, 32);
-
-    // Store pending vote in database
     const pendingVoteData = {
       reference,
       awardId,
@@ -58,11 +65,7 @@ export async function POST(req: NextRequest) {
       ...(bulkPackageId && { bulkPackageId }),
     };
 
-    console.log('Creating pending vote with data:', pendingVoteData);
-
     const pendingVote = await PendingVote.create(pendingVoteData);
-
-    // Get Hubtel credentials from environment
     const hubtelApiId = process.env.HUBTEL_API_ID;
     const hubtelApiKey = process.env.HUBTEL_API_KEY;
     const hubtelMerchantAccount = process.env.HUBTEL_MERCHANT_ACCOUNT;
@@ -77,14 +80,6 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
-
-    console.log('Using Hubtel credentials:', {
-      apiId: hubtelApiId,
-      apiKeyLength: hubtelApiKey.length,
-      merchantAccount: hubtelMerchantAccount,
-    });
-
-    // Initialize Hubtel payment
     const hubtelPayload: any = {
       totalAmount: amount,
       description: `Vote for nominee - ${numberOfVotes} vote${numberOfVotes > 1 ? 's' : ''}`,
@@ -94,22 +89,13 @@ export async function POST(req: NextRequest) {
       cancellationUrl,
       clientReference: reference,
     };
-
-    // Only add optional fields if they exist
     if (email) hubtelPayload.payeeEmail = email;
     if (phone) hubtelPayload.payeeMobileNumber = phone;
     if (email) hubtelPayload.payeeName = email;
 
-    console.log('Initializing Hubtel payment:', hubtelPayload);
 
     const authString = `${hubtelApiId}:${hubtelApiKey}`;
     const base64Auth = Buffer.from(authString).toString('base64');
-    
-    console.log('Auth details:', {
-      authStringLength: authString.length,
-      base64Length: base64Auth.length,
-      authHeader: `Basic ${base64Auth.substring(0, 20)}...`,
-    });
 
     const hubtelResponse = await fetch('https://payproxyapi.hubtel.com/items/initiate', {
       method: 'POST',
@@ -119,23 +105,10 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify(hubtelPayload),
     });
-
-    console.log('Hubtel response status:', hubtelResponse.status);
-    console.log('Hubtel response headers:', Object.fromEntries(hubtelResponse.headers.entries()));
-
-    // Get response text first to handle potential JSON parsing errors
     const responseText = await hubtelResponse.text();
-    console.log('Hubtel raw response:', responseText);
-
-    // Handle 401 Unauthorized specifically
     if (hubtelResponse.status === 401) {
-      console.error('Hubtel authentication failed - Invalid credentials');
       return NextResponse.json(
-        { 
-          error: 'Payment system authentication failed', 
-          details: 'The payment gateway credentials are invalid or expired. Please contact support.',
-          hint: 'Check HUBTEL_API_ID and HUBTEL_API_KEY in environment variables'
-        },
+        { error: 'Payment system temporarily unavailable. Please try again later.' },
         { status: 500 }
       );
     }
@@ -144,24 +117,15 @@ export async function POST(req: NextRequest) {
     try {
       hubtelData = responseText ? JSON.parse(responseText) : {};
     } catch (parseError) {
-      console.error('Failed to parse Hubtel response:', parseError);
-      console.error('Response text:', responseText);
       return NextResponse.json(
-        { 
-          error: 'Failed to initialize payment', 
-          details: 'Invalid response from payment gateway',
-          rawResponse: responseText.substring(0, 200) // First 200 chars for debugging
-        },
+        { error: 'Failed to initialize payment' },
         { status: 500 }
       );
     }
 
-    console.log('Hubtel parsed response:', hubtelData);
-
     if (!hubtelResponse.ok || hubtelData.responseCode !== '0000') {
-      console.error('Hubtel initialization error:', hubtelData);
       return NextResponse.json(
-        { error: 'Failed to initialize payment', details: hubtelData.message || 'Unknown error' },
+        { error: 'Failed to initialize payment' },
         { status: 500 }
       );
     }
@@ -175,9 +139,8 @@ export async function POST(req: NextRequest) {
       message: 'Payment initialized successfully',
     });
   } catch (error: any) {
-    console.error('Initialize vote error:', error);
     return NextResponse.json(
-      { error: 'Failed to initialize payment', details: error.message },
+      { error: 'Failed to initialize payment', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

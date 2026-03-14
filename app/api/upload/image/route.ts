@@ -12,7 +12,6 @@ const ALLOWED_IMAGE_TYPES = [
   'image/png',
   'image/gif',
   'image/webp',
-  'image/svg+xml',
 ];
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -21,7 +20,9 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
-    const folder = formData.get('folder') as string || 'images';
+    const rawFolder = (formData.get('folder') as string || 'images');
+    // Sanitize folder to prevent path traversal
+    const folder = rawFolder.replace(/\.\./g, '').replace(/[^a-zA-Z0-9/_-]/g, '');
 
     if (!file) {
       return NextResponse.json(

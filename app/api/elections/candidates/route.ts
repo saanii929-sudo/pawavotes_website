@@ -4,7 +4,6 @@ import Candidate from '@/models/Candidate';
 import Election from '@/models/Election';
 import { verifyToken } from '@/lib/auth';
 
-// GET candidates for an election (public for voters)
 export async function GET(req: NextRequest) {
   try {
     await connectDB();
@@ -36,13 +35,12 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     console.error('Get candidates error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch candidates', details: error.message },
+      { error: 'Failed to fetch candidates', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }
 }
 
-// POST create candidate (organizer only)
 export async function POST(req: NextRequest) {
   try {
     await connectDB();
@@ -66,8 +64,6 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-
-    // Verify election belongs to organization
     const election = await Election.findOne({
       _id: electionId,
       organizationId: decoded.id,
@@ -100,7 +96,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('Create candidate error:', error);
     return NextResponse.json(
-      { error: 'Failed to create candidate', details: error.message },
+      { error: 'Failed to create candidate', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

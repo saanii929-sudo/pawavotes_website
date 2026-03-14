@@ -248,7 +248,7 @@ export async function PUT(
     }
     
     return NextResponse.json(
-      { error: 'Failed to update voter', details: error.message },
+      { error: 'Failed to update voter', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }
@@ -294,7 +294,7 @@ export async function DELETE(
   } catch (error: any) {
     console.error('Delete voter error:', error);
     return NextResponse.json(
-      { error: 'Failed to delete voter', details: error.message },
+      { error: 'Failed to delete voter', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

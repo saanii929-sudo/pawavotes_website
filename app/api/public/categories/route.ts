@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Category from '@/models/Category';
 import Nominee from '@/models/Nominee';
+import { sanitizeSearch } from '@/lib/security';
 
 export async function GET(req: NextRequest) {
   try {
@@ -9,7 +10,7 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const awardId = searchParams.get('awardId');
-    const search = searchParams.get('search');
+    const search = sanitizeSearch(searchParams.get('search'));
 
     if (!awardId) {
       return NextResponse.json(
@@ -54,7 +55,7 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     console.error('Get public categories error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch categories', details: error.message },
+      { error: 'Failed to fetch categories', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

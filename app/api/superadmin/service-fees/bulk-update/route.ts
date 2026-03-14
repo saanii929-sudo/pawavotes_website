@@ -3,15 +3,12 @@ import connectDB from '@/lib/mongodb';
 import Organization from '@/models/Organization';
 import { withAuth } from '@/middleware/auth';
 
-// PUT bulk update service fees for all organizations
 async function bulkUpdateServiceFees(req: NextRequest) {
   try {
     await connectDB();
 
     const body = await req.json();
     const { serviceFeePercentage } = body;
-
-    // Validate service fee percentage
     if (
       serviceFeePercentage === undefined ||
       serviceFeePercentage === null ||
@@ -24,8 +21,6 @@ async function bulkUpdateServiceFees(req: NextRequest) {
         { status: 400 }
       );
     }
-
-    // Update all organizations
     const result = await Organization.updateMany(
       {},
       { $set: { serviceFeePercentage: Number(serviceFeePercentage) } }
@@ -39,7 +34,7 @@ async function bulkUpdateServiceFees(req: NextRequest) {
   } catch (error: any) {
     console.error('Bulk update service fees error:', error);
     return NextResponse.json(
-      { error: 'Failed to update service fees', details: error.message },
+      { error: 'Failed to update service fees', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

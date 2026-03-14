@@ -3,10 +3,21 @@ import { paymentService } from '@/services/payment.service';
 import { createPaymentSchema } from '@/lib/schemas';
 import { successResponse, paginatedResponse } from '@/utils/api-response';
 import { handleError } from '@/utils/error-handler';
+import { verifyToken } from '@/lib/auth';
 
 // GET /api/payments?awardId=xxx or ?nomineeId=xxx
 export async function GET(req: NextRequest) {
   try {
+    // Require authentication to access payment data
+    const token = req.headers.get('authorization')?.replace('Bearer ', '');
+    if (!token) {
+      return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 });
+    }
+    const decoded = verifyToken(token);
+    if (!decoded) {
+      return NextResponse.json({ success: false, message: 'Invalid token' }, { status: 401 });
+    }
+
     const awardId = req.nextUrl.searchParams.get('awardId');
     const nomineeId = req.nextUrl.searchParams.get('nomineeId');
     const page = parseInt(req.nextUrl.searchParams.get('page') || '1');

@@ -27,7 +27,7 @@ async function getNominee(
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Failed to fetch nominee', details: error.message },
+      { error: 'Failed to fetch nominee', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }
@@ -71,7 +71,7 @@ async function updateNominee(
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Failed to update nominee', details: error.message },
+      { error: 'Failed to update nominee', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }
@@ -104,7 +104,7 @@ async function deleteNominee(
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Failed to delete nominee', details: error.message },
+      { error: 'Failed to delete nominee', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Award from '@/models/Award';
 import { withAuth } from '@/middleware/auth';
+import { sanitizeSearch } from '@/lib/security';
 
 function generateAwardCode(name: string): string {
   const words = name.trim().split(/\s+/).filter(word => !/^\d+$/.test(word));
@@ -38,7 +39,7 @@ async function getAwards(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '10');
-    const search = searchParams.get('search') || '';
+    const search = sanitizeSearch(searchParams.get('search'));
     const status = searchParams.get('status') || '';
 
     let query: any = {};
@@ -94,7 +95,7 @@ async function getAwards(req: NextRequest) {
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Failed to fetch awards', details: error.message },
+      { error: 'Failed to fetch awards', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }
@@ -182,7 +183,7 @@ async function createAward(req: NextRequest) {
     }, { status: 201 });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Failed to create award', details: error.message },
+      { error: 'Failed to create award', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

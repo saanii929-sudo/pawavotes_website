@@ -100,7 +100,16 @@ const AwardsManagementSystem = () => {
         setNominationLink("");
       }
     } 
-  }, [selectedAward, searchQuery, selectedCategoryFilter]);
+  }, [selectedAward]);
+
+  // Debounce search and filter changes to avoid excessive API calls
+  useEffect(() => {
+    if (!selectedAward) return;
+    const timer = setTimeout(() => {
+      fetchNominees(selectedAward._id);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchQuery, selectedCategoryFilter]);
 
 
   

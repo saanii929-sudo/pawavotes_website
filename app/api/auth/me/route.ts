@@ -62,7 +62,7 @@ async function getCurrentUser(req: NextRequest) {
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Failed to fetch user data', details: error.message },
+      { error: 'Failed to fetch user data', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

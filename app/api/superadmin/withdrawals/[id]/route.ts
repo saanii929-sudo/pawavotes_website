@@ -76,7 +76,7 @@ export async function PATCH(
     
     await transfer.save();
 
-    console.log(`Transfer ${id} updated to ${status} by superadmin`);
+    // console.log(`Transfer ${id} updated to ${status} by superadmin`);
 
     return NextResponse.json({
       success: true,
@@ -86,7 +86,7 @@ export async function PATCH(
   } catch (error: any) {
     console.error('Update withdrawal error:', error);
     return NextResponse.json(
-      { error: 'Failed to update withdrawal', details: error.message },
+      { error: 'Failed to update withdrawal', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

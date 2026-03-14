@@ -2,19 +2,41 @@ import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Contact from '@/models/Contact';
 import { sendEmail } from '@/lib/email';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
+import { stripHtml } from '@/lib/sanitize';
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req.headers);
+    const rl = checkRateLimit(`contact:${ip}`, 3, 10 * 60 * 1000);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: `Too many submissions. Try again in ${rl.resetIn} seconds.` },
+        { status: 429 }
+      );
+    }
+
     await dbConnect();
 
     const body = await req.json();
-    const { fullName, email, subject, message } = body;
+    const fullName = stripHtml(body.fullName || '');
+    const email = stripHtml(body.email || '');
+    const subject = stripHtml(body.subject || '');
+    const message = stripHtml(body.message || '');
+
     if (!fullName || !email || !subject || !message) {
       return NextResponse.json(
         { error: 'All fields are required' },
         { status: 400 }
       );
     }
+    if (fullName.length > 100 || subject.length > 200 || message.length > 5000) {
+      return NextResponse.json(
+        { error: 'Input exceeds maximum allowed length' },
+        { status: 400 }
+      );
+    }
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       return NextResponse.json(

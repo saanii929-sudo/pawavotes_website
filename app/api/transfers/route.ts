@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
     });
   } catch (error: any) {
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch transfers', details: error.message },
+      { success: false, error: 'Failed to fetch transfers', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }
@@ -209,15 +209,6 @@ export async function POST(req: NextRequest) {
       initiatedBy: decoded.email || decoded.id,
       notes: transferType === 'mobile_money' ? `Network: ${momoNetwork}` : undefined,
     });
-
-    console.log('Transfer request created:', {
-      referenceId,
-      requestedAmount: transferAmount,
-      availableAmount,
-      organizationId: decoded.id,
-    });
-
-    // Send email notification to super admin
     try {
       const emailResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/emails/transfer-request`, {
         method: 'POST',
@@ -243,7 +234,6 @@ export async function POST(req: NextRequest) {
       }
     } catch (emailError) {
       console.error('Error sending email notification:', emailError);
-      // Don't fail the transfer request if email fails
     }
 
     return NextResponse.json({
@@ -261,7 +251,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     return NextResponse.json(
-      { success: false, message: 'Failed to create transfer', details: error.message },
+      { success: false, message: 'Failed to create transfer', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

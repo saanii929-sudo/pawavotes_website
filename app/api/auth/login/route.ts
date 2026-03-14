@@ -4,9 +4,20 @@ import Admin from '@/models/Admin';
 import Organization from '@/models/Organization';
 import OrganizationAdmin from '@/models/OrganizationAdmin';
 import { verifyPassword, generateToken } from '@/lib/auth';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit: 5 login attempts per minute per IP
+    const ip = getClientIp(req.headers);
+    const rl = checkRateLimit(`login:${ip}`, 5, 60 * 1000);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: `Too many login attempts. Try again in ${rl.resetIn} seconds.` },
+        { status: 429 }
+      );
+    }
+
     await connectDB();
 
     const body = await req.json();
@@ -77,7 +88,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Login failed', details: error.message },
+      { error: 'Login failed' },
       { status: 500 }
     );
   }

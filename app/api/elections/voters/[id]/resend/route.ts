@@ -301,7 +301,7 @@ async function resendCredentials(
   } catch (error: any) {
     console.error('Resend credentials error:', error);
     return NextResponse.json(
-      { error: 'Failed to resend credentials', details: error.message },
+      { error: 'Failed to resend credentials', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

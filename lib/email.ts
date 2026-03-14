@@ -9,14 +9,6 @@ interface EmailOptions {
 
 export async function sendEmail(options: EmailOptions): Promise<boolean> {
   try {
-    console.log('Attempting to send email to:', options.to);
-    console.log('SMTP Config:', {
-      host: process.env.SMTP_HOST,
-      port: process.env.SMTP_PORT,
-      from: process.env.SMTP_FROM,
-      hasUsername: !!process.env.SMTP_USERNAME,
-      hasPassword: !!process.env.SMTP_PASSWORD,
-    });
 
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
@@ -35,12 +27,8 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
       html: options.html,
       text: options.text,
     });
-    
-    console.log('Email sent successfully to:', options.to);
     return true;
   } catch (error: any) {
-    console.error('Email sending failed:', error.message);
-    console.error('Full error:', error);
     return false;
   }
 }

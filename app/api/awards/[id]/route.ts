@@ -45,7 +45,7 @@ async function getAward(
   } catch (error: any) {
     console.error('Get award error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch award', details: error.message },
+      { error: 'Failed to fetch award', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }
@@ -166,7 +166,7 @@ async function updateAward(
 
       await Promise.all(updatePromises);
       
-      console.log(`Updated ${nominees.length} nominee codes from ${oldCode} to ${body.code}`);
+      // console.log(`Updated ${nominees.length} nominee codes from ${oldCode} to ${body.code}`);
     }
 
     return NextResponse.json({
@@ -177,7 +177,7 @@ async function updateAward(
   } catch (error: any) {
     console.error('Update award error:', error);
     return NextResponse.json(
-      { error: 'Failed to update award', details: error.message },
+      { error: 'Failed to update award', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }
@@ -221,7 +221,7 @@ async function deleteAward(
   } catch (error: any) {
     console.error('Delete award error:', error);
     return NextResponse.json(
-      { error: 'Failed to delete award', details: error.message },
+      { error: 'Failed to delete award', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

@@ -14,13 +14,7 @@ const r2Client = new S3Client({
 const BUCKET_NAME = process.env.R2_BUCKET_NAME!;
 const PUBLIC_URL = process.env.R2_PUBLIC_URL || process.env.R2_ENDPOINT;
 
-/**
- * Upload a file to Cloudflare R2
- * @param file - File buffer or stream
- * @param key - File path/key in the bucket
- * @param contentType - MIME type of the file
- * @returns Public URL of the uploaded file
- */
+
 export async function uploadToR2(
   file: Buffer,
   key: string,
@@ -40,15 +34,10 @@ export async function uploadToR2(
     const publicUrl = `${PUBLIC_URL}/${key}`;
     return publicUrl;
   } catch (error) {
-    console.error('Error uploading to R2:', error);
     throw new Error('Failed to upload file to R2');
   }
 }
 
-/**
- * Delete a file from Cloudflare R2
- * @param key - File path/key in the bucket
- */
 export async function deleteFromR2(key: string): Promise<void> {
   try {
     const command = new DeleteObjectCommand({
@@ -58,17 +47,10 @@ export async function deleteFromR2(key: string): Promise<void> {
 
     await r2Client.send(command);
   } catch (error) {
-    console.error('Error deleting from R2:', error);
     throw new Error('Failed to delete file from R2');
   }
 }
 
-/**
- * Generate a presigned URL for temporary access to a file
- * @param key - File path/key in the bucket
- * @param expiresIn - Expiration time in seconds (default: 3600 = 1 hour)
- * @returns Presigned URL
- */
 export async function getPresignedUrl(
   key: string,
   expiresIn: number = 3600

@@ -1,6 +1,6 @@
 "use client";
 
-import { LayoutGrid, Building2, X, CreditCard, DollarSign, Percent } from "lucide-react";
+import { LayoutGrid, Building2, X, CreditCard, DollarSign, Percent, BarChart3 } from "lucide-react";
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
@@ -19,6 +19,7 @@ const menu = [
     href: "/superadmin/platform-revenue",
     icon: DollarSign,
   },
+  { name: "Site Analytics", href: "/superadmin/analytics", icon: BarChart3 },
 ];
 
 export default function AdminSidebar() {

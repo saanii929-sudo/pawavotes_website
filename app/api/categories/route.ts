@@ -4,6 +4,7 @@ import Category from '@/models/Category';
 import Award from '@/models/Award';
 import { withAuth } from '@/middleware/auth';
 import { hasAwardAccess } from '@/lib/access-control';
+import { sanitizeSearch } from '@/lib/security';
 
 async function getCategories(req: NextRequest) {
   try {
@@ -12,7 +13,7 @@ async function getCategories(req: NextRequest) {
     const user = (req as any).user;
     const { searchParams } = new URL(req.url);
     const awardId = searchParams.get('awardId');
-    const search = searchParams.get('search') || '';
+    const search = sanitizeSearch(searchParams.get('search'));
 
     let query: any = {};
     if (awardId) {
@@ -57,7 +58,7 @@ async function getCategories(req: NextRequest) {
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Failed to fetch categories', details: error.message },
+      { error: 'Failed to fetch categories', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }
@@ -127,7 +128,7 @@ async function createCategory(req: NextRequest) {
     }, { status: 201 });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Failed to create category', details: error.message },
+      { error: 'Failed to create category', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

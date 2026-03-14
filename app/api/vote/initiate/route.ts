@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     );
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Failed to initiate vote', details: error.message },
+      { error: 'Failed to initiate vote', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

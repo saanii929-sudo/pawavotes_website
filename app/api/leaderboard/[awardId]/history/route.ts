@@ -4,7 +4,6 @@ import { leaderboardService } from '@/services/leaderboard.service';
 import { successResponse } from '@/utils/api-response';
 import { handleError } from '@/utils/error-handler';
 
-// GET /api/leaderboard/[awardId]/history - Get historical leaderboards for all completed stages
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ awardId: string }> }

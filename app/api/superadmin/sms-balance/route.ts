@@ -3,7 +3,6 @@ import { verifyToken } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   try {
-    // Verify authentication
     const token = req.headers.get("authorization")?.split(" ")[1];
     if (!token) {
       return NextResponse.json(
@@ -39,10 +38,6 @@ export async function GET(req: NextRequest) {
     const currency = "GHS"; // Arkesel uses GHS for Ghana
     const user = data.user || "";
     const country = data.country || "";
-    
-    // Estimate SMS count based on balance
-    // Typical SMS cost in Ghana is around 0.05-0.10 GHS per SMS
-    // Using 0.07 GHS as average cost
     const estimatedSmsCount = balance > 0 ? Math.floor(balance / 0.07) : 0;
 
     return NextResponse.json({

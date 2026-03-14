@@ -128,9 +128,9 @@ export async function GET(req: NextRequest) {
       data: voters,
     });
   } catch (error: any) {
-    console.error('Get voters error:', error);
+    console.error('Get voters error');
     return NextResponse.json(
-      { error: 'Failed to fetch voters', details: error.message },
+      { error: 'Failed to fetch voters', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }
@@ -207,10 +207,7 @@ export async function POST(req: NextRequest) {
       voterId,
       token: voterToken,
       password: hashedPassword,
-      metadata: {
-        ...(metadata || {}),
-        plainPassword: password,
-      },
+      metadata: metadata || {},
       status: 'active',
       hasVoted: false,
     });
@@ -219,7 +216,7 @@ export async function POST(req: NextRequest) {
       try {
         await sendVoterCredentials(email, name, voterToken, password, election.title, election.startDate, election.endDate);
       } catch (emailError) {
-        console.error('Failed to send email:', emailError);
+        // Email send failed silently
       }
     }
 
@@ -227,7 +224,7 @@ export async function POST(req: NextRequest) {
       try {
         await sendVoterCredentialsSms(phoneNumber, name, voterToken, password, election.title, election.startDate, election.endDate);
       } catch (smsError) {
-        console.error('Failed to send SMS:', smsError);
+        // SMS send failed silently
       }
     }
 
@@ -236,11 +233,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Voter added successfully',
-      data: {
-        ...voterData,
-        plainPassword: password, 
-      },
+      message: 'Voter added successfully. Credentials sent via selected delivery method.',
+      data: voterData,
     }, { status: 201 });
   } catch (error: any) {
     
@@ -265,7 +259,7 @@ export async function POST(req: NextRequest) {
     }
     
     return NextResponse.json(
-      { error: 'Failed to add voter', details: error.message },
+      { error: 'Failed to add voter', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

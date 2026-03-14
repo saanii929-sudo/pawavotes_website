@@ -4,15 +4,25 @@ import Award from '@/models/Award';
 import Category from '@/models/Category';
 import PendingNomination from '@/models/PendingNomination';
 import crypto from 'crypto';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit: 5 nomination initializations per minute per IP
+    const ip = getClientIp(req.headers);
+    const rl = checkRateLimit(`nom-init:${ip}`, 5, 60 * 1000);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: `Too many requests. Try again in ${rl.resetIn} seconds.` },
+        { status: 429 }
+      );
+    }
+
     await connectDB();
 
     const body = await req.json();
     const { awardId, categoryId, name, email, phone, bio, image, amount } = body;
 
-    // Validate required fields
     if (!awardId || !categoryId || !name || !email || !amount) {
       return NextResponse.json(
         { error: 'All required fields must be provided' },
@@ -85,8 +95,6 @@ export async function POST(req: NextRequest) {
       payeeEmail: email,
     };
 
-    console.log('Initializing Hubtel payment for nomination:', hubtelPayload);
-
     const hubtelResponse = await fetch('https://payproxyapi.hubtel.com/items/initiate', {
       method: 'POST',
       headers: {
@@ -95,34 +103,21 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify(hubtelPayload),
     });
-
-    console.log('Hubtel nomination response status:', hubtelResponse.status);
-    
-    // Get response text first to handle potential JSON parsing errors
     const responseText = await hubtelResponse.text();
-    console.log('Hubtel nomination raw response:', responseText);
 
     let hubtelData;
     try {
       hubtelData = JSON.parse(responseText);
     } catch (parseError) {
-      console.error('Failed to parse Hubtel response:', parseError);
       return NextResponse.json(
-        { 
-          error: 'Failed to initialize payment', 
-          details: 'Invalid response from payment gateway',
-          rawResponse: responseText.substring(0, 200)
-        },
+        { error: 'Failed to initialize payment' },
         { status: 500 }
       );
     }
 
-    console.log('Hubtel nomination parsed response:', hubtelData);
-
     if (!hubtelResponse.ok || hubtelData.responseCode !== '0000') {
-      console.error('Hubtel initialization error:', hubtelData);
       return NextResponse.json(
-        { error: 'Failed to initialize payment', details: hubtelData.message || 'Unknown error' },
+        { error: 'Failed to initialize payment' },
         { status: 500 }
       );
     }
@@ -136,9 +131,8 @@ export async function POST(req: NextRequest) {
       message: 'Payment initialized successfully',
     });
   } catch (error: any) {
-    console.error('Initialize nomination error:', error);
     return NextResponse.json(
-      { error: 'Failed to initialize payment', details: error.message },
+      { error: 'Failed to initialize payment', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

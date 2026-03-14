@@ -3,7 +3,6 @@ import { categoryService } from '@/services/category.service';
 import { successResponse } from '@/utils/api-response';
 import { handleError } from '@/utils/error-handler';
 
-// POST /api/categories/:id/publish
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }

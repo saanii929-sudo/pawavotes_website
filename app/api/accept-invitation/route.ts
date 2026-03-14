@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import OrganizationAdmin from '@/models/OrganizationAdmin';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
-// POST accept invitation
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req.headers);
+    const rl = checkRateLimit(`accept-invite:${ip}`, 5, 15 * 60 * 1000);
+    if (!rl.allowed) {
+      return NextResponse.json({ error: 'Too many requests. Try again later.' }, { status: 429 });
+    }
+
     await connectDB();
 
     const body = await req.json();
@@ -16,8 +22,6 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-
-    // Find admin by invitation token
     const admin = await OrganizationAdmin.findOne({
       invitationToken: token,
     }).populate('organizationId', 'name');
@@ -28,24 +32,18 @@ export async function POST(req: NextRequest) {
         { status: 404 }
       );
     }
-
-    // Check if token is expired
     if (admin.invitationExpiry && admin.invitationExpiry < new Date()) {
       return NextResponse.json(
         { error: 'Invitation has expired' },
         { status: 400 }
       );
     }
-
-    // Check if already accepted
     if (admin.status === 'active') {
       return NextResponse.json(
         { error: 'Invitation has already been accepted' },
         { status: 400 }
       );
     }
-
-    // Activate admin account
     admin.status = 'active';
     admin.invitationToken = undefined;
     admin.invitationExpiry = undefined;
@@ -62,13 +60,11 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Failed to accept invitation', details: error.message },
+      { error: 'Failed to accept invitation', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }
 }
-
-// GET verify invitation token
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -93,16 +89,12 @@ export async function GET(req: NextRequest) {
         { status: 404 }
       );
     }
-
-    // Check if token is expired
     if (admin.invitationExpiry && admin.invitationExpiry < new Date()) {
       return NextResponse.json(
         { error: 'Invitation has expired' },
         { status: 400 }
       );
     }
-
-    // Check if already accepted
     if (admin.status === 'active') {
       return NextResponse.json(
         { error: 'Invitation has already been accepted' },
@@ -120,9 +112,8 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error: any) {
-    console.error('Verify invitation error:', error);
     return NextResponse.json(
-      { error: 'Failed to verify invitation', details: error.message },
+      { error: 'Failed to verify invitation', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

@@ -4,7 +4,7 @@ import OrganizationAdmin from '@/models/OrganizationAdmin';
 import Award from '@/models/Award';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET!;
 
 // GET single admin
 export async function GET(
@@ -54,7 +54,7 @@ export async function GET(
   } catch (error: any) {
     console.error('Get admin error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch admin', details: error.message },
+      { error: 'Failed to fetch admin', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }
@@ -140,7 +140,7 @@ export async function PUT(
   } catch (error: any) {
     console.error('Update admin error:', error);
     return NextResponse.json(
-      { error: 'Failed to update admin', details: error.message },
+      { error: 'Failed to update admin', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }
@@ -192,7 +192,7 @@ export async function DELETE(
   } catch (error: any) {
     console.error('Delete admin error:', error);
     return NextResponse.json(
-      { error: 'Failed to delete admin', details: error.message },
+      { error: 'Failed to delete admin', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

@@ -3,6 +3,7 @@ import connectDB from '@/lib/mongodb';
 import Award from '@/models/Award';
 import Category from '@/models/Category';
 import mongoose from 'mongoose';
+import { sanitizeSearch } from '@/lib/security';
 
 export async function GET(req: NextRequest) {
   try {
@@ -19,9 +20,10 @@ export async function GET(req: NextRequest) {
 
     // Search by award name, code, or ID (only if valid ObjectId)
     if (search) {
+      const escaped = sanitizeSearch(search);
       const searchConditions: any[] = [
-        { name: { $regex: search, $options: 'i' } },
-        { code: { $regex: search, $options: 'i' } },
+        { name: { $regex: escaped, $options: 'i' } },
+        { code: { $regex: escaped, $options: 'i' } },
       ];
       
       // Only search by _id if the search term is a valid ObjectId
@@ -59,7 +61,7 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     console.error('Get public awards error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch awards', details: error.message },
+      { error: 'Failed to fetch awards', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

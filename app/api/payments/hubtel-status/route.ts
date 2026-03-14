@@ -3,11 +3,6 @@ import connectDB from '@/lib/mongodb';
 import PendingVote from '@/models/PendingVote';
 import PendingNomination from '@/models/PendingNomination';
 
-/**
- * Hubtel Transaction Status Check API
- * Used to verify payment status when webhook is not received within 5 minutes
- * Supports both Online Checkout and Direct Receive Money (USSD) transactions
- */
 export async function GET(req: NextRequest) {
   try {
     await connectDB();
@@ -37,8 +32,7 @@ export async function GET(req: NextRequest) {
 
     // Check transaction status with Hubtel
     const statusUrl = `https://api-txnstatus.hubtel.com/transactions/${hubtelMerchantAccount}/status?clientReference=${clientReference}`;
-    
-    console.log('Checking Hubtel transaction status:', statusUrl);
+  
 
     const statusResponse = await fetch(statusUrl, {
       method: 'GET',
@@ -49,16 +43,12 @@ export async function GET(req: NextRequest) {
 
     const statusData = await statusResponse.json();
 
-    console.log('Hubtel status response:', statusData);
-
     if (!statusResponse.ok || statusData.responseCode !== '0000') {
       return NextResponse.json(
         { error: 'Failed to check transaction status', details: statusData.message },
         { status: 500 }
       );
     }
-
-    // Find pending transaction (could be vote or nomination)
     let pendingTransaction;
     let transactionType: 'vote' | 'nomination';
 
@@ -87,8 +77,8 @@ export async function GET(req: NextRequest) {
       success: true,
       clientReference,
       transactionType,
-      hubtelStatus: statusData.data.status, // Paid, Unpaid, or Refunded
-      localStatus: pendingTransaction.status, // pending, completed, or failed
+      hubtelStatus: statusData.data.status,
+      localStatus: pendingTransaction.status,
       amount: statusData.data.amount,
       paymentMethod: statusData.data.paymentMethod,
       transactionId: statusData.data.transactionId,
@@ -98,7 +88,7 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     console.error('Status check error:', error);
     return NextResponse.json(
-      { error: 'Failed to check status', details: error.message },
+      { error: 'Failed to check status', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

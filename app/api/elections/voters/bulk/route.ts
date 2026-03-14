@@ -303,10 +303,10 @@ export async function POST(req: NextRequest) {
         if (voterData.phone) {
           let phoneStr = String(voterData.phone).trim();
           
-          console.log(`Row ${i + 1} - Original phone:`, phoneStr);
+          // console.log(`Row ${i + 1} - Original phone:`, phoneStr);
           if (phoneStr.includes('E') || phoneStr.includes('e')) {
             phoneStr = scientificToDecimal(phoneStr);
-            console.log(`Row ${i + 1} - Converted from scientific notation:`, phoneStr);
+            // console.log(`Row ${i + 1} - Converted from scientific notation:`, phoneStr);
   
             const trailingZeros = phoneStr.match(/0+$/);
             if (trailingZeros && trailingZeros[0].length >= 4) {
@@ -317,11 +317,11 @@ export async function POST(req: NextRequest) {
           }
           if (phoneStr.includes('.')) {
             phoneStr = phoneStr.split('.')[0];
-            console.log(`Row ${i + 1} - Removed decimal:`, phoneStr);
+            // console.log(`Row ${i + 1} - Removed decimal:`, phoneStr);
           }
           
           phoneNumber = phoneStr;
-          console.log(`Row ${i + 1} - Final phone number:`, phoneNumber);
+          // console.log(`Row ${i + 1} - Final phone number:`, phoneNumber);
         }
         const voterToken = await generateUniqueToken(existingTokens);
         const password = generatePassword();
@@ -401,7 +401,7 @@ export async function POST(req: NextRequest) {
     let smsFailed = 0;
     
     if (results.success.length > 0) {
-      console.log(`Sending notifications to ${results.success.length} voters...`);
+      // console.log(`Sending notifications to ${results.success.length} voters...`);
       
       for (const voter of results.success) {
         // Send email if available and delivery method allows
@@ -453,8 +453,8 @@ export async function POST(req: NextRequest) {
         }
       }
       
-      console.log(`Emails sent: ${emailsSent}, failed: ${emailsFailed}`);
-      console.log(`SMS sent: ${smsSent}, failed: ${smsFailed}`);
+      // console.log(`Emails sent: ${emailsSent}, failed: ${emailsFailed}`);
+      // console.log(`SMS sent: ${smsSent}, failed: ${smsFailed}`);
     }
 
     return NextResponse.json({
@@ -475,7 +475,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('Bulk upload voters error:', error);
     return NextResponse.json(
-      { error: 'Failed to upload voters', details: error.message },
+      { error: 'Failed to upload voters', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

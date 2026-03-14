@@ -45,7 +45,7 @@ export async function POST(
   } catch (error: any) {
     console.error('Track campaign error:', error);
     return NextResponse.json(
-      { error: 'Failed to track action', details: error.message },
+      { error: 'Failed to track action', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

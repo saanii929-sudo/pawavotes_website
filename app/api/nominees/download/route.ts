@@ -114,7 +114,7 @@ Generated: ${new Date().toISOString()}
   } catch (error: any) {
     console.error('Download nominees error:', error);
     return NextResponse.json(
-      { error: 'Failed to generate download', details: error.message },
+      { error: 'Failed to generate download', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

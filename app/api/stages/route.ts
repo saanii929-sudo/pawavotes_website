@@ -31,12 +31,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    console.log('Received stage data:', body);
     
     const validatedData = createStageSchema.parse(body);
-    console.log('Validated stage data:', validatedData);
-    
-    // Validate no overlap with existing stages
     await stageService.validateNoOverlap(
       validatedData.awardId,
       new Date(validatedData.startDate),
@@ -44,10 +40,7 @@ export async function POST(req: NextRequest) {
       new Date(validatedData.endDate),
       validatedData.endTime
     );
-    
-    console.log('Overlap validation passed, creating stage...');
     const stage = await stageService.createStage(validatedData);
-    console.log('Stage created successfully:', stage);
     
     return NextResponse.json(
       successResponse('Stage created successfully', stage),

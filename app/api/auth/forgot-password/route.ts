@@ -4,9 +4,20 @@ import Organization from '@/models/Organization';
 import OrganizationAdmin from '@/models/OrganizationAdmin';
 import Admin from '@/models/Admin';
 import crypto from 'crypto';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit: 3 reset requests per 15 minutes per IP
+    const ip = getClientIp(req.headers);
+    const rl = checkRateLimit(`forgot-pw:${ip}`, 3, 15 * 60 * 1000);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: `Too many requests. Try again in ${rl.resetIn} seconds.` },
+        { status: 429 }
+      );
+    }
+
     await connectDB();
 
     const body = await req.json();
@@ -133,7 +144,7 @@ This is an automated email from PawaVotes.
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Failed to process request', details: error.message },
+      { error: 'Failed to process request' },
       { status: 500 }
     );
   }

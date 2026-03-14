@@ -28,7 +28,7 @@ async function getOrganization(
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Failed to fetch organization', details: error.message },
+      { error: 'Failed to fetch organization', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }
@@ -80,7 +80,7 @@ async function updateOrganization(
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Failed to update organization', details: error.message },
+      { error: 'Failed to update organization', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }
@@ -110,7 +110,7 @@ async function deleteOrganization(
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Failed to delete organization', details: error.message },
+      { error: 'Failed to delete organization', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

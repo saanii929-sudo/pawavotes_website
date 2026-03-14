@@ -6,13 +6,11 @@ import { verifyToken } from '@/lib/auth';
 import { successResponse } from '@/utils/api-response';
 import { handleError } from '@/utils/error-handler';
 
-// POST /api/admin/stages/[id]/close - Manually close a stage (for testing)
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Verify admin access
     const token = req.headers.get('authorization')?.replace('Bearer ', '');
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -23,14 +21,12 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    // Only allow organization admins and superadmins
     if (!['organization', 'org-admin', 'superadmin'].includes(decoded.role)) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
     const { id: stageId } = await params;
 
-    // Get stage
     const stage = await Stage.findById(stageId);
 
     if (!stage) {
@@ -40,14 +36,11 @@ export async function POST(
       );
     }
 
-    // Close stage
     stage.status = 'completed';
     await stage.save();
 
-    // Create result snapshot
     await leaderboardService.createResultSnapshot(stageId);
 
-    // Process qualification if not already processed
     let qualificationResult = null;
     if (!stage.qualificationProcessed) {
       qualificationResult = await qualificationProcessor.processStageQualification(stageId);

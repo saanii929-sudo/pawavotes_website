@@ -55,51 +55,44 @@ const DashboardOverview = () => {
         const awards = awardsData.data || [];
         totalAwards = awards.length;
         
-        // Fetch data for each award
-        for (const award of awards) {
-          // Fetch categories
-          const categoriesResponse = await fetch(`/api/categories?awardId=${award._id}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (categoriesResponse.ok) {
-            const categoriesData = await categoriesResponse.json();
-            totalCategories += (categoriesData.data || []).length;
-          }
-          
-          // Fetch nominees
-          const nomineesResponse = await fetch(`/api/nominees?awardId=${award._id}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (nomineesResponse.ok) {
-            const nomineesData = await nomineesResponse.json();
+        // Fetch data for ALL awards in parallel instead of sequentially
+        const results = await Promise.all(
+          awards.map(async (award: any) => {
+            const headers = { Authorization: `Bearer ${token}` };
+            
+            // Fire all 4 requests for this award simultaneously
+            const [categoriesRes, nomineesRes, paymentsRes, votesRes] = await Promise.all([
+              fetch(`/api/categories?awardId=${award._id}`, { headers }),
+              fetch(`/api/nominees?awardId=${award._id}`, { headers }),
+              fetch(`/api/payments?awardId=${award._id}`),
+              fetch(`/api/votes?awardId=${award._id}`, { headers }),
+            ]);
+            
+            const [categoriesData, nomineesData, paymentsData, votesData] = await Promise.all([
+              categoriesRes.ok ? categoriesRes.json() : { data: [] },
+              nomineesRes.ok ? nomineesRes.json() : { data: [] },
+              paymentsRes.ok ? paymentsRes.json() : { data: [] },
+              votesRes.ok ? votesRes.json() : { data: [] },
+            ]);
+            
             const nominees = nomineesData.data || [];
-            totalNominees += nominees.length;
-            totalVotes += nominees.reduce((sum: number, n: any) => sum + (n.voteCount || 0), 0);
-          }
-          
-          // Fetch nomination payments
-          const paymentsResponse = await fetch(`/api/payments?awardId=${award._id}`);
-          if (paymentsResponse.ok) {
-            const paymentsData = await paymentsResponse.json();
-            allPayments = [...allPayments, ...(paymentsData.data || [])];
-          }
-
-          // Fetch voting payments
-          const votesResponse = await fetch(`/api/votes?awardId=${award._id}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          console.log('Votes API response:', {
-            awardId: award._id,
-            status: votesResponse.status,
-            ok: votesResponse.ok,
-          });
-          if (votesResponse.ok) {
-            const votesData = await votesResponse.json();
-            allVotingPayments = [...allVotingPayments, ...(votesData.data || [])];
-          } else {
-            const errorData = await votesResponse.json();
-            console.error('Votes API error:', errorData);
-          }
+            return {
+              categories: (categoriesData.data || []).length,
+              nominees: nominees.length,
+              votes: nominees.reduce((sum: number, n: any) => sum + (n.voteCount || 0), 0),
+              payments: paymentsData.data || [],
+              votingPayments: votesData.data || [],
+            };
+          })
+        );
+        
+        // Aggregate results
+        for (const result of results) {
+          totalCategories += result.categories;
+          totalNominees += result.nominees;
+          totalVotes += result.votes;
+          allPayments = [...allPayments, ...result.payments];
+          allVotingPayments = [...allVotingPayments, ...result.votingPayments];
         }
       }
       
@@ -107,19 +100,7 @@ const DashboardOverview = () => {
       const nominationAmount = allPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
       const votingAmount = allVotingPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
       const totalAmount = nominationAmount + votingAmount;
-      
-      console.log('Revenue calculation:', {
-        nominationPayments: allPayments.length,
-        nominationAmount,
-        votingPayments: allVotingPayments.length,
-        votingAmount,
-        totalAmount,
-        sampleVotingPayments: allVotingPayments.slice(0, 3).map(p => ({
-          amount: p.amount,
-          numberOfVotes: p.numberOfVotes,
-        })),
-      });
-      
+
       // Combine all payments for velocity calculation
       const combinedPayments = [
         ...allPayments.map(p => ({ ...p, type: 'nomination' })),
@@ -227,7 +208,7 @@ const DashboardOverview = () => {
           {/* Total Awards */}
           <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 md:p-6">
             <div className="flex items-center justify-between mb-2 sm:mb-3 md:mb-4">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-green-100 rounded-lg flex items-center justify-center shrink-0">
                 <Trophy className="text-green-600" size={16} />
               </div>
             </div>
@@ -238,12 +219,12 @@ const DashboardOverview = () => {
           {/* Total Revenue */}
           <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 md:p-6">
             <div className="flex items-center justify-between mb-2 sm:mb-3 md:mb-4">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-purple-100 rounded-lg flex items-center justify-center shrink-0">
                 <CreditCard className="text-purple-600" size={16} />
               </div>
             </div>
             <p className="text-[10px] sm:text-xs md:text-sm text-gray-600 mb-1">Total Revenue</p>
-            <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold text-gray-900 break-words">
+            <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold text-gray-900 wrap-break-word">
               GHS {stats.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
           </div>
@@ -251,7 +232,7 @@ const DashboardOverview = () => {
           {/* Total Votes */}
           <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 md:p-6">
             <div className="flex items-center justify-between mb-2 sm:mb-3 md:mb-4">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-pink-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-pink-100 rounded-lg flex items-center justify-center shrink-0">
                 <Users className="text-pink-600" size={16} />
               </div>
             </div>
@@ -264,7 +245,7 @@ const DashboardOverview = () => {
           {/* Total Nominees */}
           <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 md:p-6">
             <div className="flex items-center justify-between mb-2 sm:mb-3 md:mb-4">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-blue-100 rounded-lg flex items-center justify-center shrink-0">
                 <Award className="text-blue-600" size={16} />
               </div>
             </div>
@@ -275,7 +256,7 @@ const DashboardOverview = () => {
           {/* Total Categories */}
           <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 md:p-6">
             <div className="flex items-center justify-between mb-2 sm:mb-3 md:mb-4">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-orange-100 rounded-lg flex items-center justify-center shrink-0">
                 <TrendingUp className="text-orange-600" size={16} />
               </div>
             </div>
@@ -286,7 +267,7 @@ const DashboardOverview = () => {
           {/* Total Payments */}
           <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 md:p-6">
             <div className="flex items-center justify-between mb-2 sm:mb-3 md:mb-4">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-cyan-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-cyan-100 rounded-lg flex items-center justify-center shrink-0">
                 <Vote className="text-cyan-600" size={16} />
               </div>
             </div>
@@ -310,7 +291,7 @@ const DashboardOverview = () => {
             </div>
           ) : (
             <div className="w-full overflow-x-auto -mx-3 px-3 sm:-mx-4 sm:px-4 md:mx-0 md:px-0">
-              <div className="min-w-[350px] sm:min-w-[400px]">
+              <div className="min-w-87.5 sm:min-w-100">
                 <svg 
                   viewBox={`0 0 ${width} ${height}`} 
                   className="w-full h-auto"

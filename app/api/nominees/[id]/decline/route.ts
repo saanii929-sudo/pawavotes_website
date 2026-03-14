@@ -42,7 +42,7 @@ async function declineNominee(req: NextRequest, { params }: { params: Promise<{ 
   } catch (error: any) {
     console.error('Decline nominee error:', error);
     return NextResponse.json(
-      { error: 'Failed to decline nominee', details: error.message },
+      { error: 'Failed to decline nominee', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

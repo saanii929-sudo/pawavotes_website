@@ -5,15 +5,13 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: '**',
-      },
-      {
-        protocol: 'http',
-        hostname: '**',
+        hostname: 'pub-114c6506dd8241f4aaf172d7be4a3ec1.r2.dev',
       },
     ],
-    unoptimized: true, // Allow base64 and data URLs
   },
+  // Security: prevent source maps in production
+  productionBrowserSourceMaps: false,
+  poweredByHeader: false,
 };
 
 export default nextConfig;

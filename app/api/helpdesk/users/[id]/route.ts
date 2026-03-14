@@ -3,7 +3,7 @@ import dbConnect from '@/lib/mongodb';
 import HelpDeskUser from '@/models/HelpDeskUser';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET!;
 
 export async function PUT(
   request: NextRequest,

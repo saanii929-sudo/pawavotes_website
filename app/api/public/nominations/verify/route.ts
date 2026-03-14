@@ -5,9 +5,16 @@ import Award from '@/models/Award';
 import Category from '@/models/Category';
 import Payment from '@/models/Payment';
 import PendingNomination from '@/models/PendingNomination';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req.headers);
+    const rl = checkRateLimit(`nom-verify:${ip}`, 15, 60 * 1000);
+    if (!rl.allowed) {
+      return NextResponse.json({ error: 'Too many requests. Try again later.' }, { status: 429 });
+    }
+
     await connectDB();
 
     const body = await req.json();
@@ -69,10 +76,6 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-      
-      // Still pending after 2 seconds - check with Hubtel directly using Transaction Status Check API
-      console.log('Webhook not received, checking status with Hubtel Transaction Status Check API');
-      
       try {
         const hubtelApiId = process.env.HUBTEL_API_ID;
         const hubtelApiKey = process.env.HUBTEL_API_KEY;
@@ -81,48 +84,33 @@ export async function POST(req: NextRequest) {
         if (!hubtelApiId || !hubtelApiKey || !hubtelMerchantAccount) {
           throw new Error('Hubtel credentials not configured');
         }
-
-        // Call Hubtel Transaction Status Check API directly
         const statusUrl = `https://api-txnstatus.hubtel.com/transactions/${hubtelMerchantAccount}/status?clientReference=${reference}`;
         
-        console.log('Calling Hubtel Status Check API:', statusUrl);
-
         const statusResponse = await fetch(statusUrl, {
           method: 'GET',
           headers: {
             'Authorization': `Basic ${Buffer.from(`${hubtelApiId}:${hubtelApiKey}`).toString('base64')}`,
           },
         });
-
-        console.log('Hubtel status response status:', statusResponse.status);
-
-        // Get response text first to handle non-JSON responses
         const responseText = await statusResponse.text();
-        console.log('Hubtel status raw response:', responseText.substring(0, 500));
 
         let statusData;
         try {
           statusData = JSON.parse(responseText);
         } catch (parseError) {
-          console.error('Failed to parse Hubtel status response:', parseError);
-          
-          // If we get HTML or non-JSON, it's likely an error (403, 401, etc.)
+          // Failed to parse Hubtel status response
+        
           if (responseText.includes('<html') || responseText.includes('<!DOCTYPE')) {
-            console.error('Received HTML response - likely authentication or IP whitelisting issue');
             throw new Error('Hubtel Status API returned HTML - check credentials or IP whitelist');
           }
           
           throw new Error('Invalid response from Hubtel Status API');
         }
-        
-        console.log('Hubtel status parsed response:', statusData);
 
         if (statusResponse.ok && statusData.responseCode === '0000') {
           const paymentStatus = statusData.data.status; // Paid, Unpaid, or Refunded
           
           if (paymentStatus === 'Paid') {
-            // Payment is confirmed by Hubtel, process locally
-            console.log('Payment confirmed by Hubtel, processing nomination locally');
             
             await processNominationLocally(pendingNomination, statusData.data);
             
@@ -146,10 +134,10 @@ export async function POST(req: NextRequest) {
             );
           }
         } else {
-          console.error('Hubtel status check failed:', statusData);
+          // Hubtel status check returned non-success
         }
       } catch (statusError) {
-        console.error('Status check error:', statusError);
+        // Status check failed
       }
       
       // Still pending - return pending status
@@ -164,19 +152,16 @@ export async function POST(req: NextRequest) {
       message: 'Nomination submitted and payment confirmed',
     });
   } catch (error: any) {
-    console.error('Verify nomination error:', error);
+    console.error('Verify nomination error');
     return NextResponse.json(
-      { error: 'Failed to verify payment', details: error.message },
+      { error: 'Failed to verify payment', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }
 }
 
-// Helper function to process nomination locally when webhook is not received
 async function processNominationLocally(pendingNomination: any, hubtelData?: any) {
-  console.log('Creating nominee locally:', pendingNomination.name);
   
-  // Create nominee
   const nominee = await Nominee.create({
     name: pendingNomination.name,
     email: pendingNomination.email,
@@ -191,7 +176,6 @@ async function processNominationLocally(pendingNomination: any, hubtelData?: any
     voteCount: 0,
   });
 
-  // Record payment
   await Payment.create({
     transactionId: pendingNomination.reference,
     nomineeId: nominee._id.toString(),
@@ -203,8 +187,6 @@ async function processNominationLocally(pendingNomination: any, hubtelData?: any
     status: 'successful',
     reference: pendingNomination.reference,
   });
-
-  // Update category nominee count
   await Category.findByIdAndUpdate(pendingNomination.categoryId, {
     $inc: { nomineeCount: 1 },
   });
@@ -220,6 +202,4 @@ async function processNominationLocally(pendingNomination: any, hubtelData?: any
     pendingNomination.paymentData = hubtelData;
   }
   await pendingNomination.save();
-  
-  console.log('Nomination processed locally successfully');
 }

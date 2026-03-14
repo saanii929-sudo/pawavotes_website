@@ -45,7 +45,7 @@ async function getStats(req: NextRequest) {
   } catch (error: any) {
     console.error('Get stats error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch stats', details: error.message },
+      { error: 'Failed to fetch stats', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

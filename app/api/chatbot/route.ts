@@ -2,9 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import ChatMessage from '@/models/ChatMessage';
 import { detectIntent, generateHelpMessage } from '@/services/chatbot';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit: 15 messages per minute per IP
+    const ip = getClientIp(req.headers);
+    const rl = checkRateLimit(`chatbot:${ip}`, 15, 60 * 1000);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: `Too many messages. Try again in ${rl.resetIn} seconds.` },
+        { status: 429 }
+      );
+    }
+
     await connectDB();
 
     const body = await req.json();
@@ -17,7 +28,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check for help command
+    // Limit message length to prevent abuse
+    if (message.length > 1000) {
+      return NextResponse.json(
+        { error: 'Message too long. Maximum 1000 characters.' },
+        { status: 400 }
+      );
+    }
     if (message.toLowerCase().trim() === 'help') {
       const helpResponse = generateHelpMessage();
       
@@ -39,11 +56,7 @@ export async function POST(req: NextRequest) {
         confidence: 1,
       });
     }
-
-    // Detect intent and generate response
     const { intent, confidence, response } = detectIntent(message);
-
-    // Save chat message
     const chatMessage = await ChatMessage.create({
       sessionId,
       userId,
@@ -66,13 +79,12 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('Chatbot error:', error);
     return NextResponse.json(
-      { error: 'Failed to process message', details: error.message },
+      { error: 'Failed to process message', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }
 }
 
-// Get chat history
 export async function GET(req: NextRequest) {
   try {
     await connectDB();
@@ -99,7 +111,7 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     console.error('Get chat history error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch chat history', details: error.message },
+      { error: 'Failed to fetch chat history', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

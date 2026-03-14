@@ -130,12 +130,6 @@ export async function POST(req: NextRequest) {
       message: response.message,
       continueSession: response.continueSession,
     };
-    console.log(`USSD Response [${phoneNumber}]:`, {
-      continueSession: arkeselResponse.continueSession,
-      messageLength: arkeselResponse.message.length,
-      step: session.currentStep,
-      isActive: session.isActive
-    });
 
     return NextResponse.json(arkeselResponse);
   } catch (error: any) {
@@ -221,7 +215,6 @@ async function handleUssdFlow(
 
 
 function handleBackNavigation(session: any) {
-  console.log(`USSD: Back navigation from step: ${session.currentStep}`);
 
   const stepFlow: { [key: string]: string } = {
     select_award: "welcome",
@@ -1206,9 +1199,6 @@ async function initiateHubtelCharge(
 
     const channel = channelMap[provider] || "mtn-gh";
 
-    console.log(
-      `Original: ${phoneNumber} → Formatted: ${formattedPhone}, Provider: ${provider} → Channel: ${channel}`,
-    );
     const hubtelRequest = {
       CustomerName: email.split("@")[0],
       CustomerMsisdn: formattedPhone,
@@ -1219,11 +1209,6 @@ async function initiateHubtelCharge(
       Description: `Vote payment - ${reference}`,
       ClientReference: reference,
     };
-
-    console.log(
-      "Hubtel charge request:",
-      JSON.stringify(hubtelRequest, null, 2),
-    );
 
     const authString = `${hubtelApiId}:${hubtelApiKey}`;
     const base64Auth = Buffer.from(authString).toString('base64');
@@ -1241,7 +1226,6 @@ async function initiateHubtelCharge(
     );
 
     const data = await response.json();
-    console.log("Hubtel charge response:", JSON.stringify(data, null, 2));
 
     if (!response.ok) {
       console.error("Hubtel API error:", data);

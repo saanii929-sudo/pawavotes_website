@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Failed to fetch elections', details: error.message },
+      { error: 'Failed to fetch elections', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }
@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
     }, { status: 201 });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Failed to create election', details: error.message },
+      { error: 'Failed to create election', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

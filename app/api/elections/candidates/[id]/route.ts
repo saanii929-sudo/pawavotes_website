@@ -3,7 +3,6 @@ import connectDB from '@/lib/mongodb';
 import Candidate from '@/models/Candidate';
 import { verifyToken } from '@/lib/auth';
 
-// PUT update candidate
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -24,8 +23,6 @@ export async function PUT(
     const { id } = await params;
     const body = await req.json();
     const { name, image, bio, manifesto, ballotNumber, categoryId } = body;
-
-    // Verify candidate belongs to organization
     const candidate = await Candidate.findOne({
       _id: id,
       organizationId: decoded.id,
@@ -37,8 +34,6 @@ export async function PUT(
         { status: 404 }
       );
     }
-
-    // Update candidate
     const updateData: any = {};
     if (name) updateData.name = name;
     if (image !== undefined) updateData.image = image;
@@ -61,13 +56,11 @@ export async function PUT(
   } catch (error: any) {
     console.error('Update candidate error:', error);
     return NextResponse.json(
-      { error: 'Failed to update candidate', details: error.message },
+      { error: 'Failed to update candidate', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }
 }
-
-// DELETE candidate
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -86,8 +79,6 @@ export async function DELETE(
     }
 
     const { id } = await params;
-
-    // Verify candidate belongs to organization
     const candidate = await Candidate.findOneAndDelete({
       _id: id,
       organizationId: decoded.id,
@@ -107,7 +98,7 @@ export async function DELETE(
   } catch (error: any) {
     console.error('Delete candidate error:', error);
     return NextResponse.json(
-      { error: 'Failed to delete candidate', details: error.message },
+      { error: 'Failed to delete candidate', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

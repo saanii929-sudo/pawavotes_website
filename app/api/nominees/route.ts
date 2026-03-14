@@ -5,6 +5,7 @@ import Category from '@/models/Category';
 import Award from '@/models/Award';
 import { withAuth } from '@/middleware/auth';
 import { hasAwardAccess } from '@/lib/access-control';
+import { sanitizeSearch } from '@/lib/security';
 
 function generateAwardCode(name: string): string {
   const words = name.trim().split(/\s+/).filter(word => !/^\d+$/.test(word));
@@ -59,7 +60,7 @@ async function getNominees(req: NextRequest) {
     const awardId = searchParams.get('awardId');
     const categoryId = searchParams.get('categoryId');
     const status = searchParams.get('status');
-    const search = searchParams.get('search') || '';
+    const search = sanitizeSearch(searchParams.get('search'));
 
     const query: any = {};
 
@@ -105,7 +106,8 @@ async function getNominees(req: NextRequest) {
 
     const nominees = await Nominee.find(query)
       .populate('categoryId', 'name')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
     return NextResponse.json({
       success: true,
@@ -113,7 +115,7 @@ async function getNominees(req: NextRequest) {
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Failed to fetch nominees', details: error.message },
+      { error: 'Failed to fetch nominees', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }
@@ -169,7 +171,7 @@ async function createNominee(req: NextRequest) {
     }, { status: 201 });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Failed to create nominee', details: error.message },
+      { error: 'Failed to create nominee', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

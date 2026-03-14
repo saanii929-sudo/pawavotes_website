@@ -107,7 +107,7 @@ export async function POST(
   } catch (error: any) {
     console.error('Announce winners error:', error);
     return NextResponse.json(
-      { error: 'Failed to announce winners', details: error.message },
+      { error: 'Failed to announce winners', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }
@@ -184,7 +184,7 @@ export async function GET(
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Failed to fetch winners', details: error.message },
+      { error: 'Failed to fetch winners', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

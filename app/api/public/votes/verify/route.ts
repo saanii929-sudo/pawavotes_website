@@ -6,9 +6,16 @@ import Nominee from '@/models/Nominee';
 import Category from '@/models/Category';
 import Award from '@/models/Award';
 import NomineeCampaign from '@/models/NomineeCampaign';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req.headers);
+    const rl = checkRateLimit(`vote-verify:${ip}`, 15, 60 * 1000);
+    if (!rl.allowed) {
+      return NextResponse.json({ error: 'Too many requests. Try again later.' }, { status: 429 });
+    }
+
     await connectDB();
 
     const body = await req.json();
@@ -72,10 +79,6 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-      
-      // Still pending after 2 seconds - check with Hubtel directly using Transaction Status Check API
-      console.log('Webhook not received, checking status with Hubtel Transaction Status Check API');
-      
       try {
         const hubtelApiId = process.env.HUBTEL_API_ID;
         const hubtelApiKey = process.env.HUBTEL_API_KEY;
@@ -87,8 +90,7 @@ export async function POST(req: NextRequest) {
 
         // Call Hubtel Transaction Status Check API directly
         const statusUrl = `https://api-txnstatus.hubtel.com/transactions/${hubtelMerchantAccount}/status?clientReference=${reference}`;
-        
-        console.log('Calling Hubtel Status Check API:', statusUrl);
+    
 
         const statusResponse = await fetch(statusUrl, {
           method: 'GET',
@@ -96,38 +98,23 @@ export async function POST(req: NextRequest) {
             'Authorization': `Basic ${Buffer.from(`${hubtelApiId}:${hubtelApiKey}`).toString('base64')}`,
           },
         });
-
-        console.log('Hubtel status response status:', statusResponse.status);
-        console.log('Hubtel status response headers:', Object.fromEntries(statusResponse.headers.entries()));
-
-        // Get response text first to handle non-JSON responses
         const responseText = await statusResponse.text();
-        console.log('Hubtel status raw response:', responseText.substring(0, 500));
 
         let statusData;
         try {
           statusData = JSON.parse(responseText);
         } catch (parseError) {
-          console.error('Failed to parse Hubtel status response:', parseError);
-          console.error('Response was:', responseText.substring(0, 200));
-          
-          // If we get HTML or non-JSON, it's likely an error (403, 401, etc.)
           if (responseText.includes('<html') || responseText.includes('<!DOCTYPE')) {
-            console.error('Received HTML response - likely authentication or IP whitelisting issue');
+            console.error('Received HTML response from Hubtel Status API');
             throw new Error('Hubtel Status API returned HTML - check credentials or IP whitelist');
           }
           
           throw new Error('Invalid response from Hubtel Status API');
         }
-        
-        console.log('Hubtel status parsed response:', statusData);
-
         if (statusResponse.ok && statusData.responseCode === '0000') {
           const paymentStatus = statusData.data.status; // Paid, Unpaid, or Refunded
           
           if (paymentStatus === 'Paid') {
-            // Payment is confirmed by Hubtel, process locally
-            console.log('Payment confirmed by Hubtel, processing vote locally');
             
             await processVoteLocally(pendingVote, statusData.data);
             
@@ -152,10 +139,10 @@ export async function POST(req: NextRequest) {
             );
           }
         } else {
-          console.error('Hubtel status check failed:', statusData);
+          // Hubtel status check returned non-success
         }
       } catch (statusError) {
-        console.error('Status check failed:', statusError);
+        // Status check failed
       }
       
       // Still pending - return pending status
@@ -171,17 +158,15 @@ export async function POST(req: NextRequest) {
       votes: pendingVote.numberOfVotes,
     });
   } catch (error: any) {
-    console.error('Verify vote error:', error);
+    console.error('Verify vote error');
     return NextResponse.json(
-      { error: 'Failed to verify payment', details: error.message },
+      { error: 'Failed to verify payment', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }
 }
 
-// Helper function to process vote locally when webhook is not received
 async function processVoteLocally(pendingVote: any, hubtelData?: any) {
-  // Record the vote
   const voteData = {
     awardId: pendingVote.awardId,
     categoryId: pendingVote.categoryId,
@@ -196,26 +181,16 @@ async function processVoteLocally(pendingVote: any, hubtelData?: any) {
     ...(pendingVote.bulkPackageId && { bulkPackageId: pendingVote.bulkPackageId }),
   };
 
-  console.log('Creating vote locally:', voteData);
-
   await Vote.create(voteData);
-
-  // Update nominee vote count
   await Nominee.findByIdAndUpdate(pendingVote.nomineeId, {
     $inc: { voteCount: pendingVote.numberOfVotes },
   });
-
-  // Update category vote count
   await Category.findByIdAndUpdate(pendingVote.categoryId, {
     $inc: { voteCount: pendingVote.numberOfVotes },
   });
-
-  // Update award vote count
   await Award.findByIdAndUpdate(pendingVote.awardId, {
     $inc: { totalVotes: pendingVote.numberOfVotes },
   });
-
-  // Update campaign if exists
   try {
     const campaign = await NomineeCampaign.findOne({
       nomineeId: pendingVote.nomineeId,
@@ -250,15 +225,12 @@ async function processVoteLocally(pendingVote: any, hubtelData?: any) {
       await campaign.save();
     }
   } catch (campaignError) {
-    console.error('Failed to update campaign:', campaignError);
+    // Campaign update failed silently
   }
-
-  // Mark pending vote as completed
   pendingVote.status = 'completed';
   if (hubtelData) {
     pendingVote.paymentData = hubtelData;
   }
   await pendingVote.save();
-  
-  console.log('Vote processed locally successfully');
+
 }

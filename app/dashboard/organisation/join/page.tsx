@@ -7,8 +7,6 @@ const JoinOrganization = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle form submission
-    console.log('Submitting email:', email);
   };
 
   const handleCancel = () => {

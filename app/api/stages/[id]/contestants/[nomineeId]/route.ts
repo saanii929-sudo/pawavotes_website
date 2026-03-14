@@ -3,7 +3,6 @@ import { contestantService } from '@/services/contestant.service';
 import { successResponse } from '@/utils/api-response';
 import { handleError } from '@/utils/error-handler';
 
-// DELETE /api/stages/[id]/contestants/[nomineeId] - Remove contestant from stage
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; nomineeId: string }> }
@@ -22,7 +21,6 @@ export async function DELETE(
   }
 }
 
-// GET /api/stages/[id]/contestants/[nomineeId] - Check if contestant is in stage
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; nomineeId: string }> }

@@ -3,7 +3,6 @@ import { leaderboardService } from '@/services/leaderboard.service';
 import Stage from '@/models/Stage';
 import { handleError } from '@/utils/error-handler';
 
-// GET /api/stages/[id]/results/export - Export stage results as CSV
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -11,8 +10,6 @@ export async function GET(
   try {
     const { id: stageId } = await params;
     const categoryId = req.nextUrl.searchParams.get('categoryId');
-
-    // Get stage
     const stage = await Stage.findById(stageId);
 
     if (!stage) {
@@ -21,14 +18,10 @@ export async function GET(
         { status: 404 }
       );
     }
-
-    // Get results
     const results = await leaderboardService.getHistoricalLeaderboard(
       stageId,
       categoryId || undefined
     );
-
-    // Generate CSV
     const headers = ['Rank', 'Nominee Name', 'Vote Count', 'Last Vote At'];
     const rows = results.map((entry) => [
       entry.rank,

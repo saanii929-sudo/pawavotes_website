@@ -142,7 +142,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('Submit vote error:', error);
     return NextResponse.json(
-      { error: 'Failed to submit vote', details: error.message },
+      { error: 'Failed to submit vote', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

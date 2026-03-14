@@ -9,7 +9,6 @@ const addContestantsSchema = z.object({
   addedBy: z.enum(['manual', 'qualification', 'initial']).default('manual'),
 });
 
-// GET /api/stages/[id]/contestants - Get contestants for a stage
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -32,7 +31,6 @@ export async function GET(
   }
 }
 
-// POST /api/stages/[id]/contestants - Add contestants to a stage
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }

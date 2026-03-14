@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Failed to add votes', details: error.message },
+      { error: 'Failed to add votes', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: error.statusCode || 500 }
     );
   }

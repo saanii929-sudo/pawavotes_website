@@ -59,7 +59,7 @@ async function generateNominationLink(
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Failed to generate nomination link', details: error.message },
+      { error: 'Failed to generate nomination link', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
   }

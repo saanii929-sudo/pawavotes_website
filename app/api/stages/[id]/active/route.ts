@@ -3,7 +3,6 @@ import { stageService } from '@/services/stage.service';
 import { successResponse } from '@/utils/api-response';
 import { handleError } from '@/utils/error-handler';
 
-// GET /api/stages/[awardId]/active - Get active stage for an award
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
