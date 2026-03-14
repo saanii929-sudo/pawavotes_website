@@ -12,6 +12,8 @@ const nextConfig: NextConfig = {
   // Security: prevent source maps in production
   productionBrowserSourceMaps: false,
   poweredByHeader: false,
+  // Performance: keep serverless functions warm longer
+  serverExternalPackages: ['mongoose'],
 };
 
 export default nextConfig;
