@@ -60,6 +60,9 @@ const ManageResultsComplete = () => {
   const [serviceFeePercentage, setServiceFeePercentage] = useState<number>(10);
   const [loadingNominees, setLoadingNominees] = useState(false);
   const [showMoreOptions, setShowMoreOptions] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalNominees, setTotalNominees] = useState(0);
 
   useEffect(() => {
     fetchAwards();
@@ -68,15 +71,17 @@ const ManageResultsComplete = () => {
 
   useEffect(() => {
     if (selectedAward) {
-      fetchAwardData(selectedAward._id);
+      setCurrentPage(1);
+      fetchAwardData(selectedAward._id, 1);
     }
   }, [selectedAward]);
 
-  // Debounce search/filter changes
+  // Debounce search/filter changes — reset to page 1
   useEffect(() => {
     if (!selectedAward) return;
     const timer = setTimeout(() => {
-      fetchAwardData(selectedAward._id);
+      setCurrentPage(1);
+      fetchAwardData(selectedAward._id, 1);
     }, 400);
     return () => clearTimeout(timer);
   }, [selectedCategory, searchQuery]);
@@ -116,20 +121,20 @@ const ManageResultsComplete = () => {
     }
   };
 
-  const fetchAwardData = async (awardId: string) => {
+  const fetchAwardData = async (awardId: string, page = currentPage) => {
     setLoadingNominees(true);
     try {
       const token = localStorage.getItem("token");
-      let url = `/api/awards/${awardId}/nominees-data`;
       const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('limit', '8');
       if (selectedCategory && selectedCategory !== "all") {
         params.set('categoryId', selectedCategory);
       }
       if (searchQuery) {
         params.set('search', searchQuery);
       }
-      const qs = params.toString();
-      if (qs) url += `?${qs}`;
+      const url = `/api/awards/${awardId}/nominees-data?${params.toString()}`;
 
       const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
@@ -141,6 +146,9 @@ const ManageResultsComplete = () => {
           (b.voteCount || 0) - (a.voteCount || 0)
         );
         setNominees(sortedNominees);
+        setCurrentPage(data.pagination.page);
+        setTotalPages(data.pagination.pages);
+        setTotalNominees(data.pagination.total);
       }
     } catch (error) {
       toast.error("Failed to load results");
@@ -560,6 +568,34 @@ const ManageResultsComplete = () => {
               </>
             )}
           </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 mt-4">
+              <p className="text-xs sm:text-sm text-gray-500">
+                Showing {((currentPage - 1) * 8) + 1}–{Math.min(currentPage * 8, totalNominees)} of {totalNominees}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { const p = currentPage - 1; setCurrentPage(p); if (selectedAward) fetchAwardData(selectedAward._id, p); }}
+                  disabled={currentPage <= 1}
+                  className="px-3 py-1.5 text-xs sm:text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+                <span className="text-xs sm:text-sm text-gray-700">
+                  {currentPage} / {totalPages}
+                </span>
+                <button
+                  onClick={() => { const p = currentPage + 1; setCurrentPage(p); if (selectedAward) fetchAwardData(selectedAward._id, p); }}
+                  disabled={currentPage >= totalPages}
+                  className="px-3 py-1.5 text-xs sm:text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

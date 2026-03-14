@@ -22,7 +22,6 @@ export async function GET(
 
     const { id: awardId } = await params;
 
-    // For org-admin, check assigned awards without DB call
     if (decoded.role === 'org-admin') {
       if (!decoded.assignedAwards?.includes(awardId)) {
         return NextResponse.json({ error: 'Access denied' }, { status: 403 });
@@ -33,25 +32,23 @@ export async function GET(
 
     await connectDB();
 
-    // Parse optional filters
     const { searchParams } = new URL(req.url);
     const categoryId = searchParams.get('categoryId');
     const status = searchParams.get('status');
     const search = sanitizeSearch(searchParams.get('search'));
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1'));
+    const limit = Math.min(50, Math.max(1, parseInt(searchParams.get('limit') || '8')));
+    const skip = (page - 1) * limit;
 
     const nomineeQuery: any = { awardId };
     if (categoryId) nomineeQuery.categoryId = categoryId;
     if (status) nomineeQuery.nominationStatus = status.toLowerCase();
     if (search) nomineeQuery.name = { $regex: search, $options: 'i' };
 
-    // For organization role, verify ownership AND fetch data in one parallel batch.
-    // This eliminates the separate access-check round trip.
-    const t0 = Date.now();
-    const [award, categories, nominees] = await Promise.all([
-      // Only needed for org role access check; org-admin already checked above
+    const [award, categories, nominees, totalNominees] = await Promise.all([
       decoded.role === 'organization'
         ? Award.findOne({ _id: awardId, organizationId: decoded.id }).select('_id').lean()
-        : Promise.resolve({ _id: awardId }), // skip query for org-admin
+        : Promise.resolve({ _id: awardId }),
       Category.find({ awardId })
         .select('name order')
         .sort({ order: 1, createdAt: -1 })
@@ -59,20 +56,18 @@ export async function GET(
       Nominee.find(nomineeQuery)
         .select('name nomineeCode categoryId image bio email phone status nominationStatus nominationType voteCount createdAt')
         .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
         .lean(),
+      Nominee.countDocuments(nomineeQuery),
     ]);
 
-    // Check access for organization role
     if (decoded.role === 'organization' && !award) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    const queryTime = Date.now() - t0;
-
-    // Build category map from the already-fetched categories
     const categoryMap = new Map(categories.map((c: any) => [c._id.toString(), c.name]));
 
-    // Attach category names to nominees
     const nomineesWithCategory = nominees.map((n: any) => ({
       ...n,
       categoryId: {
@@ -85,7 +80,12 @@ export async function GET(
       success: true,
       categories,
       nominees: nomineesWithCategory,
-      _debug: { queryTime, nomineeCount: nominees.length, categoryCount: categories.length },
+      pagination: {
+        page,
+        limit,
+        total: totalNominees,
+        pages: Math.ceil(totalNominees / limit),
+      },
     });
   } catch (error: any) {
     return NextResponse.json(

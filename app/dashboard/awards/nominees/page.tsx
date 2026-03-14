@@ -56,10 +56,14 @@ const AwardsManagementSystem = () => {
   const [selectedAward, setSelectedAward] = useState<Award | null>(null);
   const [awards, setAwards] = useState<Award[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);const [serviceFeePercentage, setServiceFeePercentage] = useState<number>(10);
+  const [loading, setLoading] = useState(true);
+  const [serviceFeePercentage, setServiceFeePercentage] = useState<number>(10);
   const [loadingNominees, setLoadingNominees] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalNominees, setTotalNominees] = useState(0);
   const [editingNomineeId, setEditingNomineeId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ 
     name: "", 
@@ -85,9 +89,8 @@ const AwardsManagementSystem = () => {
   
   useEffect(() => { 
     if (selectedAward) { 
-      // Fetch categories and nominees in a single API call
-      fetchAwardData(selectedAward._id);
-      // Check if nomination link was already generated for this award
+      setCurrentPage(1);
+      fetchAwardData(selectedAward._id, 1);
       if (selectedAward.settings?.nominationLinkGenerated) {
         const baseUrl = window.location.origin;
         const link = `${baseUrl}/nominate/${selectedAward._id}`;
@@ -100,11 +103,12 @@ const AwardsManagementSystem = () => {
     } 
   }, [selectedAward]);
 
-  // Debounce search and filter changes to avoid excessive API calls
+  // Debounce search and filter changes — reset to page 1
   useEffect(() => {
     if (!selectedAward) return;
     const timer = setTimeout(() => {
-      fetchAwardData(selectedAward._id);
+      setCurrentPage(1);
+      fetchAwardData(selectedAward._id, 1);
     }, 400);
     return () => clearTimeout(timer);
   }, [searchQuery, selectedCategoryFilter]);
@@ -145,20 +149,20 @@ const AwardsManagementSystem = () => {
     }
   };
 
-  const fetchAwardData = async (awardId: string) => {
+  const fetchAwardData = async (awardId: string, page = currentPage) => {
     setLoadingNominees(true);
     try {
       const token = localStorage.getItem("token");
-      let url = `/api/awards/${awardId}/nominees-data`;
       const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('limit', '8');
       if (selectedCategoryFilter && selectedCategoryFilter !== "all") {
         params.set('categoryId', selectedCategoryFilter);
       }
       if (searchQuery) {
         params.set('search', searchQuery);
       }
-      const qs = params.toString();
-      if (qs) url += `?${qs}`;
+      const url = `/api/awards/${awardId}/nominees-data?${params.toString()}`;
 
       const response = await fetch(url, { 
         headers: { Authorization: `Bearer ${token}` } 
@@ -166,7 +170,10 @@ const AwardsManagementSystem = () => {
       if (response.ok) { 
         const data = await response.json(); 
         setCategories(data.categories);
-        setNominees(data.nominees); 
+        setNominees(data.nominees);
+        setCurrentPage(data.pagination.page);
+        setTotalPages(data.pagination.pages);
+        setTotalNominees(data.pagination.total);
       }
     } catch (error) { 
       console.error("Failed to fetch award data"); 
@@ -262,7 +269,7 @@ const AwardsManagementSystem = () => {
           setFormData({ name: "", categoryIds: [], publish: false, image: "", bio: "", email: "", phone: "" });
           setEditingNomineeId(null);
           setShowAddModal(false);
-          fetchAwardData(selectedAward._id);
+          fetchAwardData(selectedAward._id, currentPage);
         } else {
           const data = await response.json();
           toast.error(data.error || "Failed to update nominee", { id: loadingToast });
@@ -311,7 +318,7 @@ const AwardsManagementSystem = () => {
           setFormData({ name: "", categoryIds: [], publish: false, image: "", bio: "", email: "", phone: "" });
           setEditingNomineeId(null);
           setShowAddModal(false);
-          fetchAwardData(selectedAward._id);
+          fetchAwardData(selectedAward._id, currentPage);
         } else {
           toast.error(`Failed to create nominees for all categories`, { id: loadingToast });
         }
@@ -359,7 +366,7 @@ const AwardsManagementSystem = () => {
           if (response.ok) {
             toast.success("Nominee deleted successfully!", { id: loadingToast });
             if (selectedAward) { 
-              fetchAwardData(selectedAward._id); 
+              fetchAwardData(selectedAward._id, currentPage); 
             }
             setShowActionMenu(null);
           } else { 
@@ -950,6 +957,34 @@ const AwardsManagementSystem = () => {
                 ))
               )}
             </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
+                <p className="text-xs sm:text-sm text-gray-500">
+                  Showing {((currentPage - 1) * 8) + 1}–{Math.min(currentPage * 8, totalNominees)} of {totalNominees}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => { const p = currentPage - 1; setCurrentPage(p); if (selectedAward) fetchAwardData(selectedAward._id, p); }}
+                    disabled={currentPage <= 1}
+                    className="px-3 py-1.5 text-xs sm:text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+                  <span className="text-xs sm:text-sm text-gray-700">
+                    {currentPage} / {totalPages}
+                  </span>
+                  <button
+                    onClick={() => { const p = currentPage + 1; setCurrentPage(p); if (selectedAward) fetchAwardData(selectedAward._id, p); }}
+                    disabled={currentPage >= totalPages}
+                    className="px-3 py-1.5 text-xs sm:text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
