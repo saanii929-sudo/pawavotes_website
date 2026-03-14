@@ -75,19 +75,15 @@ const AwardNomineesManager = () => {
 
   useEffect(() => {
     if (selectedAward) {
-      // Fetch categories and nominees in parallel
-      Promise.all([
-        fetchCategories(selectedAward._id),
-        fetchNominees(selectedAward._id),
-      ]);
+      fetchAwardData(selectedAward._id);
     }
   }, [selectedAward]);
 
-  // Debounce search/filter changes to avoid excessive API calls
+  // Debounce search/filter changes
   useEffect(() => {
     if (!selectedAward) return;
     const timer = setTimeout(() => {
-      fetchNominees(selectedAward._id);
+      fetchAwardData(selectedAward._id);
     }, 400);
     return () => clearTimeout(timer);
   }, [searchQuery, selectedCategoryFilter, statusFilter]);
@@ -126,49 +122,34 @@ const AwardNomineesManager = () => {
     }
   };
 
-  const fetchCategories = async (awardId: string) => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`/api/categories?awardId=${awardId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setCategories(data.data);
-      }
-    } catch (error) {
-      console.error("Failed to fetch categories:", error);
-    }
-  };
-
-  const fetchNominees = async (awardId: string) => {
+  const fetchAwardData = async (awardId: string) => {
     setLoadingNominees(true);
     try {
       const token = localStorage.getItem("token");
-      let url = `/api/nominees?awardId=${awardId}`;
-
+      let url = `/api/awards/${awardId}/nominees-data`;
+      const params = new URLSearchParams();
       if (selectedCategoryFilter && selectedCategoryFilter !== "all") {
-        url += `&categoryId=${selectedCategoryFilter}`;
+        params.set('categoryId', selectedCategoryFilter);
       }
-
       if (statusFilter) {
-        url += `&status=${statusFilter.toLowerCase()}`;
+        params.set('status', statusFilter.toLowerCase());
       }
-
       if (searchQuery) {
-        url += `&search=${searchQuery}`;
+        params.set('search', searchQuery);
       }
+      const qs = params.toString();
+      if (qs) url += `?${qs}`;
 
       const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
       if (response.ok) {
         const data = await response.json();
-        setNominees(data.data);
+        setCategories(data.categories);
+        setNominees(data.nominees);
       }
     } catch (error) {
-      console.error("Failed to fetch nominees:", error);
+      console.error("Failed to fetch award data");
     } finally {
       setLoadingNominees(false);
     }
@@ -209,7 +190,7 @@ const AwardNomineesManager = () => {
           id: loadingToast,
         });
         if (selectedAward) {
-          fetchNominees(selectedAward._id);
+          fetchAwardData(selectedAward._id);
         }
         setShowActionMenu(null);
       } else {

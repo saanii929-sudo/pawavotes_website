@@ -85,11 +85,8 @@ const AwardsManagementSystem = () => {
   
   useEffect(() => { 
     if (selectedAward) { 
-      // Fetch categories and nominees in parallel
-      Promise.all([
-        fetchCategories(selectedAward._id),
-        fetchNominees(selectedAward._id),
-      ]);
+      // Fetch categories and nominees in a single API call
+      fetchAwardData(selectedAward._id);
       // Check if nomination link was already generated for this award
       if (selectedAward.settings?.nominationLinkGenerated) {
         const baseUrl = window.location.origin;
@@ -107,7 +104,7 @@ const AwardsManagementSystem = () => {
   useEffect(() => {
     if (!selectedAward) return;
     const timer = setTimeout(() => {
-      fetchNominees(selectedAward._id);
+      fetchAwardData(selectedAward._id);
     }, 400);
     return () => clearTimeout(timer);
   }, [searchQuery, selectedCategoryFilter]);
@@ -148,41 +145,31 @@ const AwardsManagementSystem = () => {
     }
   };
 
-  const fetchCategories = async (awardId: string) => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`/api/categories?awardId=${awardId}`, { 
-        headers: { Authorization: `Bearer ${token}` } 
-      });
-      if (response.ok) { 
-        const data = await response.json(); 
-        setCategories(data.data); 
-      }
-    } catch (error) { 
-      console.error("Failed to fetch categories:", error); 
-    }
-  };
-
-  const fetchNominees = async (awardId: string) => {
+  const fetchAwardData = async (awardId: string) => {
     setLoadingNominees(true);
     try {
       const token = localStorage.getItem("token");
-      let url = `/api/nominees?awardId=${awardId}`;
+      let url = `/api/awards/${awardId}/nominees-data`;
+      const params = new URLSearchParams();
       if (selectedCategoryFilter && selectedCategoryFilter !== "all") {
-        url += `&categoryId=${selectedCategoryFilter}`;
+        params.set('categoryId', selectedCategoryFilter);
       }
       if (searchQuery) {
-        url += `&search=${searchQuery}`;
+        params.set('search', searchQuery);
       }
+      const qs = params.toString();
+      if (qs) url += `?${qs}`;
+
       const response = await fetch(url, { 
         headers: { Authorization: `Bearer ${token}` } 
       });
       if (response.ok) { 
         const data = await response.json(); 
-        setNominees(data.data); 
+        setCategories(data.categories);
+        setNominees(data.nominees); 
       }
     } catch (error) { 
-      console.error("Failed to fetch nominees:", error); 
+      console.error("Failed to fetch award data"); 
     } finally { 
       setLoadingNominees(false); 
     }
@@ -275,8 +262,7 @@ const AwardsManagementSystem = () => {
           setFormData({ name: "", categoryIds: [], publish: false, image: "", bio: "", email: "", phone: "" });
           setEditingNomineeId(null);
           setShowAddModal(false);
-          fetchNominees(selectedAward._id);
-          fetchCategories(selectedAward._id);
+          fetchAwardData(selectedAward._id);
         } else {
           const data = await response.json();
           toast.error(data.error || "Failed to update nominee", { id: loadingToast });
@@ -325,8 +311,7 @@ const AwardsManagementSystem = () => {
           setFormData({ name: "", categoryIds: [], publish: false, image: "", bio: "", email: "", phone: "" });
           setEditingNomineeId(null);
           setShowAddModal(false);
-          fetchNominees(selectedAward._id);
-          fetchCategories(selectedAward._id);
+          fetchAwardData(selectedAward._id);
         } else {
           toast.error(`Failed to create nominees for all categories`, { id: loadingToast });
         }
@@ -374,8 +359,7 @@ const AwardsManagementSystem = () => {
           if (response.ok) {
             toast.success("Nominee deleted successfully!", { id: loadingToast });
             if (selectedAward) { 
-              fetchNominees(selectedAward._id); 
-              fetchCategories(selectedAward._id); 
+              fetchAwardData(selectedAward._id); 
             }
             setShowActionMenu(null);
           } else { 

@@ -68,11 +68,7 @@ const ManageResultsComplete = () => {
 
   useEffect(() => {
     if (selectedAward) {
-      // Fetch categories and nominees in parallel on award selection
-      Promise.all([
-        fetchCategories(selectedAward._id),
-        fetchNominees(selectedAward._id),
-      ]);
+      fetchAwardData(selectedAward._id);
     }
   }, [selectedAward]);
 
@@ -80,7 +76,7 @@ const ManageResultsComplete = () => {
   useEffect(() => {
     if (!selectedAward) return;
     const timer = setTimeout(() => {
-      fetchNominees(selectedAward._id);
+      fetchAwardData(selectedAward._id);
     }, 400);
     return () => clearTimeout(timer);
   }, [selectedCategory, searchQuery]);
@@ -120,49 +116,33 @@ const ManageResultsComplete = () => {
     }
   };
 
-  const fetchCategories = async (awardId: string) => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`/api/categories?awardId=${awardId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setCategories(data.data);
-      }
-    } catch (error) {
-      console.error("Failed to fetch categories:", error);
-    }
-  };
-
-  const fetchNominees = async (awardId: string) => {
+  const fetchAwardData = async (awardId: string) => {
     setLoadingNominees(true);
     try {
       const token = localStorage.getItem("token");
-      let url = `/api/nominees?awardId=${awardId}`;
-      
+      let url = `/api/awards/${awardId}/nominees-data`;
+      const params = new URLSearchParams();
       if (selectedCategory && selectedCategory !== "all") {
-        url += `&categoryId=${selectedCategory}`;
+        params.set('categoryId', selectedCategory);
       }
-      
       if (searchQuery) {
-        url += `&search=${searchQuery}`;
+        params.set('search', searchQuery);
       }
-      
+      const qs = params.toString();
+      if (qs) url += `?${qs}`;
+
       const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      
       if (response.ok) {
         const data = await response.json();
-        // Sort by vote count descending
-        const sortedNominees = (data.data || []).sort((a: Nominee, b: Nominee) => 
+        setCategories(data.categories);
+        const sortedNominees = (data.nominees || []).sort((a: Nominee, b: Nominee) => 
           (b.voteCount || 0) - (a.voteCount || 0)
         );
         setNominees(sortedNominees);
       }
     } catch (error) {
-      console.error("Failed to fetch nominees:", error);
       toast.error("Failed to load results");
     } finally {
       setLoadingNominees(false);
