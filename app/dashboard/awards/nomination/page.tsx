@@ -73,7 +73,6 @@ const AwardNomineesManager = () => {
 
   useEffect(() => {
     fetchAwards();
-    fetchServiceFee();
   }, []);
 
   useEffect(() => {
@@ -93,21 +92,6 @@ const AwardNomineesManager = () => {
     return () => clearTimeout(timer);
   }, [searchQuery, selectedCategoryFilter, statusFilter]);
 
-  const fetchServiceFee = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("/api/auth/me", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setServiceFeePercentage(data.data.serviceFeePercentage || 10);
-      }
-    } catch (error) {
-      console.error("Failed to fetch service fee");
-    }
-  };
-
   const fetchAwards = async () => {
     try {
       const token = localStorage.getItem("token");
@@ -117,6 +101,9 @@ const AwardNomineesManager = () => {
       if (response.ok) {
         const data = await response.json();
         setAwards(data.data);
+        if (data.serviceFeePercentage != null) {
+          setServiceFeePercentage(data.serviceFeePercentage);
+        }
       } else {
         toast.error("Failed to fetch awards");
       }

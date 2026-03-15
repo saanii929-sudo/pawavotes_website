@@ -82,9 +82,8 @@ const AwardsManagementSystem = () => {
     type?: "danger" | "warning" | "info";
   }>({ isOpen: false, title: "", message: "", onConfirm: () => {}, type: "warning" });
 
-  useEffect(() => { 
+  useEffect(() => {
     fetchAwards();
-    fetchServiceFee(); 
   }, []);
   
   useEffect(() => { 
@@ -115,37 +114,25 @@ const AwardsManagementSystem = () => {
 
 
   
-  const fetchServiceFee = async () => {
+  const fetchAwards = async () => {
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch("/api/auth/me", {
+      const response = await fetch("/api/awards", {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
         const data = await response.json();
-        setServiceFeePercentage(data.data.serviceFeePercentage || 10);
+        setAwards(data.data);
+        if (data.serviceFeePercentage != null) {
+          setServiceFeePercentage(data.serviceFeePercentage);
+        }
+      } else {
+        toast.error("Failed to fetch awards");
       }
     } catch (error) {
-      console.error("Failed to fetch service fee");
-    }
-  };
-
-  const fetchAwards = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("/api/awards", { 
-        headers: { Authorization: `Bearer ${token}` } 
-      });
-      if (response.ok) { 
-        const data = await response.json(); 
-        setAwards(data.data); 
-      } else { 
-        toast.error("Failed to fetch awards"); 
-      }
-    } catch (error) { 
-      toast.error("Failed to fetch awards"); 
-    } finally { 
-      setLoading(false); 
+      toast.error("Failed to fetch awards");
+    } finally {
+      setLoading(false);
     }
   };
 

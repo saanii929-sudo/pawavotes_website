@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Award from '@/models/Award';
+import Organization from '@/models/Organization';
+import OrganizationAdmin from '@/models/OrganizationAdmin';
 import { withAuth } from '@/middleware/auth';
 import { sanitizeSearch } from '@/lib/security';
 
@@ -78,18 +80,24 @@ async function getAwards(req: NextRequest) {
 
     const skip = (page - 1) * limit;
 
-    const [awards, total] = await Promise.all([
-      Award.find(query)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
+    const serviceFeeQuery = user.role === 'org-admin'
+      ? OrganizationAdmin.findById(user.id).populate('organizationId', 'serviceFeePercentage').select('organizationId').lean()
+      : Organization.findById(user.id).select('serviceFeePercentage').lean();
+
+    const [awards, total, userDoc] = await Promise.all([
+      Award.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
       Award.countDocuments(query),
+      serviceFeeQuery,
     ]);
+
+    const serviceFeePercentage = user.role === 'org-admin'
+      ? (userDoc as any)?.organizationId?.serviceFeePercentage ?? 10
+      : (userDoc as any)?.serviceFeePercentage ?? 10;
 
     return NextResponse.json({
       success: true,
       data: awards,
+      serviceFeePercentage,
       pagination: {
         page,
         limit,
