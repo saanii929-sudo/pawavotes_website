@@ -2,9 +2,34 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Voter from '@/models/Voter';
 import Election from '@/models/Election';
-import { verifyToken } from '@/lib/auth';
+import { verifyToken, hashPassword } from '@/lib/auth';
 import { sendEmail } from '@/lib/email';
 import { sendVoterCredentialsSms } from '@/services/sms.service';
+
+function generatePassword(): string {
+  const uppercase = 'ABCDEFGHJKMNPQRSTUVWXYZ';
+  const lowercase = 'abcdefghjkmnpqrstuvwxyz';
+  const numbers = '23456789';
+  const allChars = uppercase + lowercase + numbers;
+  const bytes = require('crypto').randomBytes(8);
+
+  const picks = [
+    uppercase[bytes[0] % uppercase.length],
+    lowercase[bytes[1] % lowercase.length],
+    numbers[bytes[2] % numbers.length],
+    allChars[bytes[3] % allChars.length],
+    allChars[bytes[4] % allChars.length],
+    allChars[bytes[5] % allChars.length],
+    allChars[bytes[6] % allChars.length],
+    allChars[bytes[7] % allChars.length],
+  ];
+  const shuffleBytes = require('crypto').randomBytes(picks.length);
+  for (let i = picks.length - 1; i > 0; i--) {
+    const j = shuffleBytes[i] % (i + 1);
+    [picks[i], picks[j]] = [picks[j], picks[i]];
+  }
+  return picks.join('');
+}
 
 // Send voter credentials via email
 async function sendVoterCredentials(
@@ -204,15 +229,10 @@ async function resendCredentials(
       );
     }
 
-    // Get plain password (stored in metadata if available, otherwise generate new one)
-    let plainPassword = voter.metadata?.plainPassword;
-    
-    if (!plainPassword) {
-      return NextResponse.json(
-        { error: 'Original password not available. Please edit the voter to generate new credentials.' },
-        { status: 400 }
-      );
-    }
+    // Always generate a fresh password on resend — never store plaintext
+    const plainPassword = generatePassword();
+    const hashedPassword = await hashPassword(plainPassword);
+    await Voter.findByIdAndUpdate(voter._id, { password: hashedPassword });
 
     // Send credentials via email and/or SMS
     let emailSent = false;

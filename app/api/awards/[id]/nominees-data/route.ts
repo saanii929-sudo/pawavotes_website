@@ -6,6 +6,9 @@ import Nominee from '@/models/Nominee';
 import { verifyToken } from '@/lib/auth';
 import { sanitizeSearch } from '@/lib/security';
 
+// Initiate DB connection at module load so it's warm before the first request
+connectDB().catch(() => {});
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }

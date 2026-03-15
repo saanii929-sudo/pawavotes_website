@@ -43,26 +43,39 @@ function scientificToDecimal(num: string): string {
 
 function generateToken(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const bytes = require('crypto').randomBytes(8);
   let token = '';
   for (let i = 0; i < 8; i++) {
-    token += chars.charAt(Math.floor(Math.random() * chars.length));
+    token += chars[bytes[i] % chars.length];
   }
   return token;
 }
+
 function generatePassword(): string {
   const uppercase = 'ABCDEFGHJKMNPQRSTUVWXYZ';
   const lowercase = 'abcdefghjkmnpqrstuvwxyz';
   const numbers = '23456789';
   const allChars = uppercase + lowercase + numbers;
-  
-  let password = '';
-  password += uppercase.charAt(Math.floor(Math.random() * uppercase.length));
-  password += lowercase.charAt(Math.floor(Math.random() * lowercase.length));
-  password += numbers.charAt(Math.floor(Math.random() * numbers.length));
-  for (let i = 0; i < 5; i++) {
-    password += allChars.charAt(Math.floor(Math.random() * allChars.length));
+  const bytes = require('crypto').randomBytes(8);
+
+  const picks = [
+    uppercase[bytes[0] % uppercase.length],
+    lowercase[bytes[1] % lowercase.length],
+    numbers[bytes[2] % numbers.length],
+    allChars[bytes[3] % allChars.length],
+    allChars[bytes[4] % allChars.length],
+    allChars[bytes[5] % allChars.length],
+    allChars[bytes[6] % allChars.length],
+    allChars[bytes[7] % allChars.length],
+  ];
+
+  // Shuffle using Fisher-Yates with crypto randomness
+  const shuffleBytes = require('crypto').randomBytes(picks.length);
+  for (let i = picks.length - 1; i > 0; i--) {
+    const j = shuffleBytes[i] % (i + 1);
+    [picks[i], picks[j]] = [picks[j], picks[i]];
   }
-  return password.split('').sort(() => Math.random() - 0.5).join('');
+  return picks.join('');
 }
 
 async function sendVoterCredentials(
@@ -340,7 +353,6 @@ export async function POST(req: NextRequest) {
             department: voterData.department || null,
             class: voterData.class || null,
             studentId: voterData.studentId || null,
-            plainPassword: password, // Store plain password for resending
             ...voterData.metadata,
           },
           status: 'active',

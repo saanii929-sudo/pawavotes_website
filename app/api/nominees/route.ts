@@ -7,6 +7,9 @@ import { withAuth } from '@/middleware/auth';
 import { hasAwardAccess } from '@/lib/access-control';
 import { sanitizeSearch } from '@/lib/security';
 
+// Initiate DB connection at module load so it's warm before the first request
+connectDB().catch(() => {});
+
 function generateAwardCode(name: string): string {
   const words = name.trim().split(/\s+/).filter(word => !/^\d+$/.test(word));
   const code = words
@@ -17,38 +20,27 @@ function generateAwardCode(name: string): string {
 }
 
 async function generateNomineeCode(awardId: string): Promise<string> {
-  const award = await Award.findById(awardId);
+  const award = await Award.findById(awardId).select('code name').lean() as any;
   if (!award) {
     throw new Error('Award not found');
   }
 
-  if (!award.code) {
-    const newCode = generateAwardCode(award.name);
-    await Award.findByIdAndUpdate(awardId, { code: newCode }, { runValidators: false });
-    award.code = newCode;
+  let awardCode = award.code;
+  if (!awardCode) {
+    awardCode = generateAwardCode(award.name);
+    await Award.findByIdAndUpdate(awardId, { code: awardCode }, { runValidators: false });
   }
 
-  const nominees = await Nominee.find({
-    awardId,
-    nomineeCode: { $exists: true, $ne: null },
-  }).select('nomineeCode');
+  // Use aggregation to find the max numeric suffix in one query instead of fetching all nominees
+  const result = await Nominee.aggregate([
+    { $match: { awardId: award._id, nomineeCode: { $exists: true, $ne: null } } },
+    { $project: { num: { $toInt: { $substr: ['$nomineeCode', awardCode.length, -1] } } } },
+    { $group: { _id: null, maxNum: { $max: '$num' } } },
+  ]);
 
-  let maxNumber = 0;
-  nominees.forEach(nominee => {
-    if (nominee.nomineeCode) {
-      const match = nominee.nomineeCode.match(/\d+$/);
-      if (match) {
-        const num = parseInt(match[0]);
-        if (num > maxNumber) {
-          maxNumber = num;
-        }
-      }
-    }
-  });
-
-  const nextNumber = maxNumber + 1;
-  const formattedNumber = nextNumber.toString().padStart(3, '0');
-  return `${award.code}${formattedNumber}`;
+  const maxNumber = result[0]?.maxNum ?? 0;
+  const formattedNumber = (maxNumber + 1).toString().padStart(3, '0');
+  return `${awardCode}${formattedNumber}`;
 }
 
 async function getNominees(req: NextRequest) {

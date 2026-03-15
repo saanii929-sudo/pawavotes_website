@@ -4,6 +4,9 @@ import Organization from '@/models/Organization';
 import OrganizationAdmin from '@/models/OrganizationAdmin';
 import { withAuth } from '@/middleware/auth';
 
+// Initiate DB connection at module load so it's warm before the first request
+connectDB().catch(() => {});
+
 async function getCurrentUser(req: NextRequest) {
   try {
     await connectDB();

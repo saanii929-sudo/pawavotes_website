@@ -3,9 +3,20 @@ import connectDB from '@/lib/mongodb';
 import Voter from '@/models/Voter';
 import Election from '@/models/Election';
 import { verifyPassword } from '@/lib/auth';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit: 10 login attempts per IP per 15 minutes
+    const ip = getClientIp(req.headers);
+    const rl = checkRateLimit(`election-login:${ip}`, 10, 15 * 60 * 1000);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many login attempts. Please try again later.' },
+        { status: 429 }
+      );
+    }
+
     await connectDB();
 
     const body = await req.json();

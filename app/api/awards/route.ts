@@ -4,6 +4,9 @@ import Award from '@/models/Award';
 import { withAuth } from '@/middleware/auth';
 import { sanitizeSearch } from '@/lib/security';
 
+// Initiate DB connection at module load so it's warm before the first request
+connectDB().catch(() => {});
+
 function generateAwardCode(name: string): string {
   const words = name.trim().split(/\s+/).filter(word => !/^\d+$/.test(word));
   const code = words

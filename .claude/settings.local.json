@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /c/Users/LENOVO/Desktop/development/pawavotes_website -name .env* -o -name *.env)"
+    ]
+  }
+}
