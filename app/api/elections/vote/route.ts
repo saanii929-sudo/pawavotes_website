@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check election status field first (admin can manually close an election)
-    if (election.status === 'ended' || election.status === 'cancelled') {
+    if (election.status === 'ended') {
       // Roll back the atomic claim since we can't accept the vote
       await Voter.findByIdAndUpdate(voter._id, {
         $set: { hasVoted: false, status: 'active' },
