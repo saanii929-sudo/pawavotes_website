@@ -7,6 +7,7 @@ import { UIProvider } from '@/context/ui-context';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Toaster } from 'react-hot-toast';
+import { AUTH_EXPIRED_EVENT, isTokenExpired } from '@/lib/authFetch';
 
 
 const metadata = {
@@ -27,7 +28,10 @@ export default function DashboardLayout({
     const token = localStorage.getItem('token');
     const userData = localStorage.getItem('user');
 
-    if (!token || !userData) {
+    if (!token || !userData || isTokenExpired()) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('tokenTimestamp');
       router.push('/login');
       return;
     }
@@ -54,6 +58,25 @@ export default function DashboardLayout({
     } finally {
       setLoading(false);
     }
+
+    // Real-time expiry: redirect immediately when any API call returns 401
+    const handleExpired = () => router.push('/login');
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleExpired);
+
+    // Proactive check every 30 s — catches expiry even when user is idle
+    const interval = setInterval(() => {
+      if (isTokenExpired()) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        localStorage.removeItem('tokenTimestamp');
+        router.push('/login');
+      }
+    }, 30_000);
+
+    return () => {
+      window.removeEventListener(AUTH_EXPIRED_EVENT, handleExpired);
+      clearInterval(interval);
+    };
   }, [router]);
 
   if (loading) {

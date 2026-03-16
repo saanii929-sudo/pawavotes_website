@@ -5,6 +5,7 @@ import Image from "next/image";
 import toast from "react-hot-toast";
 import ImageUpload from '@/components/ImageUpload';
 import ConfirmModal from "@/components/ConfirmModal";
+import { authFetch } from '@/lib/authFetch';
 
 interface Award {
   _id: string;
@@ -116,10 +117,7 @@ const AwardsManagementSystem = () => {
   
   const fetchAwards = async () => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("/api/awards", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await authFetch("/api/awards");
       if (response.ok) {
         const data = await response.json();
         setAwards(data.data);
@@ -139,7 +137,6 @@ const AwardsManagementSystem = () => {
   const fetchAwardData = async (awardId: string, page = currentPage) => {
     setLoadingNominees(true);
     try {
-      const token = localStorage.getItem("token");
       const params = new URLSearchParams();
       params.set('page', String(page));
       params.set('limit', '8');
@@ -151,9 +148,7 @@ const AwardsManagementSystem = () => {
       }
       const url = `/api/awards/${awardId}/nominees-data?${params.toString()}`;
 
-      const response = await fetch(url, { 
-        headers: { Authorization: `Bearer ${token}` } 
-      });
+      const response = await authFetch(url);
       if (response.ok) { 
         const data = await response.json(); 
         setCategories(data.categories);
@@ -231,14 +226,11 @@ const AwardsManagementSystem = () => {
     );
     
     try {
-      const token = localStorage.getItem("token");
-      
       if (isEditing) {
-        const response = await fetch(`/api/nominees/${editingNomineeId}`, {
+        const response = await authFetch(`/api/nominees/${editingNomineeId}`, {
           method: "PUT",
-          headers: { 
-            "Content-Type": "application/json", 
-            Authorization: `Bearer ${token}` 
+          headers: {
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             name: formData.name,
@@ -267,11 +259,10 @@ const AwardsManagementSystem = () => {
         
         for (const categoryId of formData.categoryIds) {
           try {
-            const response = await fetch("/api/nominees", {
+            const response = await authFetch("/api/nominees", {
               method: "POST",
-              headers: { 
-                "Content-Type": "application/json", 
-                Authorization: `Bearer ${token}` 
+              headers: {
+                "Content-Type": "application/json",
               },
               body: JSON.stringify({
                 name: formData.name,
@@ -344,10 +335,8 @@ const AwardsManagementSystem = () => {
         
         const loadingToast = toast.loading("Deleting nominee...");
         try {
-          const token = localStorage.getItem("token");
-          const response = await fetch(`/api/nominees/${nomineeId}`, { 
-            method: "DELETE", 
-            headers: { Authorization: `Bearer ${token}` } 
+          const response = await authFetch(`/api/nominees/${nomineeId}`, {
+            method: "DELETE",
           });
           
           if (response.ok) {
@@ -373,10 +362,7 @@ const AwardsManagementSystem = () => {
     const loadingToast = toast.loading("Preparing nominees download...");
     
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`/api/nominees/download?awardId=${selectedAward._id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await authFetch(`/api/nominees/download?awardId=${selectedAward._id}`);
       
       if (response.ok) {
         const blob = await response.blob();
@@ -404,11 +390,9 @@ const AwardsManagementSystem = () => {
     if (!selectedAward) return;
     
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`/api/awards/${selectedAward._id}/generate-nomination-link`, {
+      const response = await authFetch(`/api/awards/${selectedAward._id}/generate-nomination-link`, {
         method: 'POST',
-        headers: { 
-          Authorization: `Bearer ${token}`,
+        headers: {
           'Content-Type': 'application/json'
         }
       });

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import ConfirmModal from "@/components/ConfirmModal";
+import { authFetch } from '@/lib/authFetch';
 
 interface Award {
   _id: string;
@@ -64,10 +65,7 @@ const ManageCategoriesApp = () => {
 
   const fetchAwards = async () => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("/api/awards", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await authFetch("/api/awards");
       if (response.ok) {
         const data = await response.json();
         setAwards(data.data);
@@ -83,10 +81,7 @@ const ManageCategoriesApp = () => {
 
   const fetchServiceFee = async () => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("/api/auth/me", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await authFetch("/api/auth/me");
       if (response.ok) {
         const data = await response.json();
         setServiceFeePercentage(data.data.serviceFeePercentage || 10);
@@ -98,10 +93,7 @@ const ManageCategoriesApp = () => {
 
   const fetchCategories = async (awardId: string) => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`/api/categories?awardId=${awardId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await authFetch(`/api/categories?awardId=${awardId}`);
       if (response.ok) {
         const data = await response.json();
         setCategories(data.data);
@@ -124,16 +116,14 @@ const ManageCategoriesApp = () => {
     );
 
     try {
-      const token = localStorage.getItem("token");
       const url = editingCategory
         ? `/api/categories/${editingCategory._id}`
         : "/api/categories";
 
-      const response = await fetch(url, {
+      const response = await authFetch(url, {
         method: editingCategory ? "PUT" : "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           name: newCategory.name,
@@ -194,12 +184,8 @@ const ManageCategoriesApp = () => {
         const loadingToast = toast.loading("Deleting category...");
 
         try {
-          const token = localStorage.getItem("token");
-          const response = await fetch(`/api/categories/${categoryId}`, {
+          const response = await authFetch(`/api/categories/${categoryId}`, {
             method: "DELETE",
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
           });
 
           if (response.ok) {

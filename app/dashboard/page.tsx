@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Trophy, CreditCard, Users, TrendingUp, Award, Vote } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { authFetch } from '@/lib/authFetch';
 
 interface DashboardStats {
   totalAwards: number;
@@ -36,11 +37,7 @@ const DashboardOverview = () => {
 
   const fetchDashboardStats = async () => {
     try {
-      const token = localStorage.getItem("token");
-      
-      const res = await fetch("/api/dashboard/stats", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await authFetch("/api/dashboard/stats");
       
       if (!res.ok) throw new Error('Failed to fetch stats');
       

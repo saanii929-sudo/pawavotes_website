@@ -5,6 +5,7 @@ import { Plus, ChevronRight, ChevronLeft, Info } from "lucide-react";
 import Image from "next/image";
 import toast from "react-hot-toast";
 import ImageUpload from "@/components/ImageUpload";
+import { authFetch } from '@/lib/authFetch';
 
 const AwardPage = () => {
   const [currentView, setCurrentView] = useState("list"); // list, create
@@ -24,14 +25,9 @@ const AwardPage = () => {
 
   const fetchCurrentUser = async () => {
     try {
-      const token = localStorage.getItem("token");
       console.log("Fetching current user...");
 
-      const response = await fetch("/api/auth/me", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await authFetch("/api/auth/me");
 
       if (response.ok) {
         const data = await response.json();
@@ -54,12 +50,7 @@ const AwardPage = () => {
 
   const fetchAwards = async () => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("/api/awards", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await authFetch("/api/awards");
 
       if (response.ok) {
         const data = await response.json();
@@ -175,12 +166,7 @@ const AwardPage = () => {
     const loadingToast = toast.loading("Loading award...");
 
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`/api/awards/${awardId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await authFetch(`/api/awards/${awardId}`);
 
       if (response.ok) {
         const { data: award } = await response.json();
@@ -296,8 +282,6 @@ const AwardPage = () => {
     );
 
     try {
-      const token = localStorage.getItem("token");
-
       console.log("Form data before submission:", formData);
       console.log("Organization name:", formData.organization);
       const awardData = {
@@ -351,11 +335,10 @@ const AwardPage = () => {
       const url = isEditing ? `/api/awards/${editingAwardId}` : "/api/awards";
       const method = isEditing ? "PUT" : "POST";
 
-      const response = await fetch(url, {
+      const response = await authFetch(url, {
         method,
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(awardData),
       });
@@ -711,15 +694,7 @@ const StepContent = ({
 
     setLoadingCategories(true);
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(
-        `/api/categories?awardId=${editingAwardId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
+      const response = await authFetch(`/api/categories?awardId=${editingAwardId}`);
 
       if (response.ok) {
         const data = await response.json();
@@ -743,12 +718,10 @@ const StepContent = ({
     }
 
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("/api/categories", {
+      const response = await authFetch("/api/categories", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           name: newCategory.name,
@@ -777,12 +750,10 @@ const StepContent = ({
     price: string,
   ) => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`/api/categories/${categoryId}`, {
+      const response = await authFetch(`/api/categories/${categoryId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           price: parseFloat(price) || 0,

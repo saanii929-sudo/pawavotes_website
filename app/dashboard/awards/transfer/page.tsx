@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import toast from "react-hot-toast";
+import { authFetch } from '@/lib/authFetch';
 
 interface Award {
   _id: string;
@@ -97,10 +98,7 @@ const TransferManagementSystem = () => {
 
   const fetchServiceFee = async () => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("/api/auth/me", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await authFetch("/api/auth/me");
       if (response.ok) {
         const data = await response.json();
         setServiceFeePercentage(data.data.serviceFeePercentage || 10);
@@ -112,13 +110,7 @@ const TransferManagementSystem = () => {
 
   const fetchRevenueInfo = async (awardId: string) => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(
-        `/api/transfers/revenue?awardId=${awardId}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
+      const response = await authFetch(`/api/transfers/revenue?awardId=${awardId}`);
 
       console.log("Fetch revenue response:", response.status);
 
@@ -137,10 +129,7 @@ const TransferManagementSystem = () => {
 
   const fetchAwards = async () => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("/api/awards", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await authFetch("/api/awards");
       if (response.ok) {
         const data = await response.json();
         setAwards(data.data);
@@ -157,10 +146,7 @@ const TransferManagementSystem = () => {
   const fetchTransfers = async (awardId: string) => {
     setLoadingTransfers(true);
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`/api/transfers?awardId=${awardId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await authFetch(`/api/transfers?awardId=${awardId}`);
 
       console.log("Fetch transfers response:", response.status);
 
@@ -202,12 +188,10 @@ const TransferManagementSystem = () => {
     setVerifyingPassword(true);
 
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("/api/auth/verify-password", {
+      const response = await authFetch("/api/auth/verify-password", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ password }),
       });
@@ -269,7 +253,6 @@ const TransferManagementSystem = () => {
     const loadingToast = toast.loading("Initiating transfer with Hubtel...");
 
     try {
-      const token = localStorage.getItem("token");
       const body = {
         awardId: selectedAward._id,
         amount: requestedAmount,
@@ -286,11 +269,10 @@ const TransferManagementSystem = () => {
             }),
       };
 
-      const response = await fetch("/api/transfers", {
+      const response = await authFetch("/api/transfers", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(body),
       });

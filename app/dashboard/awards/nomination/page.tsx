@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import toast from "react-hot-toast";
+import { authFetch } from '@/lib/authFetch';
 
 interface Award {
   _id: string;
@@ -94,10 +95,7 @@ const AwardNomineesManager = () => {
 
   const fetchAwards = async () => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("/api/awards", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await authFetch("/api/awards");
       if (response.ok) {
         const data = await response.json();
         setAwards(data.data);
@@ -117,7 +115,6 @@ const AwardNomineesManager = () => {
   const fetchAwardData = async (awardId: string, page = currentPage) => {
     setLoadingNominees(true);
     try {
-      const token = localStorage.getItem("token");
       const params = new URLSearchParams();
       params.set('page', String(page));
       params.set('limit', '8');
@@ -132,9 +129,7 @@ const AwardNomineesManager = () => {
       }
       const url = `/api/awards/${awardId}/nominees-data?${params.toString()}`;
 
-      const response = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await authFetch(url);
       if (response.ok) {
         const data = await response.json();
         setCategories(data.categories);
@@ -165,17 +160,15 @@ const AwardNomineesManager = () => {
     );
 
     try {
-      const token = localStorage.getItem("token");
       const endpoint =
         newStatus === "accepted"
           ? `/api/nominees/${nomineeId}/approve`
           : `/api/nominees/${nomineeId}/decline`;
 
-      const response = await fetch(endpoint, {
+      const response = await authFetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
       });
 

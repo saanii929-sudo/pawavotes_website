@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import toast from "react-hot-toast";
+import { authFetch } from '@/lib/authFetch';
 
 interface Award {
   _id: string;
@@ -77,10 +78,7 @@ const PaymentManagementSystem = () => {
   
   const fetchServiceFee = async () => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("/api/auth/me", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await authFetch("/api/auth/me");
       if (response.ok) {
         const data = await response.json();
         setServiceFeePercentage(data.data.serviceFeePercentage || 10);
@@ -92,10 +90,7 @@ const PaymentManagementSystem = () => {
 
   const fetchAwards = async () => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("/api/awards", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await authFetch("/api/awards");
       if (response.ok) {
         const data = await response.json();
         setAwards(data.data);
@@ -111,10 +106,7 @@ const PaymentManagementSystem = () => {
 
   const fetchCategories = async (awardId: string) => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`/api/categories?awardId=${awardId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await authFetch(`/api/categories?awardId=${awardId}`);
       if (response.ok) {
         const data = await response.json();
         setCategories(data.data);
@@ -127,8 +119,6 @@ const PaymentManagementSystem = () => {
   const fetchPayments = async (awardId: string) => {
     setLoadingPayments(true);
     try {
-      const token = localStorage.getItem("token");
-      
       // Fetch nomination payments
       const nominationResponse = await fetch(`/api/payments?awardId=${awardId}`);
       let nominationPayments: any[] = [];
@@ -141,9 +131,7 @@ const PaymentManagementSystem = () => {
       }
 
       // Fetch voting payments
-      const votingResponse = await fetch(`/api/votes?awardId=${awardId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const votingResponse = await authFetch(`/api/votes?awardId=${awardId}`);
       let votingPayments: any[] = [];
       if (votingResponse.ok) {
         const data = await votingResponse.json();

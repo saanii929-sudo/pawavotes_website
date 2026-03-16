@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { AUTH_EXPIRED_EVENT, isTokenExpired } from "@/lib/authFetch";
 import {
   LayoutGrid,
   Building2,
@@ -39,7 +40,10 @@ export default function SuperAdminLayout({
     const token = localStorage.getItem("token");
     const userData = localStorage.getItem("user");
 
-    if (!token || !userData) {
+    if (!token || !userData || isTokenExpired()) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      localStorage.removeItem("tokenTimestamp");
       router.push("/superadmin/login");
       return;
     }
@@ -52,6 +56,25 @@ export default function SuperAdminLayout({
 
     setUser(parsedUser);
     setLoading(false);
+
+    // Real-time expiry: redirect immediately when any API call returns 401
+    const handleExpired = () => router.push("/superadmin/login");
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleExpired);
+
+    // Proactive check every 30 s — catches expiry even when user is idle
+    const interval = setInterval(() => {
+      if (isTokenExpired()) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        localStorage.removeItem("tokenTimestamp");
+        router.push("/superadmin/login");
+      }
+    }, 30_000);
+
+    return () => {
+      window.removeEventListener(AUTH_EXPIRED_EVENT, handleExpired);
+      clearInterval(interval);
+    };
   }, [router, isLoginPage, pathname]);
 
   const handleLogout = () => {

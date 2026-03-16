@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import Image from "next/image";
+import { authFetch } from '@/lib/authFetch';
 
 
 interface Award {
@@ -102,10 +103,7 @@ const ManageVotesEnhanced = () => {
 
   const fetchAwards = async () => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("/api/awards", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await authFetch("/api/awards");
       if (response.ok) {
         const data = await response.json();
         setAwards(data.data);
@@ -121,10 +119,7 @@ const ManageVotesEnhanced = () => {
 
   const fetchServiceFee = async () => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("/api/auth/me", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await authFetch("/api/auth/me");
       if (response.ok) {
         const data = await response.json();
         setServiceFeePercentage(data.data.serviceFeePercentage || 10);
@@ -137,10 +132,7 @@ const ManageVotesEnhanced = () => {
   const fetchVotes = async (awardId: string) => {
     setLoadingVotes(true);
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`/api/votes?awardId=${awardId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await authFetch(`/api/votes?awardId=${awardId}`);
       if (response.ok) {
         const data = await response.json();
         setVotes(data.data || []);
@@ -157,10 +149,7 @@ const ManageVotesEnhanced = () => {
 
   const fetchCategories = async (awardId: string) => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`/api/categories?awardId=${awardId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await authFetch(`/api/categories?awardId=${awardId}`);
       if (response.ok) {
         const data = await response.json();
         setCategories(data.data || []);
@@ -172,10 +161,7 @@ const ManageVotesEnhanced = () => {
 
   const fetchNominees = async (awardId: string) => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`/api/nominees?awardId=${awardId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await authFetch(`/api/nominees?awardId=${awardId}`);
       if (response.ok) {
         const data = await response.json();
         console.log('Fetched nominees:', data.data);
@@ -239,12 +225,10 @@ const ManageVotesEnhanced = () => {
     const loadingToast = toast.loading("Adding votes...");
 
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("/api/votes/manual", {
+      const response = await authFetch("/api/votes/manual", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           awardId: selectedAward?._id,

@@ -32,8 +32,12 @@ export function middleware(request: NextRequest) {
     ].join('; ')
   );
 
-  // Prevent MIME type sniffing for API routes
-  if (request.nextUrl.pathname.startsWith('/api/')) {
+  // Set JSON content-type on API responses, but NOT on upload endpoints
+  // (multipart uploads need their own Content-Type with boundary intact)
+  if (
+    request.nextUrl.pathname.startsWith('/api/') &&
+    !request.nextUrl.pathname.startsWith('/api/upload/')
+  ) {
     response.headers.set('Content-Type', 'application/json');
   }
 

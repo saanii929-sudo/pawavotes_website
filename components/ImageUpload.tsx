@@ -56,8 +56,10 @@ export default function ImageUpload({
       formData.append('file', file);
       formData.append('folder', folder);
 
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       const response = await fetch('/api/upload/image', {
         method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: formData,
       });
 

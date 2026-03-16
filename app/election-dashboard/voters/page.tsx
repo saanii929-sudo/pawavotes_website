@@ -16,6 +16,7 @@ import {
 import toast from "react-hot-toast";
 import AlertModal from "@/components/AlertModal";
 import ConfirmModal from "@/components/ConfirmModal";
+import { authFetch } from '@/lib/authFetch';
 
 interface Voter {
   _id: string;
@@ -99,10 +100,7 @@ export default function VotersPage() {
 
   const fetchElections = async () => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("/api/elections", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await authFetch("/api/elections");
 
       if (response.ok) {
         const data = await response.json();
@@ -121,13 +119,7 @@ export default function VotersPage() {
 
     setLoading(true);
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(
-        `/api/elections/voters?electionId=${selectedElection}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
+      const response = await authFetch(`/api/elections/voters?electionId=${selectedElection}`);
 
       if (response.ok) {
         const data = await response.json();
@@ -159,7 +151,6 @@ export default function VotersPage() {
     setAddingVoter(true);
 
     try {
-      const token = localStorage.getItem("token");
       const url = editingVoter
         ? `/api/elections/voters/${editingVoter._id}`
         : "/api/elections/voters";
@@ -178,11 +169,10 @@ export default function VotersPage() {
         },
       };
 
-      const response = await fetch(url, {
+      const response = await authFetch(url, {
         method,
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
       });
@@ -245,12 +235,8 @@ export default function VotersPage() {
         setConfirmModal({ ...confirmModal, isOpen: false });
         
         try {
-          const token = localStorage.getItem("token");
-          const response = await fetch(`/api/elections/voters/${voterId}`, {
+          const response = await authFetch(`/api/elections/voters/${voterId}`, {
             method: "DELETE",
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
           });
 
           if (response.ok) {
@@ -293,12 +279,8 @@ export default function VotersPage() {
         
         setResendingCredentials(voterId);
         try {
-          const token = localStorage.getItem("token");
-          const response = await fetch(`/api/elections/voters/${voterId}/resend`, {
+          const response = await authFetch(`/api/elections/voters/${voterId}/resend`, {
             method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
           });
 
           if (response.ok) {
@@ -365,12 +347,10 @@ export default function VotersPage() {
           voters.push(voter);
         }
 
-        const token = localStorage.getItem("token");
-        const response = await fetch("/api/elections/voters/bulk", {
+        const response = await authFetch("/api/elections/voters/bulk", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             electionId: selectedElection,

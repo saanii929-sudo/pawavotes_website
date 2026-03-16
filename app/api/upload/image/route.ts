@@ -5,6 +5,7 @@ import {
   validateFileType,
   validateFileSize,
 } from '@/lib/r2-upload';
+import { withAuth } from '@/middleware/auth';
 
 const ALLOWED_IMAGE_TYPES = [
   'image/jpeg',
@@ -16,7 +17,7 @@ const ALLOWED_IMAGE_TYPES = [
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
-export async function POST(request: NextRequest) {
+async function uploadImage(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
@@ -67,3 +68,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = withAuth(uploadImage);

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import ConfirmModal from "@/components/ConfirmModal";
+import { authFetch } from '@/lib/authFetch';
 
 interface Contestant {
   _id: string;
@@ -85,12 +86,7 @@ const ContestantManagement = () => {
 
   const fetchCategories = async (awardId: string) => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`/api/categories?awardId=${awardId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await authFetch(`/api/categories?awardId=${awardId}`);
       if (response.ok) {
         const data = await response.json();
         setCategories(data.data || []);
@@ -122,12 +118,7 @@ const ContestantManagement = () => {
 
     setLoadingNominees(true);
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`/api/nominees?awardId=${stage.awardId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await authFetch(`/api/nominees?awardId=${stage.awardId}`);
       if (response.ok) {
         const data = await response.json();
         const allNominees = data.data || [];

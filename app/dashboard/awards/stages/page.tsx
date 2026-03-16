@@ -15,6 +15,7 @@ import {
 import Image from "next/image";
 import toast from "react-hot-toast";
 import ConfirmModal from "@/components/ConfirmModal";
+import { authFetch } from '@/lib/authFetch';
 
 interface Stage {
   _id: string;
@@ -97,10 +98,7 @@ const StagingManager = () => {
   
   const fetchServiceFee = async () => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("/api/auth/me", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await authFetch("/api/auth/me");
       if (response.ok) {
         const data = await response.json();
         setServiceFeePercentage(data.data.serviceFeePercentage || 10);
@@ -112,10 +110,7 @@ const StagingManager = () => {
 
   const fetchAwards = async () => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("/api/awards", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await authFetch("/api/awards");
       if (response.ok) {
         const data = await response.json();
         setAwards(data.data);

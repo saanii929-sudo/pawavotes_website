@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import ConfirmModal from "@/components/ConfirmModal";
+import { authFetch } from '@/lib/authFetch';
 
 interface Election {
   _id: string;
@@ -59,10 +60,7 @@ export default function ElectionsPage() {
 
   const fetchElections = async () => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("/api/elections", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await authFetch("/api/elections");
 
       if (response.ok) {
         const data = await response.json();
@@ -80,17 +78,15 @@ export default function ElectionsPage() {
     e.preventDefault();
 
     try {
-      const token = localStorage.getItem("token");
-      const url = editingElection 
+      const url = editingElection
         ? `/api/elections/${editingElection._id}`
         : "/api/elections";
       const method = editingElection ? "PUT" : "POST";
 
-      const response = await fetch(url, {
+      const response = await authFetch(url, {
         method,
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           title: formData.title,
@@ -145,12 +141,8 @@ export default function ElectionsPage() {
         setConfirmModal({ ...confirmModal, isOpen: false });
         
         try {
-          const token = localStorage.getItem("token");
-          const response = await fetch(`/api/elections/${electionId}`, {
+          const response = await authFetch(`/api/elections/${electionId}`, {
             method: "DELETE",
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
           });
 
           if (response.ok) {

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { deleteFromR2, extractKeyFromUrl } from '@/lib/r2-upload';
+import { withAuth } from '@/middleware/auth';
 
-export async function DELETE(request: NextRequest) {
+async function deleteImage(request: NextRequest) {
   try {
     const { url, key } = await request.json();
 
@@ -27,3 +28,5 @@ export async function DELETE(request: NextRequest) {
     );
   }
 }
+
+export const DELETE = withAuth(deleteImage);
