@@ -8,7 +8,6 @@ import ConfirmModal from "@/components/ConfirmModal";
 interface Position {
   _id: string;
   name: string;
-  description?: string;
   maxSelections: number;
   order: number;
 }
@@ -27,7 +26,6 @@ export default function PositionsPage() {
   const [editingPosition, setEditingPosition] = useState<Position | null>(null);
   const [formData, setFormData] = useState({
     name: '',
-    description: '',
     maxSelections: 1,
     order: 0,
   });
@@ -131,7 +129,6 @@ export default function PositionsPage() {
     setEditingPosition(position);
     setFormData({
       name: position.name,
-      description: position.description || '',
       maxSelections: position.maxSelections,
       order: position.order,
     });
@@ -174,7 +171,6 @@ export default function PositionsPage() {
   const resetForm = () => {
     setFormData({
       name: '',
-      description: '',
       maxSelections: 1,
       order: 0,
     });
@@ -258,12 +254,6 @@ export default function PositionsPage() {
                       </div>
                     </div>
 
-                    {position.description && (
-                      <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-                        {position.description}
-                      </p>
-                    )}
-
                     <div className="flex items-center justify-between pt-3 border-t border-gray-100">
                       <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
                         Max: {position.maxSelections}
@@ -297,7 +287,6 @@ export default function PositionsPage() {
                       <tr className="bg-white">
                         <th className="text-left py-4 px-6 text-sm font-semibold text-black">Order</th>
                         <th className="text-left py-4 px-6 text-sm font-semibold text-black">Position Name</th>
-                        <th className="text-left py-4 px-6 text-sm font-semibold text-black">Description</th>
                         <th className="text-left py-4 px-6 text-sm font-semibold text-black">Max Selections</th>
                         <th className="text-left py-4 px-6 text-sm font-semibold text-black">Actions</th>
                       </tr>
@@ -312,11 +301,6 @@ export default function PositionsPage() {
                           </td>
                           <td className="py-4 px-6">
                             <span className="font-semibold text-gray-900">{position.name}</span>
-                          </td>
-                          <td className="py-4 px-6">
-                            <span className="text-sm text-gray-600">
-                              {position.description || <span className="text-gray-400 italic">No description</span>}
-                            </span>
                           </td>
                           <td className="py-4 px-6">
                             <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-700">
@@ -369,17 +353,6 @@ export default function PositionsPage() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="e.g., President, Secretary, Treasurer"
-                  className="w-full text-black border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Description</label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Brief description of this position"
-                  rows={3}
                   className="w-full text-black border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
                 />
               </div>

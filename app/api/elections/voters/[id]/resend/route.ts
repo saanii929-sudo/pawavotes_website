@@ -191,6 +191,17 @@ async function resendCredentials(
 
     const { id } = await params;
 
+    // Optional: update phone before resending
+    let updatedPhone: string | undefined;
+    try {
+      const body = await req.json();
+      if (body?.phone) {
+        updatedPhone = String(body.phone).trim();
+      }
+    } catch {
+      // body is optional
+    }
+
     // Find voter
     const voter = await Voter.findOne({
       _id: id,
@@ -229,10 +240,17 @@ async function resendCredentials(
       );
     }
 
+    // Update phone if provided
+    if (updatedPhone) {
+      voter.phone = updatedPhone;
+    }
+
     // Always generate a fresh password on resend — never store plaintext
     const plainPassword = generatePassword();
     const hashedPassword = await hashPassword(plainPassword);
-    await Voter.findByIdAndUpdate(voter._id, { password: hashedPassword });
+    const updateFields: any = { password: hashedPassword };
+    if (updatedPhone) updateFields.phone = updatedPhone;
+    await Voter.findByIdAndUpdate(voter._id, updateFields);
 
     // Send credentials via email and/or SMS
     let emailSent = false;

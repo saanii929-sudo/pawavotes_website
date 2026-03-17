@@ -43,16 +43,10 @@ const VoterSchema: Schema = new Schema(
       type: String,
       trim: true,
       lowercase: true,
-      sparse: true,
-      unique: true,
-      index: true,
     },
     phone: {
       type: String,
       trim: true,
-      sparse: true,
-      unique: true,
-      index: true,
     },
     voterId: {
       type: String,
@@ -89,6 +83,11 @@ const VoterSchema: Schema = new Schema(
     timestamps: true,
   }
 );
+
+// Compound unique indexes scoped per election — same email/phone/voterId can appear in different elections
+VoterSchema.index({ electionId: 1, email: 1 }, { unique: true, sparse: true });
+VoterSchema.index({ electionId: 1, phone: 1 }, { unique: true, sparse: true });
+VoterSchema.index({ electionId: 1, voterId: 1 }, { unique: true, sparse: true });
 
 if (mongoose.models.Voter) {
   delete mongoose.models.Voter;

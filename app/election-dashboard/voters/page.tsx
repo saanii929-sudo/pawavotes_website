@@ -52,6 +52,14 @@ export default function VotersPage() {
   const [resendingCredentials, setResendingCredentials] = useState<
     string | null
   >(null);
+  const [showResendModal, setShowResendModal] = useState(false);
+  const [resendModalData, setResendModalData] = useState<{
+    voterId: string;
+    voterName: string;
+    voterEmail?: string;
+    voterPhone?: string;
+    editPhone: string;
+  } | null>(null);
   const [uploadingBulk, setUploadingBulk] = useState(false);
   const [addingVoter, setAddingVoter] = useState(false);
   const [deliveryMethod, setDeliveryMethod] = useState<
@@ -254,7 +262,7 @@ export default function VotersPage() {
     });
   };
 
-  const handleResendCredentials = async (
+  const handleResendCredentials = (
     voterId: string,
     voterName: string,
     voterEmail?: string,
@@ -264,46 +272,47 @@ export default function VotersPage() {
       toast.error("Voter does not have an email address or phone number");
       return;
     }
-
-    const contactInfo = [];
-    if (voterEmail) contactInfo.push(voterEmail);
-    if (voterPhone) contactInfo.push(voterPhone);
-
-    setConfirmModal({
-      isOpen: true,
-      title: "Resend Credentials",
-      message: `Resend voting credentials to ${voterName} (${contactInfo.join(", ")})?`,
-      type: "info",
-      onConfirm: async () => {
-        setConfirmModal({ ...confirmModal, isOpen: false });
-        
-        setResendingCredentials(voterId);
-        try {
-          const response = await authFetch(`/api/elections/voters/${voterId}/resend`, {
-            method: "POST",
-          });
-
-          if (response.ok) {
-            const data = await response.json();
-            const methods = [];
-            if (data.data?.emailSent) methods.push("email");
-            if (data.data?.smsSent) methods.push("SMS");
-
-            const methodText =
-              methods.length > 0 ? ` via ${methods.join(" and ")}` : "";
-            toast.success(`Credentials resent successfully${methodText}!`);
-          } else {
-            const data = await response.json();
-            toast.error(data.error || "Failed to resend credentials");
-          }
-        } catch (error) {
-          console.error("Resend credentials error:", error);
-          toast.error("Failed to resend credentials");
-        } finally {
-          setResendingCredentials(null);
-        }
-      }
+    setResendModalData({
+      voterId,
+      voterName,
+      voterEmail,
+      voterPhone,
+      editPhone: voterPhone || "",
     });
+    setShowResendModal(true);
+  };
+
+  const doResendCredentials = async () => {
+    if (!resendModalData) return;
+    const { voterId, editPhone } = resendModalData;
+    setShowResendModal(false);
+    setResendingCredentials(voterId);
+    try {
+      const response = await authFetch(`/api/elections/voters/${voterId}/resend`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: editPhone || undefined }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const methods = [];
+        if (data.data?.emailSent) methods.push("email");
+        if (data.data?.smsSent) methods.push("SMS");
+        const methodText = methods.length > 0 ? ` via ${methods.join(" and ")}` : "";
+        toast.success(`Credentials resent successfully${methodText}!`);
+        fetchVoters();
+      } else {
+        const data = await response.json();
+        toast.error(data.error || "Failed to resend credentials");
+      }
+    } catch (error) {
+      console.error("Resend credentials error:", error);
+      toast.error("Failed to resend credentials");
+    } finally {
+      setResendingCredentials(null);
+      setResendModalData(null);
+    }
   };
 
   const handleBulkUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1226,6 +1235,72 @@ export default function VotersPage() {
         message={confirmModal.message}
         type={confirmModal.type}
       />
+
+      {/* Resend Credentials Modal */}
+      {showResendModal && resendModalData && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full shadow-xl">
+            <div className="bg-green-600 p-4 rounded-t-xl">
+              <h2 className="text-lg font-bold text-white">Resend Credentials</h2>
+              <p className="text-blue-100 text-sm mt-1">
+                Update contact info and resend login credentials
+              </p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Voter Name</label>
+                <input
+                  type="text"
+                  value={resendModalData.voterName}
+                  disabled
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 text-gray-500 cursor-not-allowed"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={resendModalData.voterEmail || "—"}
+                  disabled
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 text-gray-500 cursor-not-allowed"
+                />
+                <p className="text-xs text-gray-400 mt-1">Email cannot be changed here</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Phone Number <span className="text-green-600">(editable)</span>
+                </label>
+                <input
+                  type="tel"
+                  value={resendModalData.editPhone}
+                  onChange={(e) =>
+                    setResendModalData({ ...resendModalData, editPhone: e.target.value })
+                  }
+                  placeholder="e.g. 0241234567"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  A new password will be generated and sent to this number
+                </p>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => { setShowResendModal(false); setResendModalData(null); }}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={doResendCredentials}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
+                >
+                  Resend Credentials
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -70,6 +70,18 @@ export async function POST(req: NextRequest) {
     const startDate = new Date(election.startDate);
     const endDate = new Date(election.endDate);
 
+    // Reject login after election period ends — token has expired
+    if (election.status === 'ended' || now > endDate) {
+      // Mark voter as expired so future attempts also fail fast
+      if (voter.status === 'active') {
+        await Voter.findByIdAndUpdate(voter._id, { status: 'expired' });
+      }
+      return NextResponse.json(
+        { error: 'This election has ended. Your voting credentials are no longer valid.' },
+        { status: 403 }
+      );
+    }
+
     let electionStatus = 'upcoming';
     if (now >= startDate && now <= endDate) {
       electionStatus = 'active';

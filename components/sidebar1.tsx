@@ -50,6 +50,7 @@ const menu = [
   },
   { name: "Voters", href: "/election-dashboard/voters", icon: Users },
   { name: "Results", href: "/election-dashboard/results", icon: BarChart3 },
+  { name: "Reports", href: "/election-dashboard/reports", icon: FileText },
   { name: "Help Desk", href: "/election-dashboard/helpdesk", icon: Headphones },
 ];
 

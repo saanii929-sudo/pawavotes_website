@@ -4,7 +4,6 @@ import Voter from '@/models/Voter';
 import Election from '@/models/Election';
 import ElectionVote from '@/models/ElectionVote';
 import Candidate from '@/models/Candidate';
-import { verifyPassword } from '@/lib/auth';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
@@ -36,7 +35,7 @@ export async function POST(req: NextRequest) {
     const voter = await Voter.findOneAndUpdate(
       { token: token.toUpperCase(), hasVoted: false, status: 'active' },
       { $set: { hasVoted: true, votedAt: new Date(), status: 'expired' } },
-      { new: false } // return the original doc so we can read electionId etc.
+      { returnDocument: 'before' } // return the original doc so we can read electionId etc.
     );
 
     if (!voter) {
@@ -161,6 +160,9 @@ export async function POST(req: NextRequest) {
 
       candidateUpdates.push(candidateId);
     }
+
+    // Remove any stale votes from a previous failed attempt (rollback left them behind)
+    await ElectionVote.deleteMany({ voterId: voter._id, electionId: voter.electionId });
 
     // Save all votes
     try {

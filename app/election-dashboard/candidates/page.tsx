@@ -9,8 +9,6 @@ interface Candidate {
   _id: string;
   name: string;
   image?: string;
-  bio?: string;
-  manifesto?: string;
   ballotNumber: number;
   voteCount: number;
   categoryId: {
@@ -41,8 +39,6 @@ export default function CandidatesPage() {
     categoryId: '',
     name: '',
     image: '',
-    bio: '',
-    manifesto: '',
     ballotNumber: 1,
   });
 
@@ -162,8 +158,6 @@ export default function CandidatesPage() {
       categoryId: candidate.categoryId._id,
       name: candidate.name,
       image: candidate.image || '',
-      bio: candidate.bio || '',
-      manifesto: candidate.manifesto || '',
       ballotNumber: candidate.ballotNumber,
     });
     setShowModal(true);
@@ -198,8 +192,6 @@ export default function CandidatesPage() {
       categoryId: positions.length > 0 ? positions[0]._id : '',
       name: '',
       image: '',
-      bio: '',
-      manifesto: '',
       ballotNumber: 1,
     });
   };
@@ -316,12 +308,6 @@ export default function CandidatesPage() {
                                 {candidate.name}
                               </h3>
                               
-                              {candidate.bio && (
-                                <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-                                  {candidate.bio}
-                                </p>
-                              )}
-
                               <div className="flex items-center justify-between pt-3 border-t">
                                 <span className="text-sm text-gray-500">
                                   Votes: {candidate.voteCount}
@@ -399,28 +385,6 @@ export default function CandidatesPage() {
                   currentImage={formData.image}
                   folder="elections/candidates"
                   maxSize={5}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Bio</label>
-                <textarea
-                  value={formData.bio}
-                  onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-                  placeholder="Brief biography of the candidate"
-                  rows={3}
-                  className="w-full text-black border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Manifesto</label>
-                <textarea
-                  value={formData.manifesto}
-                  onChange={(e) => setFormData({ ...formData, manifesto: e.target.value })}
-                  placeholder="Candidate's manifesto and promises"
-                  rows={4}
-                  className="w-full text-black border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
                 />
               </div>
 

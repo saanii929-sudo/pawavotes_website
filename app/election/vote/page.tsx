@@ -6,7 +6,6 @@ import {
   Vote,
   CheckCircle,
   Users,
-  TrendingUp,
   ArrowLeft,
   XCircle,
   ChevronLeft,
@@ -193,10 +192,6 @@ function VotingPageContent() {
       .sort((a, b) => (a.ballotNumber || 0) - (b.ballotNumber || 0));
   };
 
-  const getSelectedCandidate = (categoryId: string) => {
-    const candidateId = selectedVotes[categoryId];
-    return candidates.find((c) => c._id === candidateId);
-  };
 
   if (loading) {
     return (
@@ -236,7 +231,7 @@ function VotingPageContent() {
                 </div>
               </div>
               <div className="text-right shrink-0 min-w-0">
-                <p className="text-xs sm:text-sm font-medium text-gray-900 truncate max-w-[100px] sm:max-w-none">
+                <p className="text-xs sm:text-sm font-medium text-gray-900 truncate max-w-25 sm:max-w-none">
                   {voterData?.name}
                 </p>
                 <p className="text-xs text-gray-500 font-mono hidden sm:block">{token}</p>
@@ -274,10 +269,7 @@ function VotingPageContent() {
             (() => {
               const category = categories[currentStep];
               const categoryCandidates = getCandidatesByCategory(category._id);
-              const selectedCandidate = getSelectedCandidate(category._id);
               const isSkipped = selectedVotes[category._id] === null;
-              const showLiveResults =
-                voterData?.election?.settings?.showLiveResults;
 
               return (
                 <div className="bg-white rounded-xl border border-gray-200">
@@ -531,10 +523,80 @@ function VotingPageContent() {
                 Review Your Votes
               </h2>
               <p className="text-gray-600">
-                Please review your selections before submitting. This action
-                cannot be undone.
+                Please confirm your selections below. This action cannot be undone.
               </p>
             </div>
+
+            {/* Full preview of all selections */}
+            <div className="mb-6 space-y-3 max-h-80 overflow-y-auto border border-gray-200 rounded-xl p-4 bg-gray-50">
+              {categories.map((category) => {
+                const selectedCandidateId = selectedVotes[category._id];
+                const selectedCandidate = selectedCandidateId
+                  ? candidates.find((c) => c._id === selectedCandidateId)
+                  : null;
+                const isSkipped = selectedCandidateId === null;
+
+                return (
+                  <div
+                    key={category._id}
+                    className={`flex items-center gap-3 p-3 rounded-lg border ${
+                      isSkipped
+                        ? "border-gray-200 bg-white"
+                        : selectedCandidate
+                        ? "border-green-200 bg-green-50"
+                        : "border-orange-200 bg-orange-50"
+                    }`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">
+                        {category.name}
+                      </p>
+                      {selectedCandidate ? (
+                        <div className="flex items-center gap-2 mt-1">
+                          {selectedCandidate.image ? (
+                            <img
+                              src={selectedCandidate.image}
+                              alt={selectedCandidate.name}
+                              className="w-8 h-8 rounded-full object-cover border border-green-300 shrink-0"
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+                              <Users className="text-green-600" size={14} />
+                            </div>
+                          )}
+                          <p className="font-semibold text-gray-900 truncate">
+                            {selectedCandidate.name}
+                          </p>
+                          {selectedCandidate.ballotNumber && (
+                            <span className="text-xs bg-green-600 text-white px-1.5 py-0.5 rounded font-bold shrink-0">
+                              #{selectedCandidate.ballotNumber}
+                            </span>
+                          )}
+                        </div>
+                      ) : isSkipped ? (
+                        <p className="text-sm text-gray-400 mt-1 italic">Skipped</p>
+                      ) : (
+                        <p className="text-sm text-orange-600 mt-1">Not selected</p>
+                      )}
+                    </div>
+                    <div className="shrink-0">
+                      {selectedCandidate ? (
+                        <CheckCircle className="text-green-600" size={20} />
+                      ) : isSkipped ? (
+                        <XCircle className="text-gray-400" size={20} />
+                      ) : (
+                        <XCircle className="text-orange-500" size={20} />
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <p className="text-xs text-center text-gray-500 mb-4">
+              {Object.values(selectedVotes).filter((v) => v !== null).length} vote(s) selected ·{" "}
+              {Object.values(selectedVotes).filter((v) => v === null).length} skipped
+            </p>
 
             <div className="flex flex-col sm:flex-row gap-3">
               <button
@@ -542,14 +604,14 @@ function VotingPageContent() {
                 disabled={submitting}
                 className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg hover:bg-gray-50 transition disabled:opacity-50 font-semibold text-sm sm:text-base"
               >
-                Go Back
+                Go Back & Edit
               </button>
               <button
                 onClick={confirmSubmit}
                 disabled={submitting}
                 className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50 font-semibold text-sm sm:text-base"
               >
-                {submitting ? "Submitting..." : "Confirm & Submit"}
+                {submitting ? "Submitting..." : "Confirm & Submit Vote"}
               </button>
             </div>
           </div>

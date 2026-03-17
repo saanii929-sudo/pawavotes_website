@@ -11,6 +11,7 @@ export interface IElection extends Document {
     showLiveResults: boolean;
     allowRevote: boolean;
     requireAllCategories: boolean;
+    requireOTP: boolean;
   };
   createdAt: Date;
   updatedAt: Date;
@@ -55,6 +56,10 @@ const ElectionSchema: Schema = new Schema(
         default: false,
       },
       requireAllCategories: {
+        type: Boolean,
+        default: false,
+      },
+      requireOTP: {
         type: Boolean,
         default: false,
       },

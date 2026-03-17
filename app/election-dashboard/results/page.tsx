@@ -1,18 +1,29 @@
 "use client";
 
-import { useEffect, useState, useCallback } from 'react';
-import { Download, TrendingUp, Users, Award, BarChart3, Grid3x3, Table2, RefreshCw, User } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Download, TrendingUp, Users, Award, BarChart3, Grid3x3, Table2, RefreshCw, User, Clock, CheckCircle, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+// Green-toned palette for candidate differentiation
+const CANDIDATE_COLORS = [
+  '#15803d', // green-700
+  '#166534', // green-800
+  '#065f46', // emerald-800
+  '#0f766e', // teal-700
+  '#134e4a', // teal-900
+  '#16a34a', // green-600
+  '#059669', // emerald-600
+  '#0d9488', // teal-600
+  '#22c55e', // green-500
+  '#10b981', // emerald-500
+];
 
 interface Candidate {
   _id: string;
   name: string;
   image?: string;
   voteCount: number;
-  categoryId: {
-    _id: string;
-    name: string;
-  };
+  categoryId: { _id: string; name: string };
 }
 
 interface Voter {
@@ -28,399 +39,491 @@ interface Election {
   endDate: string;
 }
 
+function useCountdown(targetDate: string | null) {
+  const [timeLeft, setTimeLeft] = useState<{ days: number; hours: number; minutes: number; seconds: number } | null>(null);
+
+  useEffect(() => {
+    if (!targetDate) return;
+    const tick = () => {
+      const diff = new Date(targetDate).getTime() - Date.now();
+      if (diff <= 0) { setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 }); return; }
+      setTimeLeft({
+        days: Math.floor(diff / 86400000),
+        hours: Math.floor((diff % 86400000) / 3600000),
+        minutes: Math.floor((diff % 3600000) / 60000),
+        seconds: Math.floor((diff % 60000) / 1000),
+      });
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [targetDate]);
+
+  return timeLeft;
+}
+
+function PieChart({ candidates, colors }: { candidates: { name: string; voteCount: number }[]; colors: string[] }) {
+  const total = candidates.reduce((s, c) => s + c.voteCount, 0);
+  if (total === 0) {
+    return (
+      <div className="flex items-center justify-center w-44 h-44 rounded-full border-2 border-dashed border-gray-200">
+        <span className="text-xs text-gray-400 text-center px-4">No votes yet</span>
+      </div>
+    );
+  }
+
+  let angle = -90;
+  const size = 176;
+  const cx = size / 2;
+  const cy = size / 2;
+  const r = size / 2 - 10;
+
+  const slices = candidates.map((c, i) => {
+    const sweep = (c.voteCount / total) * 360;
+    const start = angle;
+    angle += sweep;
+    return { ...c, start, end: angle, color: colors[i % colors.length] };
+  });
+
+  function polar(cx: number, cy: number, r: number, deg: number) {
+    const rad = (deg * Math.PI) / 180;
+    return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+  }
+
+  function arc(cx: number, cy: number, r: number, s: number, e: number, large: boolean) {
+    const a = polar(cx, cy, r, s);
+    const b = polar(cx, cy, r, e);
+    return `M ${cx} ${cy} L ${a.x} ${a.y} A ${r} ${r} 0 ${large ? 1 : 0} 1 ${b.x} ${b.y} Z`;
+  }
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      {slices.map((slice, i) => (
+        <path
+          key={i}
+          d={arc(cx, cy, r, slice.start, slice.end, slice.end - slice.start > 180)}
+          fill={slice.color}
+          stroke="white"
+          strokeWidth="2.5"
+        />
+      ))}
+      <circle cx={cx} cy={cy} r={r * 0.4} fill="white" />
+    </svg>
+  );
+}
+
+function StatCard({ label, value, icon: Icon, sub }: { label: string; value: string | number; icon: any; sub?: string }) {
+  return (
+    <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
+      <div className="flex items-start justify-between mb-3">
+        <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center">
+          <Icon className="text-green-700" size={20} />
+        </div>
+      </div>
+      <p className="text-2xl font-bold text-gray-900">{value}</p>
+      <p className="text-sm text-gray-500 mt-0.5">{label}</p>
+      {sub && <p className="text-xs text-green-700 font-medium mt-1">{sub}</p>}
+    </div>
+  );
+}
+
+// Returns tie info for a sorted (descending) candidate list
+function getTieStatus(candidates: { voteCount: number }[]) {
+  if (candidates.length === 0) return { maxVotes: 0, isTied: false, tiedCount: 0 };
+  const maxVotes = candidates[0].voteCount;
+  if (maxVotes === 0) return { maxVotes: 0, isTied: false, tiedCount: 0 };
+  const tiedCount = candidates.filter(c => c.voteCount === maxVotes).length;
+  return { maxVotes, isTied: tiedCount > 1, tiedCount };
+}
+
 export default function ResultsPage() {
   const [elections, setElections] = useState<Election[]>([]);
   const [selectedElection, setSelectedElection] = useState('');
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [voters, setVoters] = useState<Voter[]>([]);
   const [loading, setLoading] = useState(false);
-  const [initialLoad, setInitialLoad] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
-  useEffect(() => {
-    fetchElections();
-  }, []);
+  const currentElection = elections.find(e => e._id === selectedElection) || null;
+  const now = new Date();
+  const electionEnded = currentElection
+    ? currentElection.status === 'ended' || new Date(currentElection.endDate) < now
+    : false;
+  const electionActive = currentElection
+    ? currentElection.status === 'active' && new Date(currentElection.endDate) >= now
+    : false;
+  const electionUpcoming = currentElection
+    ? currentElection.status === 'draft' || new Date(currentElection.startDate) > now
+    : false;
+
+  const countdownTarget = currentElection
+    ? electionUpcoming ? currentElection.startDate : currentElection.endDate
+    : null;
+  const countdown = useCountdown(countdownTarget);
+  const pad = (n: number) => String(n).padStart(2, '0');
+
+  useEffect(() => { fetchElections(); }, []);
 
   useEffect(() => {
-    if (selectedElection) {
-      fetchResults(true);
-      fetchVoters();
-    }
+    if (selectedElection) { fetchResults(true); fetchVoters(); }
   }, [selectedElection]);
 
   useEffect(() => {
     if (!selectedElection || !autoRefresh) return;
-
-    const interval = setInterval(() => {
-      fetchResults(false);
-      fetchVoters();
-    }, 5000);
-
-    return () => clearInterval(interval);
+    const id = setInterval(() => { fetchResults(false); fetchVoters(); }, 5000);
+    return () => clearInterval(id);
   }, [selectedElection, autoRefresh]);
 
   const fetchElections = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/elections', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
+      const res = await fetch('/api/elections', { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
         setElections(data.data || []);
-        if (data.data.length > 0) {
-          setSelectedElection(data.data[0]._id);
-        }
+        if (data.data.length > 0) setSelectedElection(data.data[0]._id);
       }
-    } catch (error) {
-      console.error('Failed to fetch elections:', error);
-    }
+    } catch {}
   };
 
-  const fetchResults = async (isInitialLoad = false) => {
+  const fetchResults = async (initial = false) => {
     if (!selectedElection) return;
-    if (isInitialLoad) {
-      setLoading(true);
-    } else {
-      setRefreshing(true);
-    }
-
+    if (initial) setLoading(true); else setRefreshing(true);
     try {
-      const response = await fetch(`/api/elections/candidates?electionId=${selectedElection}`);
-
-      if (response.ok) {
-        const data = await response.json();
+      const res = await fetch(`/api/elections/candidates?electionId=${selectedElection}`);
+      if (res.ok) {
+        const data = await res.json();
         setCandidates(data.data || []);
         setLastUpdated(new Date());
-        
-        if (isInitialLoad) {
-          setInitialLoad(false);
-        }
       }
-    } catch (error) {
-      console.error('Failed to fetch results:', error);
-      if (isInitialLoad) {
-        toast.error('Failed to load results');
-      }
+    } catch {
+      if (initial) toast.error('Failed to load results');
     } finally {
-      if (isInitialLoad) {
-        setLoading(false);
-      } else {
-        setRefreshing(false);
-      }
+      if (initial) setLoading(false); else setRefreshing(false);
     }
   };
 
   const fetchVoters = async () => {
     if (!selectedElection) return;
-
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/elections/voters?electionId=${selectedElection}`, {
+      const res = await fetch(`/api/elections/voters?electionId=${selectedElection}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        setVoters(data.data || []);
-      }
-    } catch (error) {
-      console.error('Failed to fetch voters:', error);
-    }
+      if (res.ok) { const data = await res.json(); setVoters(data.data || []); }
+    } catch {}
   };
 
-  const groupedCandidates = candidates.reduce((acc, candidate) => {
-    const positionName = candidate.categoryId?.name || 'Unknown';
-    if (!acc[positionName]) {
-      acc[positionName] = [];
-    }
-    acc[positionName].push(candidate);
+  const groupedCandidates = candidates.reduce((acc, c) => {
+    const pos = c.categoryId?.name || 'Unknown';
+    if (!acc[pos]) acc[pos] = [];
+    acc[pos].push(c);
     return acc;
   }, {} as Record<string, Candidate[]>);
 
-  Object.keys(groupedCandidates).forEach(position => {
-    groupedCandidates[position].sort((a, b) => b.voteCount - a.voteCount);
+  Object.keys(groupedCandidates).forEach(pos => {
+    groupedCandidates[pos].sort((a, b) => b.voteCount - a.voteCount);
   });
 
-  const totalVotes = candidates.reduce((sum, c) => sum + c.voteCount, 0);
+  const totalVotes = candidates.reduce((s, c) => s + c.voteCount, 0);
   const totalVoters = voters.length;
   const votedCount = voters.filter(v => v.hasVoted).length;
   const turnoutRate = totalVoters > 0 ? Math.round((votedCount / totalVoters) * 100) : 0;
 
   const downloadResults = () => {
-    const csv = [
-      'Position,Candidate,Votes,Percentage',
-      ...Object.entries(groupedCandidates).flatMap(([position, positionCandidates]) => {
-        const positionTotal = positionCandidates.reduce((sum, c) => sum + c.voteCount, 0);
-        return positionCandidates.map(candidate => {
-          const percentage = positionTotal > 0 ? ((candidate.voteCount / positionTotal) * 100).toFixed(2) : '0.00';
-          return `${position},${candidate.name},${candidate.voteCount},${percentage}%`;
+    const rows = [
+      'Position,Rank,Candidate,Votes,Percentage,Status',
+      ...Object.entries(groupedCandidates).flatMap(([pos, cs]) => {
+        const t = cs.reduce((s, c) => s + c.voteCount, 0);
+        const { maxVotes, isTied } = getTieStatus(cs);
+        return cs.map((c, i) => {
+          const pct = t > 0 ? ((c.voteCount / t) * 100).toFixed(2) : '0.00';
+          const isTop = c.voteCount === maxVotes && maxVotes > 0;
+          let status: string;
+          if (isTop && isTied) status = 'Tied';
+          else if (isTop && electionEnded) status = 'Elected';
+          else if (isTop) status = 'Leading';
+          else status = 'Trailing';
+          return `"${pos}",${i + 1},"${c.name}",${c.voteCount},${pct}%,${status}`;
         });
-      })
+      }),
     ].join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv' });
+    const blob = new Blob([rows], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `election-results-${Date.now()}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
-    toast.success('Results downloaded successfully!');
-  };
-
-  const manualRefresh = () => {
-    fetchResults(false);
-    fetchVoters();
-    toast.success('Results refreshed!');
+    toast.success('Results downloaded!');
   };
 
   return (
-    <div>
-      <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="max-w-7xl">
+      {/* Page Header */}
+      <div className="mb-8 flex flex-col md:flex-row md:items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Election Results</h1>
-          <p className="text-gray-500 mt-1">
-            View live results and analytics
+          <div className="flex items-center gap-2 mb-2">
+            <span className="inline-flex items-center gap-1.5 bg-green-600 text-white text-xs font-bold px-3 py-1 rounded-full">
+              <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+              LIVE
+            </span>
             {autoRefresh && (
-              <span className="ml-2 inline-flex items-center gap-1 text-xs text-green-600">
-                <span className="w-2 h-2 bg-green-600 rounded-full animate-pulse"></span>
-                Live
+              <span className="inline-flex items-center gap-1.5 text-xs text-green-700 font-medium">
+                <span className="w-1.5 h-1.5 bg-green-700 rounded-full animate-pulse" />
+                Auto-updating
               </span>
             )}
             {refreshing && (
-              <span className="ml-2 inline-flex items-center gap-1 text-xs text-blue-600">
-                <RefreshCw size={12} className="animate-spin" />
-                Updating...
+              <span className="inline-flex items-center gap-1.5 text-xs text-gray-500">
+                <RefreshCw size={11} className="animate-spin" />
+                Refreshing…
               </span>
             )}
-          </p>
-          <p className="text-xs text-gray-400 mt-1">
-            Last updated: {lastUpdated.toLocaleTimeString()}
-          </p>
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900">Live Election Results</h1>
+          <p className="text-sm text-gray-400 mt-0.5">Last updated {lastUpdated.toLocaleTimeString()}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+
+        <div className="flex flex-wrap items-center gap-2">
+          {/* View toggle */}
           <div className="flex items-center bg-gray-100 rounded-lg p-1">
             <button
               onClick={() => setViewMode('grid')}
-              className={`flex items-center gap-2 px-3 py-2 rounded-md transition ${
-                viewMode === 'grid'
-                  ? 'bg-white text-green-600 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition ${viewMode === 'grid' ? 'bg-white text-green-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
             >
-              <Grid3x3 size={18} />
-              <span className="text-sm font-medium">Grid</span>
+              <Grid3x3 size={15} /> Cards
             </button>
             <button
               onClick={() => setViewMode('table')}
-              className={`flex items-center gap-2 px-3 py-2 rounded-md transition ${
-                viewMode === 'table'
-                  ? 'bg-white text-green-600 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition ${viewMode === 'table' ? 'bg-white text-green-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
             >
-              <Table2 size={18} />
-              <span className="text-sm font-medium">Table</span>
+              <Table2 size={15} /> Table
             </button>
           </div>
 
           <button
             onClick={() => setAutoRefresh(!autoRefresh)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${
-              autoRefresh
-                ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition ${autoRefresh ? 'border-green-200 bg-green-50 text-green-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}`}
           >
-            <RefreshCw size={18} className={refreshing && autoRefresh ? 'animate-spin' : ''} />
-            <span className="text-sm font-medium">
-              {autoRefresh ? 'Auto Refresh On' : 'Auto Refresh Off'}
-            </span>
+            <RefreshCw size={14} className={autoRefresh && refreshing ? 'animate-spin' : ''} />
+            {autoRefresh ? 'Auto On' : 'Auto Off'}
           </button>
 
           <button
-            onClick={manualRefresh}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+            onClick={() => { fetchResults(false); fetchVoters(); toast.success('Refreshed'); }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition"
           >
-            <RefreshCw size={18} />
-            <span className="text-sm font-medium">Refresh</span>
+            <RefreshCw size={14} /> Refresh
           </button>
 
           <button
             onClick={downloadResults}
             disabled={candidates.length === 0}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium bg-green-700 text-white hover:bg-green-800 transition disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            <Download size={18} />
-            <span className="text-sm font-medium">Export CSV</span>
+            <Download size={14} /> Export CSV
           </button>
         </div>
       </div>
 
+      {/* Election Selector */}
       <div className="mb-6">
-        <label className="block text-sm font-medium mb-2">Select Election</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">Election</label>
         <select
           value={selectedElection}
-          onChange={(e) => setSelectedElection(e.target.value)}
-          className="w-full md:w-96 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+          onChange={e => setSelectedElection(e.target.value)}
+          className="w-full md:w-80 px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-700 bg-white"
         >
-          {elections.map((election) => (
-            <option key={election._id} value={election._id}>
-              {election.title}
-            </option>
+          {elections.map(e => (
+            <option key={e._id} value={e._id}>{e.title}</option>
           ))}
         </select>
       </div>
 
-      {selectedElection && (
+      {selectedElection && currentElection && (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <div className="bg-linear-to-br from-blue-500 to-green-600 rounded-xl shadow-lg p-6 text-white">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm text-green-100">Total Votes</p>
-                <BarChart3 className="text-green-200" size={24} />
+          {/* Countdown Banner */}
+          {countdown && !electionEnded && (
+            <div className="bg-slate-600 text-white rounded-xl p-5 mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center">
+                  <Clock size={20} />
+                </div>
+                <div>
+                  <p className="font-semibold text-sm">
+                    {electionActive ? 'Voting closes in' : 'Voting opens in'}
+                  </p>
+                  <p className="text-xs text-green-200 mt-0.5">
+                    {electionActive
+                      ? `Ends ${new Date(currentElection.endDate).toLocaleString()}`
+                      : `Starts ${new Date(currentElection.startDate).toLocaleString()}`}
+                  </p>
+                </div>
               </div>
-              <p className="text-4xl font-bold">{totalVotes}</p>
-              <p className="text-xs text-green-200 mt-1">Cast votes</p>
+              <div className="flex items-center gap-2">
+                {[
+                  { label: 'Days', value: countdown.days },
+                  { label: 'Hrs', value: countdown.hours },
+                  { label: 'Min', value: countdown.minutes },
+                  { label: 'Sec', value: countdown.seconds },
+                ].map(({ label, value }) => (
+                  <div key={label} className="bg-white/15 rounded-lg px-3 py-2 text-center min-w-14">
+                    <p className="text-xl font-bold font-mono leading-none">{pad(value)}</p>
+                    <p className="text-xs text-green-200 mt-1">{label}</p>
+                  </div>
+                ))}
+              </div>
             </div>
+          )}
 
-            <div className="bg-linear-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm text-blue-100">Total Voters</p>
-                <Users className="text-blue-200" size={24} />
+          {/* Election ended notice */}
+          {electionEnded && (
+            <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6 flex items-center gap-3">
+              <div className="w-9 h-9 bg-green-50 rounded-lg flex items-center justify-center shrink-0">
+                <CheckCircle className="text-green-700" size={18} />
               </div>
-              <p className="text-4xl font-bold">{totalVoters}</p>
-              <p className="text-xs text-blue-200 mt-1">Registered voters</p>
+              <div>
+                <p className="font-semibold text-gray-900 text-sm">Election concluded</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Final results · ended {new Date(currentElection.endDate).toLocaleString()}
+                </p>
+              </div>
             </div>
+          )}
 
-            <div className="bg-linear-to-br from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm text-green-100">Voted</p>
-                <TrendingUp className="text-green-200" size={24} />
-              </div>
-              <p className="text-4xl font-bold">{votedCount}</p>
-              <p className="text-xs text-green-200 mt-1">Voters participated</p>
-            </div>
-
-            <div className="bg-linear-to-br from-orange-500 to-orange-600 rounded-xl shadow-lg p-6 text-white">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm text-orange-100">Turnout Rate</p>
-                <Award className="text-orange-200" size={24} />
-              </div>
-              <p className="text-4xl font-bold">{turnoutRate}%</p>
-              <p className="text-xs text-orange-200 mt-1">Participation rate</p>
-            </div>
+          {/* Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <StatCard label="Total Votes Cast" value={totalVotes} icon={BarChart3} />
+            <StatCard label="Registered Voters" value={totalVoters} icon={Users} />
+            <StatCard label="Voters Participated" value={votedCount} icon={TrendingUp} />
+            <StatCard
+              label="Turnout Rate"
+              value={`${turnoutRate}%`}
+              icon={Award}
+              sub={totalVoters > 0 ? `${votedCount} of ${totalVoters} voted` : undefined}
+            />
           </div>
+
+          {/* Divider */}
+          <div className="flex items-center gap-3 mb-6">
+            <h2 className="text-base font-bold text-gray-900 whitespace-nowrap">Results by Position</h2>
+            <div className="flex-1 h-px bg-gray-100" />
+            <span className="text-xs text-gray-400 whitespace-nowrap">{Object.keys(groupedCandidates).length} position{Object.keys(groupedCandidates).length !== 1 ? 's' : ''}</span>
+          </div>
+
+          {/* Results Content */}
           {loading ? (
-            <div className="flex items-center justify-center h-64">
-              <div className="text-gray-500">Loading...</div>
+            <div className="bg-white border border-gray-100 rounded-xl p-16 text-center">
+              <div className="w-8 h-8 border-2 border-gray-200 border-t-green-700 rounded-full animate-spin mx-auto mb-3" />
+              <p className="text-sm text-gray-500">Loading results…</p>
             </div>
           ) : candidates.length === 0 ? (
-            <div className="bg-white rounded-xl shadow-sm p-12 text-center">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <BarChart3 className="text-green-600" size={32} />
+            <div className="bg-white border border-gray-100 rounded-xl p-16 text-center">
+              <div className="w-14 h-14 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <BarChart3 className="text-green-700" size={28} />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">
-                No Results Yet
-              </h3>
-              <p className="text-gray-600">
-                Results will appear here once voting begins
-              </p>
+              <h3 className="font-bold text-gray-900 mb-1">No results yet</h3>
+              <p className="text-sm text-gray-500">Results will appear once voting begins</p>
             </div>
           ) : viewMode === 'grid' ? (
-            <div className="space-y-8">
+            <div className="space-y-6">
               {Object.entries(groupedCandidates).map(([positionName, positionCandidates]) => {
-                const positionTotal = positionCandidates.reduce((sum, c) => sum + c.voteCount, 0);
+                const posTotal = positionCandidates.reduce((s, c) => s + c.voteCount, 0);
+                const { maxVotes, isTied, tiedCount } = getTieStatus(positionCandidates);
 
                 return (
-                  <div key={positionName} className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
-                    <div className="flex items-center justify-between mb-6">
-                      <h2 className="text-2xl font-bold text-gray-900">{positionName}</h2>
-                      <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-                        Total: {positionTotal} votes
+                  <div key={positionName} className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
+                    {/* Position header */}
+                    <div className="px-6 py-4 bg-green-700 flex items-center justify-between">
+                      <h3 className="text-base font-bold text-white">{positionName}</h3>
+                      <span className="text-xs bg-white/15 text-white px-3 py-1 rounded-full font-medium">
+                        {posTotal.toLocaleString()} vote{posTotal !== 1 ? 's' : ''}
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {positionCandidates.map((candidate, index) => {
-                        const percentage = positionTotal > 0 
-                          ? ((candidate.voteCount / positionTotal) * 100).toFixed(1)
-                          : '0.0';
-                        const isWinner = index === 0 && candidate.voteCount > 0;
+                    <div className="p-6 flex flex-col lg:flex-row gap-6">
+                      {/* Candidate list */}
+                      <div className="flex-1 space-y-3">
+                        {positionCandidates.map((candidate, i) => {
+                          const pct = posTotal > 0 ? ((candidate.voteCount / posTotal) * 100).toFixed(1) : '0.0';
+                          const color = CANDIDATE_COLORS[i % CANDIDATE_COLORS.length];
+                          const isTop = candidate.voteCount === maxVotes && maxVotes > 0;
+                          const isTiedCandidate = isTied && isTop;
+                          const isWinner = !isTied && isTop;
 
-                        return (
-                          <div
-                            key={candidate._id}
-                            className={`relative p-5 rounded-xl border-2 transition-all hover:shadow-lg ${
-                              isWinner
-                                ? 'border-green-500 bg-linear-to-br from-green-50 to-white'
-                                : 'border-gray-200 bg-white hover:border-green-200'
-                            }`}
-                          >
-                            {isWinner && (
-                              <div className="absolute -top-3 -right-3">
-                                <div className="bg-green-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg flex items-center gap-1">
-                                  <Award size={14} />
-                                  Leading
-                                </div>
+                          return (
+                            <div
+                              key={candidate._id}
+                              className={`flex items-center gap-4 p-4 rounded-lg border transition-all
+                                ${isTiedCandidate ? 'border-amber-200 bg-amber-50/50'
+                                : isWinner ? 'border-green-200 bg-green-50'
+                                : 'border-gray-100 bg-gray-50/50'}`}
+                            >
+                              {/* Rank */}
+                              <div
+                                className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
+                                style={{ backgroundColor: color }}
+                              >
+                                {i + 1}
                               </div>
-                            )}
-                            <div className="flex items-center gap-4 mb-4">
+
+                              {/* Photo */}
                               {candidate.image ? (
-                                <img
-                                  src={candidate.image}
-                                  alt={candidate.name}
-                                  className="w-16 h-16 rounded-full object-cover border-2 border-green-200"
-                                />
+                                <img src={candidate.image} alt={candidate.name} className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-sm shrink-0" />
                               ) : (
-                                <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
-                                  <User className="text-green-600" size={32} />
+                                <div className="w-11 h-11 rounded-full bg-gray-100 flex items-center justify-center shrink-0 border-2 border-white shadow-sm">
+                                  <User className="text-gray-400" size={20} />
                                 </div>
                               )}
-                              <div className="flex-1">
-                                <h3 className="font-bold text-gray-900 text-lg leading-tight">
-                                  {candidate.name}
-                                </h3>
-                                <p className="text-sm text-gray-500 mt-1">
-                                  Rank #{index + 1}
-                                </p>
+
+                              {/* Info */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1.5">
+                                  <p className="font-semibold text-gray-900 text-sm truncate">{candidate.name}</p>
+                                  {isTiedCandidate && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold shrink-0 bg-amber-100 text-amber-800">
+                                      <AlertTriangle size={10} />
+                                      Tied
+                                    </span>
+                                  )}
+                                  {isWinner && (
+                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold shrink-0 ${electionEnded ? 'bg-green-700 text-white' : 'bg-green-100 text-green-800'}`}>
+                                      <Award size={10} />
+                                      {electionEnded ? 'Elected' : 'Leading'}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                                  <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, backgroundColor: color }} />
+                                </div>
+                              </div>
+
+                              {/* Vote count */}
+                              <div className="text-right shrink-0">
+                                <p className="text-lg font-bold text-gray-900">{candidate.voteCount.toLocaleString()}</p>
+                                <p className="text-xs text-gray-400">{pct}%</p>
                               </div>
                             </div>
+                          );
+                        })}
+                      </div>
 
-                            {/* Vote Count */}
-                            <div className="mb-3">
-                              <div className="flex items-center justify-between mb-2">
-                                <span className="text-2xl font-bold text-green-600">
-                                  {candidate.voteCount}
-                                </span>
-                                <span className="text-lg font-semibold text-gray-600">
-                                  {percentage}%
-                                </span>
-                              </div>
-                              <p className="text-xs text-gray-500">
-                                {candidate.voteCount === 1 ? 'vote' : 'votes'}
-                              </p>
+                      {/* Pie chart */}
+                      <div className="flex flex-col items-center gap-4 lg:w-52 shrink-0">
+                        <PieChart candidates={positionCandidates} colors={CANDIDATE_COLORS} />
+                        <div className="w-full space-y-1.5">
+                          {positionCandidates.map((c, i) => (
+                            <div key={c._id} className="flex items-center gap-2 text-xs">
+                              <div className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: CANDIDATE_COLORS[i % CANDIDATE_COLORS.length] }} />
+                              <span className="text-gray-600 truncate">{c.name}</span>
                             </div>
-
-                            {/* Progress Bar */}
-                            <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
-                              <div
-                                className={`h-full transition-all duration-700 ease-out ${
-                                  isWinner 
-                                    ? 'bg-linear-to-r from-green-600 to-green-400' 
-                                    : 'bg-linear-to-r from-gray-400 to-gray-300'
-                                }`}
-                                style={{ width: `${percentage}%` }}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 );
@@ -428,191 +531,130 @@ export default function ResultsPage() {
             </div>
           ) : (
             /* Table View */
-            <div className="space-y-8">
+            <div className="space-y-6">
               {Object.entries(groupedCandidates).map(([positionName, positionCandidates]) => {
-                const positionTotal = positionCandidates.reduce((sum, c) => sum + c.voteCount, 0);
+                const posTotal = positionCandidates.reduce((s, c) => s + c.voteCount, 0);
+                const { maxVotes, isTied, tiedCount } = getTieStatus(positionCandidates);
 
                 return (
-                  <div key={positionName} className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100">
-                    <div className="bg-linear-to-r from-green-600 to-green-500 p-4 md:p-6">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                        <h2 className="text-xl md:text-2xl font-bold text-white">{positionName}</h2>
-                        <span className="text-xs md:text-sm text-green-100 bg-green-700 px-3 py-1 rounded-full w-fit">
-                          Total: {positionTotal} votes
-                        </span>
-                      </div>
+                  <div key={positionName} className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
+                    <div className="px-6 py-4 bg-green-700 flex items-center justify-between">
+                      <h3 className="text-base font-bold text-white">{positionName}</h3>
+                      <span className="text-xs bg-white/15 text-white px-3 py-1 rounded-full font-medium">
+                        {posTotal.toLocaleString()} vote{posTotal !== 1 ? 's' : ''}
+                      </span>
                     </div>
 
-                    {/* Mobile Card View */}
-                    <div className="block md:hidden">
-                      {positionCandidates.map((candidate, index) => {
-                        const percentage = positionTotal > 0 
-                          ? ((candidate.voteCount / positionTotal) * 100).toFixed(1)
-                          : '0.0';
-                        const isWinner = index === 0 && candidate.voteCount > 0;
+                    {/* Mobile cards */}
+                    <div className="block md:hidden divide-y divide-gray-50">
+                      {positionCandidates.map((candidate, i) => {
+                        const pct = posTotal > 0 ? ((candidate.voteCount / posTotal) * 100).toFixed(1) : '0.0';
+                        const color = CANDIDATE_COLORS[i % CANDIDATE_COLORS.length];
+                        const isTop = candidate.voteCount === maxVotes && maxVotes > 0;
+                        const isTiedCandidate = isTied && isTop;
+                        const isWinner = !isTied && isTop;
 
                         return (
-                          <div 
-                            key={candidate._id}
-                            className={`p-4 border-b last:border-b-0 ${
-                              isWinner ? 'bg-green-50' : 'bg-white'
-                            }`}
-                          >
-                            {/* Rank Badge */}
-                            <div className="flex items-start justify-between mb-3">
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
-                                isWinner 
-                                  ? 'bg-green-600 text-white' 
-                                  : 'bg-gray-200 text-gray-600'
-                              }`}>
-                                {index + 1}
+                          <div key={candidate._id} className={`p-4 ${isTiedCandidate ? 'bg-amber-50/40' : isWinner ? 'bg-green-50' : ''}`}>
+                            <div className="flex items-center gap-3 mb-2.5">
+                              <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0" style={{ backgroundColor: color }}>
+                                {i + 1}
                               </div>
-                              {isWinner ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-600 text-white text-xs font-medium rounded-full">
-                                  <Award size={12} />
-                                  Leading
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center px-2 py-1 bg-gray-200 text-gray-600 text-xs font-medium rounded-full">
-                                  Trailing
-                                </span>
-                              )}
-                            </div>
-
-                            {/* Candidate Info */}
-                            <div className="flex items-center gap-3 mb-3">
                               {candidate.image ? (
-                                <img
-                                  src={candidate.image}
-                                  alt={candidate.name}
-                                  className="w-12 h-12 rounded-full object-cover border-2 border-green-200"
-                                />
+                                <img src={candidate.image} alt={candidate.name} className="w-9 h-9 rounded-full object-cover border-2 border-white shadow-sm shrink-0" />
                               ) : (
-                                <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center shrink-0">
-                                  <User className="text-green-600" size={20} />
+                                <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+                                  <User className="text-gray-400" size={16} />
                                 </div>
                               )}
                               <div className="flex-1 min-w-0">
-                                <p className="font-bold text-gray-900 truncate">{candidate.name}</p>
-                              
+                                <p className="font-semibold text-sm text-gray-900 truncate">{candidate.name}</p>
+                                <p className="text-xs text-gray-500">{candidate.voteCount.toLocaleString()} votes · {pct}%</p>
                               </div>
+                              {isTiedCandidate ? (
+                                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 shrink-0">Tied</span>
+                              ) : isWinner ? (
+                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full shrink-0 ${electionEnded ? 'bg-green-700 text-white' : 'bg-green-100 text-green-800'}`}>
+                                  {electionEnded ? 'Elected' : 'Leading'}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-gray-400 shrink-0">#{i + 1}</span>
+                              )}
                             </div>
-
-                            {/* Stats */}
-                            <div className="grid grid-cols-2 gap-3 mb-3">
-                              <div>
-                                <p className="text-xs text-gray-500 mb-1">Votes</p>
-                                <p className="text-xl font-bold text-green-600">{candidate.voteCount}</p>
-                              </div>
-                              <div>
-                                <p className="text-xs text-gray-500 mb-1">Percentage</p>
-                                <p className="text-xl font-bold text-gray-700">{percentage}%</p>
-                              </div>
-                            </div>
-
-                            {/* Progress Bar */}
-                            <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
-                              <div
-                                className={`h-full transition-all duration-700 ease-out ${
-                                  isWinner 
-                                    ? 'bg-linear-to-r from-green-600 to-green-400' 
-                                    : 'bg-linear-to-r from-gray-400 to-gray-300'
-                                }`}
-                                style={{ width: `${percentage}%` }}
-                              />
+                            <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden ml-9">
+                              <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
                             </div>
                           </div>
                         );
                       })}
                     </div>
 
-                    {/* Desktop Table View */}
+                    {/* Desktop table */}
                     <div className="hidden md:block overflow-x-auto">
-                      <table className="w-full min-w-200">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="text-left py-4 px-4 lg:px-6 text-sm font-semibold text-gray-600 whitespace-nowrap">Rank</th>
-                            <th className="text-left py-4 px-4 lg:px-6 text-sm font-semibold text-gray-600 whitespace-nowrap">Candidate</th>
-                            <th className="text-left py-4 px-4 lg:px-6 text-sm font-semibold text-gray-600 whitespace-nowrap">Votes</th>
-                            <th className="text-left py-4 px-4 lg:px-6 text-sm font-semibold text-gray-600 whitespace-nowrap">Percentage</th>
-                            <th className="text-left py-4 px-4 lg:px-6 text-sm font-semibold text-gray-600 whitespace-nowrap">Progress</th>
-                            <th className="text-left py-4 px-4 lg:px-6 text-sm font-semibold text-gray-600 whitespace-nowrap">Status</th>
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-gray-100">
+                            <th className="text-left py-3 px-6 text-xs font-semibold text-gray-400 uppercase tracking-wide">Rank</th>
+                            <th className="text-left py-3 px-6 text-xs font-semibold text-gray-400 uppercase tracking-wide">Candidate</th>
+                            <th className="text-right py-3 px-6 text-xs font-semibold text-gray-400 uppercase tracking-wide">Votes</th>
+                            <th className="text-left py-3 px-6 text-xs font-semibold text-gray-400 uppercase tracking-wide w-48">Share</th>
+                            <th className="text-left py-3 px-6 text-xs font-semibold text-gray-400 uppercase tracking-wide">Status</th>
                           </tr>
                         </thead>
-                        <tbody>
-                          {positionCandidates.map((candidate, index) => {
-                            const percentage = positionTotal > 0 
-                              ? ((candidate.voteCount / positionTotal) * 100).toFixed(1)
-                              : '0.0';
-                            const isWinner = index === 0 && candidate.voteCount > 0;
+                        <tbody className="divide-y divide-gray-50">
+                          {positionCandidates.map((candidate, i) => {
+                            const pct = posTotal > 0 ? ((candidate.voteCount / posTotal) * 100).toFixed(1) : '0.0';
+                            const color = CANDIDATE_COLORS[i % CANDIDATE_COLORS.length];
+                            const isTop = candidate.voteCount === maxVotes && maxVotes > 0;
+                            const isTiedCandidate = isTied && isTop;
+                            const isWinner = !isTied && isTop;
 
                             return (
-                              <tr 
-                                key={candidate._id} 
-                                className={`border-t transition-colors ${
-                                  isWinner ? 'bg-green-50 hover:bg-green-100' : 'hover:bg-gray-50'
-                                }`}
-                              >
-                                <td className="py-4 px-4 lg:px-6">
-                                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
-                                    isWinner 
-                                      ? 'bg-green-600 text-white' 
-                                      : 'bg-gray-200 text-gray-600'
-                                  }`}>
-                                    {index + 1}
+                              <tr key={candidate._id} className={`transition-colors
+                                ${isTiedCandidate ? 'bg-amber-50/40 hover:bg-amber-50'
+                                : isWinner ? 'bg-green-50 hover:bg-green-100/60'
+                                : 'hover:bg-gray-50/60'}`}>
+                                <td className="py-4 px-6">
+                                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ backgroundColor: color }}>
+                                    {i + 1}
                                   </div>
                                 </td>
-                                <td className="py-4 px-4 lg:px-6">
+                                <td className="py-4 px-6">
                                   <div className="flex items-center gap-3">
                                     {candidate.image ? (
-                                      <img
-                                        src={candidate.image}
-                                        alt={candidate.name}
-                                        className="w-12 h-12 rounded-full object-cover border-2 border-green-200 shrink-0"
-                                      />
+                                      <img src={candidate.image} alt={candidate.name} className="w-9 h-9 rounded-full object-cover border-2 border-white shadow-sm shrink-0" />
                                     ) : (
-                                      <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center shrink-0">
-                                        <User className="text-green-600" size={24} />
+                                      <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+                                        <User className="text-gray-400" size={16} />
                                       </div>
                                     )}
-                                    <div className="min-w-0">
-                                      <p className="font-bold text-gray-900">{candidate.name}</p>
-                                      
-                                    </div>
+                                    <p className="font-semibold text-sm text-gray-900">{candidate.name}</p>
                                   </div>
                                 </td>
-                                <td className="py-4 px-4 lg:px-6">
-                                  <span className="text-xl lg:text-2xl font-bold text-green-600">
-                                    {candidate.voteCount}
-                                  </span>
+                                <td className="py-4 px-6 text-right">
+                                  <p className="text-lg font-bold text-gray-900">{candidate.voteCount.toLocaleString()}</p>
                                 </td>
-                                <td className="py-4 px-4 lg:px-6">
-                                  <span className="text-base lg:text-lg font-semibold text-gray-700">
-                                    {percentage}%
-                                  </span>
-                                </td>
-                                <td className="py-4 px-4 lg:px-6">
-                                  <div className="w-full max-w-50">
-                                    <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-                                      <div
-                                        className={`h-full transition-all duration-700 ease-out ${
-                                          isWinner 
-                                            ? 'bg-linear-to-r from-green-600 to-green-400' 
-                                            : 'bg-linear-to-r from-gray-400 to-gray-300'
-                                        }`}
-                                        style={{ width: `${percentage}%` }}
-                                      />
+                                <td className="py-4 px-6">
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
+                                      <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, backgroundColor: color }} />
                                     </div>
+                                    <span className="text-xs font-medium text-gray-600 w-10 text-right">{pct}%</span>
                                   </div>
                                 </td>
-                                <td className="py-4 px-4 lg:px-6">
-                                  {isWinner ? (
-                                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-600 text-white text-sm font-medium rounded-full whitespace-nowrap">
-                                      <Award size={14} />
-                                      Leading
+                                <td className="py-4 px-6">
+                                  {isTiedCandidate ? (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
+                                      <AlertTriangle size={11} />
+                                      Tied
+                                    </span>
+                                  ) : isWinner ? (
+                                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${electionEnded ? 'bg-green-700 text-white' : 'bg-green-100 text-green-800'}`}>
+                                      <Award size={11} />
+                                      {electionEnded ? 'Elected' : 'Leading'}
                                     </span>
                                   ) : (
-                                    <span className="inline-flex items-center px-3 py-1 bg-gray-200 text-gray-600 text-sm font-medium rounded-full whitespace-nowrap">
+                                    <span className="inline-flex items-center px-2.5 py-1 bg-gray-100 text-gray-500 text-xs font-medium rounded-full">
                                       Trailing
                                     </span>
                                   )}

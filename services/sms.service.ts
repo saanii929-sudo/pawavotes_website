@@ -166,6 +166,54 @@ Keep these credentials safe.
   return result.success;
 }
 
+export async function sendVoterOtpSms(
+  phone: string,
+  name: string,
+  OTP: string,
+  electionTitle: string,
+  startDate?: Date,
+  endDate?: Date,
+): Promise<boolean> {
+  const formatDate = (date: Date) => {
+    return new Date(date).toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  };
+
+  let dateInfo = "";
+  if (startDate && endDate) {
+    dateInfo = `\n\nVoting Period:\n${formatDate(startDate)} - ${formatDate(endDate)}`;
+  }
+  const message = `Hello ${name},
+
+Your otp for ${electionTitle}:
+
+OTP: ${OTP}
+
+Keep these credentials safe.
+
+`;
+
+  const result = await sendSms({
+    to: phone,
+    message,
+    senderId: "PAWAVOTES",
+  });
+
+  if (result.success) {
+    console.log("Voter credentials SMS sent successfully to:", phone);
+  } else {
+    console.error("Failed to send voter credentials SMS:", result.error);
+  }
+
+  return result.success;
+}
+
 export async function checkSmsBalance(): Promise<{
   success: boolean;
   balance?: number;

@@ -279,6 +279,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Pre-load existing voters for this election to detect duplicates before insert
+    const existingVoters = await Voter.find({ electionId }, { email: 1, phone: 1, voterId: 1 }).lean();
+    const existingEmails = new Set(existingVoters.map((v: any) => v.email).filter(Boolean));
+    const existingPhones = new Set(existingVoters.map((v: any) => v.phone).filter(Boolean));
+    const existingVoterIds = new Set(existingVoters.map((v: any) => v.voterId).filter(Boolean));
+
+    // Also track duplicates within the batch itself
+    const batchEmails = new Set<string>();
+    const batchPhones = new Set<string>();
+    const batchVoterIds = new Set<string>();
+
     const existingTokens = new Set<string>();
     const votersToCreate: any[] = [];
     const results: {
@@ -312,6 +323,35 @@ export async function POST(req: NextRequest) {
           });
           continue;
         }
+
+        // Pre-check duplicate voterId
+        if (voterData.voterId) {
+          const vidStr = String(voterData.voterId).trim();
+          if (existingVoterIds.has(vidStr) || batchVoterIds.has(vidStr)) {
+            results.failed.push({
+              row: i + 1,
+              data: voterData,
+              error: `Voter ID ${vidStr} is already registered in this election`,
+            });
+            continue;
+          }
+          batchVoterIds.add(vidStr);
+        }
+
+        // Pre-check duplicate email
+        if (voterData.email) {
+          const emailStr = String(voterData.email).trim().toLowerCase();
+          if (existingEmails.has(emailStr) || batchEmails.has(emailStr)) {
+            results.failed.push({
+              row: i + 1,
+              data: voterData,
+              error: `Email ${emailStr} is already registered in this election`,
+            });
+            continue;
+          }
+          batchEmails.add(emailStr);
+        }
+
         let phoneNumber = null;
         if (voterData.phone) {
           let phoneStr = String(voterData.phone).trim();
@@ -334,7 +374,17 @@ export async function POST(req: NextRequest) {
           }
           
           phoneNumber = phoneStr;
-          // console.log(`Row ${i + 1} - Final phone number:`, phoneNumber);
+
+          // Pre-check duplicate phone
+          if (existingPhones.has(phoneNumber) || batchPhones.has(phoneNumber)) {
+            results.failed.push({
+              row: i + 1,
+              data: voterData,
+              error: `Phone ${phoneNumber} is already registered in this election`,
+            });
+            continue;
+          }
+          batchPhones.add(phoneNumber);
         }
         const voterToken = await generateUniqueToken(existingTokens);
         const password = generatePassword();
@@ -386,9 +436,11 @@ export async function POST(req: NextRequest) {
             let errorMsg = 'Duplicate entry';
             
             if (field === 'email') {
-              errorMsg = `Email ${failedVoter.email} is already registered`;
+              errorMsg = `Email ${failedVoter.email} is already registered in this election`;
             } else if (field === 'phone') {
-              errorMsg = `Phone ${failedVoter.phone} is already registered`;
+              errorMsg = `Phone ${failedVoter.phone} is already registered in this election`;
+            } else if (field === 'voterId') {
+              errorMsg = `Voter ID ${failedVoter.voterId} is already registered in this election`;
             } else if (field === 'token') {
               errorMsg = 'Token conflict';
             }
