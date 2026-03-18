@@ -637,12 +637,8 @@ export default function VotersPage() {
                       <button
                         onClick={() => handleEdit(voter)}
                         className="p-2 text-green-600 hover:bg-green-100 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-                        disabled={voter.hasVoted}
-                        title={
-                          voter.hasVoted
-                            ? "Cannot edit voter who has voted"
-                            : "Edit voter"
-                        }
+                        disabled={true}
+                        title="Voter cannot be edited after being added. Use Resend Token to update phone number."
                       >
                         <Edit size={16} />
                       </button>
@@ -848,12 +844,8 @@ export default function VotersPage() {
                             <button
                               onClick={() => handleEdit(voter)}
                               className="p-2 text-green-600 hover:bg-green-100 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-                              disabled={voter.hasVoted}
-                              title={
-                                voter.hasVoted
-                                  ? "Cannot edit voter who has voted"
-                                  : "Edit voter"
-                              }
+                              disabled={true}
+                              title="Voter cannot be edited after being added. Use Resend Token to update phone number."
                             >
                               <Edit size={18} />
                             </button>

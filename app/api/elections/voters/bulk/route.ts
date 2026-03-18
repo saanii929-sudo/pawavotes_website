@@ -69,7 +69,6 @@ function generatePassword(): string {
     allChars[bytes[7] % allChars.length],
   ];
 
-  // Shuffle using Fisher-Yates with crypto randomness
   const shuffleBytes = require('crypto').randomBytes(picks.length);
   for (let i = picks.length - 1; i > 0; i--) {
     const j = shuffleBytes[i] % (i + 1);
@@ -258,7 +257,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verify election belongs to organization
     const election = await Election.findOne({
       _id: electionId,
       organizationId: decoded.id,
@@ -279,13 +277,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Pre-load existing voters for this election to detect duplicates before insert
     const existingVoters = await Voter.find({ electionId }, { email: 1, phone: 1, voterId: 1 }).lean();
     const existingEmails = new Set(existingVoters.map((v: any) => v.email).filter(Boolean));
     const existingPhones = new Set(existingVoters.map((v: any) => v.phone).filter(Boolean));
     const existingVoterIds = new Set(existingVoters.map((v: any) => v.voterId).filter(Boolean));
 
-    // Also track duplicates within the batch itself
     const batchEmails = new Set<string>();
     const batchPhones = new Set<string>();
     const batchVoterIds = new Set<string>();
@@ -324,7 +320,6 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
-        // Pre-check duplicate voterId
         if (voterData.voterId) {
           const vidStr = String(voterData.voterId).trim();
           if (existingVoterIds.has(vidStr) || batchVoterIds.has(vidStr)) {
@@ -338,7 +333,6 @@ export async function POST(req: NextRequest) {
           batchVoterIds.add(vidStr);
         }
 
-        // Pre-check duplicate email
         if (voterData.email) {
           const emailStr = String(voterData.email).trim().toLowerCase();
           if (existingEmails.has(emailStr) || batchEmails.has(emailStr)) {
@@ -356,11 +350,9 @@ export async function POST(req: NextRequest) {
         if (voterData.phone) {
           let phoneStr = String(voterData.phone).trim();
           
-          // console.log(`Row ${i + 1} - Original phone:`, phoneStr);
           if (phoneStr.includes('E') || phoneStr.includes('e')) {
             phoneStr = scientificToDecimal(phoneStr);
-            // console.log(`Row ${i + 1} - Converted from scientific notation:`, phoneStr);
-  
+           
             const trailingZeros = phoneStr.match(/0+$/);
             if (trailingZeros && trailingZeros[0].length >= 4) {
               console.warn(`⚠️ Row ${i + 1} - Phone number may have lost precision due to Excel formatting. Original: ${voterData.phone}, Converted: ${phoneStr}`);
@@ -370,12 +362,10 @@ export async function POST(req: NextRequest) {
           }
           if (phoneStr.includes('.')) {
             phoneStr = phoneStr.split('.')[0];
-            // console.log(`Row ${i + 1} - Removed decimal:`, phoneStr);
           }
           
           phoneNumber = phoneStr;
 
-          // Pre-check duplicate phone
           if (existingPhones.has(phoneNumber) || batchPhones.has(phoneNumber)) {
             results.failed.push({
               row: i + 1,
@@ -465,10 +455,7 @@ export async function POST(req: NextRequest) {
     let smsFailed = 0;
     
     if (results.success.length > 0) {
-      // console.log(`Sending notifications to ${results.success.length} voters...`);
-      
       for (const voter of results.success) {
-        // Send email if available and delivery method allows
         if (voter.email && (deliveryMethod === 'email' || deliveryMethod === 'both')) {
           try {
             const emailSent = await sendVoterCredentials(
@@ -492,7 +479,6 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        // Send SMS if available and delivery method allows
         if (voter.phone && (deliveryMethod === 'sms' || deliveryMethod === 'both')) {
           try {
             const smsSentSuccess = await sendVoterCredentialsSms(
@@ -516,9 +502,6 @@ export async function POST(req: NextRequest) {
           }
         }
       }
-      
-      // console.log(`Emails sent: ${emailsSent}, failed: ${emailsFailed}`);
-      // console.log(`SMS sent: ${smsSent}, failed: ${smsFailed}`);
     }
 
     return NextResponse.json({

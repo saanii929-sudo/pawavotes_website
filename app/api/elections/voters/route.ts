@@ -216,7 +216,6 @@ export async function POST(req: NextRequest) {
       try {
         await sendVoterCredentials(email, name, voterToken, password, election.title, election.startDate, election.endDate);
       } catch (emailError) {
-        // Email send failed silently
       }
     }
 
@@ -224,7 +223,6 @@ export async function POST(req: NextRequest) {
       try {
         await sendVoterCredentialsSms(phoneNumber, name, voterToken, password, election.title, election.startDate, election.endDate);
       } catch (smsError) {
-        // SMS send failed silently
       }
     }
 
@@ -239,18 +237,18 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     
     if (error.code === 11000) {
-      const field = Object.keys(error.keyPattern || {})[0];
-      if (field === 'email') {
+      const keyFields = Object.keys(error.keyPattern || {});
+      if (keyFields.includes('email')) {
         return NextResponse.json(
           { error: 'This email address is already registered for this election' },
           { status: 400 }
         );
-      } else if (field === 'phone') {
+      } else if (keyFields.includes('phone')) {
         return NextResponse.json(
           { error: 'This phone number is already registered for this election' },
           { status: 400 }
         );
-      } else if (field === 'token') {
+      } else if (keyFields.includes('token')) {
         return NextResponse.json(
           { error: 'Token conflict. Please try again.' },
           { status: 400 }

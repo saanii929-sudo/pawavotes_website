@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Voter from '@/models/Voter';
 import Election from '@/models/Election';
-import { sendVoterCredentialsSms, sendVoterOtpSms } from '@/services/sms.service';
+import { sendVoterOtpSms } from '@/services/sms.service';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 const otpStore = new Map<string, { otp: string; expiresAt: number }>();
@@ -11,7 +11,6 @@ function generateOTP(): string {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
-// POST /api/elections/otp — send OTP to voter
 export async function POST(req: NextRequest) {
   try {
     const ip = getClientIp(req.headers);

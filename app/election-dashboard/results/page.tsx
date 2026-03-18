@@ -4,18 +4,18 @@ import { useEffect, useState } from 'react';
 import { Download, TrendingUp, Users, Award, BarChart3, Grid3x3, Table2, RefreshCw, User, Clock, CheckCircle, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-// Green-toned palette for candidate differentiation
+// Dynamic color palette for candidate differentiation
 const CANDIDATE_COLORS = [
-  '#15803d', // green-700
-  '#166534', // green-800
-  '#065f46', // emerald-800
-  '#0f766e', // teal-700
-  '#134e4a', // teal-900
-  '#16a34a', // green-600
-  '#059669', // emerald-600
-  '#0d9488', // teal-600
-  '#22c55e', // green-500
-  '#10b981', // emerald-500
+  '#dc2626', // red
+  '#2563eb', // blue
+  '#16a34a', // green
+  '#ea580c', // orange
+  '#111827', // black
+  '#9333ea', // purple
+  '#db2777', // pink
+  '#0891b2', // cyan
+  '#d97706', // amber
+  '#0d9488', // teal
 ];
 
 interface Candidate {
@@ -73,7 +73,7 @@ function PieChart({ candidates, colors }: { candidates: { name: string; voteCoun
   }
 
   let angle = -90;
-  const size = 176;
+  const size = 200;
   const cx = size / 2;
   const cy = size / 2;
   const r = size / 2 - 10;
@@ -435,12 +435,98 @@ export default function ResultsPage() {
                 const posTotal = positionCandidates.reduce((s, c) => s + c.voteCount, 0);
                 const { maxVotes, isTied, tiedCount } = getTieStatus(positionCandidates);
 
+                // ── Solo candidate: referendum-style breakdown ──────────────
+                if (positionCandidates.length === 1) {
+                  const solo = positionCandidates[0];
+                  const votedPct = totalVoters > 0 ? (solo.voteCount / totalVoters) * 100 : 0;
+                  const notVotedCount = Math.max(0, totalVoters - solo.voteCount);
+                  const notVotedPct = totalVoters > 0 ? (notVotedCount / totalVoters) * 100 : 0;
+                  const isSoloTied = solo.voteCount > 0 && solo.voteCount === notVotedCount;
+                  return (
+                    <div key={positionName} className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
+                      <div className="px-6 py-4 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <h3 className="text-base font-bold text-black">{positionName}</h3>
+                        </div>
+                        <span className="text-xs bg-white/15 text-white px-3 py-1 rounded-full">
+                          {totalVoters.toLocaleString()} registered voter{totalVoters !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <div className="p-6">
+                        {/* Candidate identity */}
+                        <div className="flex items-center gap-4 mb-6 pb-5 border-b border-gray-100">
+                          {solo.image ? (
+                            <img src={solo.image} alt={solo.name} className="w-14 h-14 rounded-full object-cover border-2 border-green-100 shadow-sm shrink-0" />
+                          ) : (
+                            <div className="w-14 h-14 rounded-full bg-green-50 flex items-center justify-center border-2 border-green-100 shrink-0">
+                              <User className="text-green-500" size={24} />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-xl text-gray-900 truncate">{solo.name}</p>
+                            <p className="text-sm text-gray-500 mt-0.5">Running for <span className="font-semibold text-gray-700">{positionName}</span></p>
+                            <div className="mt-1.5">
+                              {isSoloTied
+                                ? <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700"><Award size={10} /> Tied</span>
+                                : electionEnded
+                                  ? solo.voteCount > 0
+                                    ? <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-700 text-white"><Award size={10} /> Elected</span>
+                                    : <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-gray-200 text-gray-600">No Votes Cast</span>
+                                  : <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-700"><CheckCircle size={10} /> Polling in Progress</span>
+                              }
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="text-3xl font-extrabold text-gray-900">{solo.voteCount.toLocaleString()}</p>
+                            <p className="text-xs text-gray-400 mt-0.5">votes cast</p>
+                          </div>
+                        </div>
+                        {/* Split bar */}
+                        <div className="flex items-center justify-between text-xs font-semibold mb-2">
+                          <span className="text-green-700">Voted — {votedPct.toFixed(1)}%</span>
+                          <span className="text-gray-400">Did Not Vote — {notVotedPct.toFixed(1)}%</span>
+                        </div>
+                        <div className="flex h-8 rounded-xl overflow-hidden mb-5 bg-gray-100">
+                          <div
+                            className="bg-green-500 flex items-center justify-center transition-all duration-700"
+                            style={{ width: `${votedPct}%`, minWidth: votedPct > 0 ? '4px' : '0' }}
+                          >
+                            {votedPct >= 14 && <span className="text-white text-xs font-bold">{votedPct.toFixed(1)}%</span>}
+                          </div>
+                          <div className="flex-1 flex items-center justify-center">
+                            {notVotedPct >= 14 && <span className="text-gray-400 text-xs font-bold">{notVotedPct.toFixed(1)}%</span>}
+                          </div>
+                        </div>
+                        {/* Stat cards */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="rounded-xl p-4 bg-green-50 border border-green-100">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="w-3 h-3 rounded-full bg-green-500 shrink-0" />
+                              <p className="text-xs font-bold text-green-700 uppercase tracking-wider">Voted</p>
+                            </div>
+                            <p className="text-2xl font-extrabold text-gray-900 leading-none">{solo.voteCount.toLocaleString()}</p>
+                            <p className="text-sm text-green-600 font-semibold mt-1">{votedPct.toFixed(1)}% of voters</p>
+                          </div>
+                          <div className="rounded-xl p-4 bg-gray-50 border border-gray-100">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="w-3 h-3 rounded-full bg-gray-400 shrink-0" />
+                              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Did Not Vote</p>
+                            </div>
+                            <p className="text-2xl font-extrabold text-gray-900 leading-none">{notVotedCount.toLocaleString()}</p>
+                            <p className="text-sm text-gray-500 font-semibold mt-1">{notVotedPct.toFixed(1)}% of voters</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
                 return (
                   <div key={positionName} className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
                     {/* Position header */}
-                    <div className="px-6 py-4 bg-green-700 flex items-center justify-between">
-                      <h3 className="text-base font-bold text-white">{positionName}</h3>
-                      <span className="text-xs bg-white/15 text-white px-3 py-1 rounded-full font-medium">
+                    <div className="px-6 py-4 flex items-center justify-between">
+                      <h3 className="text-base font-bold text-black">{positionName}</h3>
+                      <span className="text-xs bg-white/15 text-black px-3 py-1 rounded-full font-medium">
                         {posTotal.toLocaleString()} vote{posTotal !== 1 ? 's' : ''}
                       </span>
                     </div>
@@ -497,8 +583,13 @@ export default function ResultsPage() {
                                     </span>
                                   )}
                                 </div>
-                                <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                                  <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, backgroundColor: color }} />
+                                <div className="relative group/bar">
+                                  <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                                    <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, backgroundColor: color }} />
+                                  </div>
+                                  <span className="absolute -top-6 right-0 opacity-0 group-hover/bar:opacity-100 transition-opacity bg-gray-700 text-white text-[10px] font-bold px-1.5 py-0.5 rounded pointer-events-none whitespace-nowrap">
+                                    {pct}%
+                                  </span>
                                 </div>
                               </div>
 
@@ -513,7 +604,7 @@ export default function ResultsPage() {
                       </div>
 
                       {/* Pie chart */}
-                      <div className="flex flex-col items-center gap-4 lg:w-52 shrink-0">
+                      <div className="flex flex-col items-center gap-4 lg:w-72 shrink-0">
                         <PieChart candidates={positionCandidates} colors={CANDIDATE_COLORS} />
                         <div className="w-full space-y-1.5">
                           {positionCandidates.map((c, i) => (
@@ -536,11 +627,113 @@ export default function ResultsPage() {
                 const posTotal = positionCandidates.reduce((s, c) => s + c.voteCount, 0);
                 const { maxVotes, isTied, tiedCount } = getTieStatus(positionCandidates);
 
+                // ── Solo candidate: referendum-style breakdown ──────────────
+                if (positionCandidates.length === 1) {
+                  const solo = positionCandidates[0];
+                  const votedPct = totalVoters > 0 ? (solo.voteCount / totalVoters) * 100 : 0;
+                  const notVotedCount = Math.max(0, totalVoters - solo.voteCount);
+                  const notVotedPct = totalVoters > 0 ? (notVotedCount / totalVoters) * 100 : 0;
+                  const isSoloTied = solo.voteCount > 0 && solo.voteCount === notVotedCount;
+                  return (
+                    <div key={positionName} className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
+                      <div className="px-6 py-4 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <h3 className="text-base font-bold text-black">{positionName}</h3>
+                        </div>
+                        <span className="text-xs bg-white/15 text-white px-3 py-1 rounded-full">
+                          {totalVoters.toLocaleString()} registered voter{totalVoters !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-gray-50 border-b border-gray-100">
+                              <th className="text-left py-3 px-6 text-xs font-semibold text-gray-400 uppercase tracking-wide">Candidate</th>
+                              <th className="text-right py-3 px-6 text-xs font-semibold text-gray-400 uppercase tracking-wide">Count</th>
+                              <th className="text-left py-3 px-6 text-xs font-semibold text-gray-400 uppercase tracking-wide w-56">Share of Registered Voters</th>
+                              <th className="text-left py-3 px-6 text-xs font-semibold text-gray-400 uppercase tracking-wide">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {/* Voted row */}
+                            <tr className={`border-b border-gray-100 ${isSoloTied ? 'bg-amber-50' : 'bg-green-50'}`}>
+                              <td className="py-4 px-6">
+                                <div className="flex items-center gap-3">
+                                  {solo.image ? (
+                                    <img src={solo.image} alt={solo.name} className="w-9 h-9 rounded-full object-cover border-2 border-green-100 shadow-sm shrink-0" />
+                                  ) : (
+                                    <div className="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+                                      <User className="text-green-600" size={16} />
+                                    </div>
+                                  )}
+                                  <div>
+                                    <p className="font-semibold text-gray-900">{solo.name}</p>
+                                    <p className="text-xs text-gray-400 mt-0.5">Voted for this candidate</p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="py-4 px-6 text-right">
+                                <p className="text-lg font-bold text-gray-900">{solo.voteCount.toLocaleString()}</p>
+                              </td>
+                              <td className="py-4 px-6">
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
+                                    <div className="h-full rounded-full bg-green-500 transition-all duration-700" style={{ width: `${votedPct}%` }} />
+                                  </div>
+                                  <span className="text-xs font-semibold text-green-700 w-12 text-right">{votedPct.toFixed(1)}%</span>
+                                </div>
+                              </td>
+                              <td className="py-4 px-6">
+                                {isSoloTied
+                                  ? <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700"><Award size={11} /> Tied</span>
+                                  : electionEnded
+                                    ? solo.voteCount > 0
+                                      ? <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-green-700 text-white"><Award size={11} /> Elected</span>
+                                      : <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-gray-200 text-gray-600">No Votes Cast</span>
+                                    : <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700"><CheckCircle size={11} /> Leading</span>
+                                }
+                              </td>
+                            </tr>
+                            {/* Did not vote row */}
+                            <tr className="hover:bg-gray-50/60">
+                              <td className="py-4 px-6">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+                                    <Users className="text-gray-400" size={16} />
+                                  </div>
+                                  <div>
+                                    <p className="font-semibold text-gray-500 italic">Did Not Vote</p>
+                                    <p className="text-xs text-gray-400 mt-0.5">Registered voters who abstained</p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="py-4 px-6 text-right">
+                                <p className="text-lg font-bold text-gray-600">{notVotedCount.toLocaleString()}</p>
+                              </td>
+                              <td className="py-4 px-6">
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
+                                    <div className="h-full rounded-full bg-gray-400 transition-all duration-700" style={{ width: `${notVotedPct}%` }} />
+                                  </div>
+                                  <span className="text-xs font-semibold text-gray-500 w-12 text-right">{notVotedPct.toFixed(1)}%</span>
+                                </div>
+                              </td>
+                              <td className="py-4 px-6">
+                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500">Abstained</span>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                }
+
                 return (
                   <div key={positionName} className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
-                    <div className="px-6 py-4 bg-green-700 flex items-center justify-between">
-                      <h3 className="text-base font-bold text-white">{positionName}</h3>
-                      <span className="text-xs bg-white/15 text-white px-3 py-1 rounded-full font-medium">
+                    <div className="px-6 py-4 flex items-center justify-between">
+                      <h3 className="text-base font-bold text-black">{positionName}</h3>
+                      <span className="text-xs bg-white/15 text-black px-3 py-1 rounded-full font-medium">
                         {posTotal.toLocaleString()} vote{posTotal !== 1 ? 's' : ''}
                       </span>
                     </div>

@@ -52,6 +52,9 @@ export async function GET(req: NextRequest) {
       const totalVoters = await Voter.countDocuments({ electionId });
       const votedCount = await Voter.countDocuments({ electionId, hasVoted: true });
 
+      // Election is considered ended if status is 'ended' OR endDate has passed
+      const isEnded = election.status === 'ended' || new Date(election.endDate) < new Date();
+
       const positionResults = categories.map((cat: any) => {
         const posCandidates = candidates
           .filter((c: any) => String(c.categoryId) === String(cat._id))
@@ -62,17 +65,21 @@ export async function GET(req: NextRequest) {
         const maxVotes = posCandidates.length > 0 ? posCandidates[0].voteCount : 0;
         const tiedCount = maxVotes > 0 ? posCandidates.filter((c: any) => c.voteCount === maxVotes).length : 0;
         const isTied = tiedCount > 1;
+        // Solo-candidate referendum tie: voted count equals did-not-vote count
+        const isSoloTied = posCandidates.length === 1 && maxVotes > 0 && maxVotes === (totalVoters - maxVotes);
+        const effectiveIsTied = isTied || isSoloTied;
 
         return {
           position: cat.name,
           totalVotes: posTotal,
-          isTied,
-          tiedCount: isTied ? tiedCount : 0,
+          isTied: effectiveIsTied,
+          isSoloTied,
+          tiedCount: effectiveIsTied ? tiedCount : 0,
           candidates: posCandidates.map((c: any, i: number) => {
             const isTop = c.voteCount === maxVotes && maxVotes > 0;
             let status: string;
-            if (isTop && isTied) status = 'Tied';
-            else if (isTop && election.status === 'ended') status = 'Elected';
+            if (isTop && effectiveIsTied) status = 'Tied';
+            else if (isTop && isEnded) status = 'Elected';
             else if (isTop) status = 'Leading';
             else status = 'Trailing';
             return {
@@ -90,7 +97,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         success: true,
         data: {
-          election: { title: election.title, startDate: election.startDate, endDate: election.endDate, status: election.status },
+          election: { title: election.title, startDate: election.startDate, endDate: election.endDate, status: isEnded ? 'ended' : election.status },
           totalVoters,
           votedCount,
           turnoutRate: totalVoters > 0 ? ((votedCount / totalVoters) * 100).toFixed(1) : '0.0',

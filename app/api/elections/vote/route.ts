@@ -8,7 +8,6 @@ import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
   try {
-    // Rate limit: 5 vote submission attempts per IP per 10 minutes
     const ip = getClientIp(req.headers);
     const rl = checkRateLimit(`election-vote:${ip}`, 5, 10 * 60 * 1000);
     if (!rl.allowed) {
@@ -30,8 +29,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Atomically claim the voter slot — sets hasVoted=true only if it was false and status is active.
-    // This prevents race conditions where two concurrent requests both pass the hasVoted check.
     const voter = await Voter.findOneAndUpdate(
       { token: token.toUpperCase(), hasVoted: false, status: 'active' },
       { $set: { hasVoted: true, votedAt: new Date(), status: 'expired' } },
@@ -39,8 +36,6 @@ export async function POST(req: NextRequest) {
     );
 
     if (!voter) {
-      // Either token doesn't exist, already voted, or access was disabled.
-      // Fetch to give a specific error message.
       const existing = await Voter.findOne({ token: token.toUpperCase() }).select('hasVoted status').lean() as any;
       if (!existing) {
         return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
@@ -51,7 +46,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Your voting access has been disabled' }, { status: 403 });
     }
 
-    // Get election
     const election = await Election.findById(voter.electionId);
 
     if (!election) {
@@ -61,9 +55,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check election status field first (admin can manually close an election)
     if (election.status === 'ended') {
-      // Roll back the atomic claim since we can't accept the vote
       await Voter.findByIdAndUpdate(voter._id, {
         $set: { hasVoted: false, status: 'active' },
         $unset: { votedAt: 1 },
@@ -71,7 +63,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Voting has ended' }, { status: 403 });
     }
 
-    // Also enforce time window
     const now = new Date();
     const startDate = new Date(election.startDate);
     const endDate = new Date(election.endDate);
@@ -92,7 +83,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Voting has ended' }, { status: 403 });
     }
 
-    // Guard: cap votes array size to prevent oversized payloads
     if (votes.length > 100) {
       await Voter.findByIdAndUpdate(voter._id, {
         $set: { hasVoted: false, status: 'active' },
@@ -101,7 +91,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid vote data' }, { status: 400 });
     }
 
-    // Enforce max 1 vote per category (duplicates within the same submission)
     const seenCategories = new Set<string>();
     for (const vote of votes) {
       if (!vote.categoryId || !vote.candidateId) {
@@ -124,14 +113,12 @@ export async function POST(req: NextRequest) {
       seenCategories.add(String(vote.categoryId));
     }
 
-    // Validate and save votes
     const votesToSave = [];
     const candidateUpdates = [];
 
     for (const vote of votes) {
       const { categoryId, candidateId } = vote;
 
-      // Verify candidate exists and belongs to this election and category
       const candidate = await Candidate.findOne({
         _id: candidateId,
         categoryId,
@@ -161,14 +148,11 @@ export async function POST(req: NextRequest) {
       candidateUpdates.push(candidateId);
     }
 
-    // Remove any stale votes from a previous failed attempt (rollback left them behind)
     await ElectionVote.deleteMany({ voterId: voter._id, electionId: voter.electionId });
 
-    // Save all votes
     try {
       await ElectionVote.insertMany(votesToSave);
     } catch (insertError: any) {
-      // If vote insertion fails, roll back the hasVoted flag so the voter can retry
       await Voter.findByIdAndUpdate(voter._id, {
         $set: { hasVoted: false, status: 'active' },
         $unset: { votedAt: 1 },

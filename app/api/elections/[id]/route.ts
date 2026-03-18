@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Election from '@/models/Election';
+import Voter from '@/models/Voter';
+import Candidate from '@/models/Candidate';
+import ElectionCategory from '@/models/ElectionCategory';
+import ElectionVote from '@/models/ElectionVote';
+import PinkSheet from '@/models/PinkSheet';
 import { verifyToken } from '@/lib/auth';
 
 export async function PUT(
@@ -91,21 +96,28 @@ export async function DELETE(
     }
 
     const { id } = await params;
-    const election = await Election.findOneAndDelete({
-      _id: id,
-      organizationId: decoded.id,
-    });
 
+    // Verify ownership before deleting
+    const election = await Election.findOne({ _id: id, organizationId: decoded.id });
     if (!election) {
-      return NextResponse.json(
-        { error: 'Election not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Election not found' }, { status: 404 });
     }
+
+    // Cascade delete all related data in parallel
+    await Promise.all([
+      Voter.deleteMany({ electionId: id }),
+      Candidate.deleteMany({ electionId: id }),
+      ElectionCategory.deleteMany({ electionId: id }),
+      ElectionVote.deleteMany({ electionId: id }),
+      PinkSheet.deleteMany({ electionId: id }),
+    ]);
+
+    // Delete the election itself
+    await Election.findByIdAndDelete(id);
 
     return NextResponse.json({
       success: true,
-      message: 'Election deleted successfully',
+      message: 'Election and all related data deleted successfully',
     });
   } catch (error: any) {
     console.error('Delete election error:', error);

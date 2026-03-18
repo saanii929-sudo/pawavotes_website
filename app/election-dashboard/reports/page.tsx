@@ -1011,9 +1011,9 @@ export default function ReportsPage() {
 
                   {resultsData.positions.map((pos) => (
                     <div key={pos.position} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                      <div className="px-6 py-3 bg-linear-to-r from-green-700 to-green-600 flex items-center justify-between">
-                        <h3 className="font-bold text-white text-sm">{pos.position}</h3>
-                        <span className="text-xs text-green-100 bg-white/20 px-2.5 py-0.5 rounded-full">{pos.totalVotes} votes cast</span>
+                      <div className="px-6 py-3  flex items-center justify-between">
+                        <h3 className="font-bold text-black text-sm">{pos.position}</h3>
+                        <span className="text-xs text-white bg-green-700 px-2.5 py-0.5 rounded-full">{pos.totalVotes} votes cast</span>
                       </div>
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
@@ -1030,6 +1030,11 @@ export default function ReportsPage() {
                           <tbody className="divide-y divide-gray-50">
                             {pos.candidates.map((c) => {
                               const isWinner = c.rank === 1 && c.votes > 0;
+                              const isSolo = pos.candidates.length === 1;
+                              // For solo candidate, show votes relative to total registered voters
+                              const displayPct = isSolo && resultsData.totalVoters > 0
+                                ? ((c.votes / resultsData.totalVoters) * 100).toFixed(1)
+                                : c.percentage;
                               return (
                                 <tr key={c.rank} className={`transition-colors ${isWinner ? "bg-green-50 hover:bg-green-100/60" : "hover:bg-gray-50"}`}>
                                   <td className="py-4 px-4">
@@ -1040,29 +1045,69 @@ export default function ReportsPage() {
                                   <td className="py-4 px-4">
                                     <div className="flex items-center gap-3">
                                       <Avatar name={c.name} />
-                                      <span className="font-semibold text-gray-900">{c.name}</span>
+                                      <div>
+                                        <span className="font-semibold text-gray-900">{c.name}</span>
+                                        {isSolo && <p className="text-xs text-gray-400 mt-0.5">Voted for this candidate</p>}
+                                      </div>
                                     </div>
                                   </td>
                                   <td className="py-4 px-4 text-gray-500">{c.ballotNumber || "—"}</td>
                                   <td className="py-4 px-4 font-bold text-gray-900">{c.votes.toLocaleString()}</td>
                                   <td className="py-4 px-4">
                                     <div className="flex items-center gap-2">
-                                      <MiniBar pct={parseFloat(c.percentage)} color={isWinner ? "bg-green-500" : "bg-gray-300"} />
-                                      <span className="text-xs text-gray-600 font-medium w-10">{c.percentage}%</span>
+                                      <MiniBar pct={parseFloat(displayPct)} color={isWinner ? "bg-green-500" : "bg-gray-300"} />
+                                      <span className="text-xs text-gray-600 font-medium w-10">{displayPct}%</span>
                                     </div>
                                   </td>
                                   <td className="py-4 px-4">
                                     <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${
-                                      c.status === "Elected" ? "bg-green-600 text-white"
+                                      c.status === "Tied" ? "bg-amber-100 text-amber-700 border border-amber-200"
+                                      : c.status === "Elected" || (c.status === "Leading" && (resultsData.election.status === "ended" || (currentElection && new Date(currentElection.endDate) < new Date()))) ? "bg-green-600 text-white"
                                       : c.status === "Leading" ? "bg-amber-100 text-amber-800 border border-amber-200"
                                       : "bg-gray-100 text-gray-500"
                                     }`}>
-                                      {c.status}
+                                      {c.status === "Leading" && (resultsData.election.status === "ended" || (currentElection && new Date(currentElection.endDate) < new Date())) ? "Elected" : c.status}
                                     </span>
                                   </td>
                                 </tr>
                               );
                             })}
+                            {/* Solo candidate: show "Did Not Vote" row */}
+                            {pos.candidates.length === 1 && (() => {
+                              const notVotedCount = Math.max(0, resultsData.totalVoters - pos.candidates[0].votes);
+                              const notVotedPct = resultsData.totalVoters > 0 ? ((notVotedCount / resultsData.totalVoters) * 100).toFixed(1) : "0.0";
+                              return (
+                                <tr className="hover:bg-gray-50 border-t-2 border-gray-100">
+                                  <td className="py-4 px-4">
+                                    <div className="w-7 h-7 rounded-full flex items-center justify-center bg-gray-100">
+                                      <span className="text-gray-400 text-xs font-bold">—</span>
+                                    </div>
+                                  </td>
+                                  <td className="py-4 px-4">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+                                        <Users size={14} className="text-gray-400" />
+                                      </div>
+                                      <div>
+                                        <span className="font-semibold text-gray-500 italic">Did Not Vote</span>
+                                        <p className="text-xs text-gray-400 mt-0.5">Registered voters who abstained</p>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="py-4 px-4 text-gray-400">—</td>
+                                  <td className="py-4 px-4 font-bold text-gray-600">{notVotedCount.toLocaleString()}</td>
+                                  <td className="py-4 px-4">
+                                    <div className="flex items-center gap-2">
+                                      <MiniBar pct={parseFloat(notVotedPct)} color="bg-gray-300" />
+                                      <span className="text-xs text-gray-500 font-medium w-10">{notVotedPct}%</span>
+                                    </div>
+                                  </td>
+                                  <td className="py-4 px-4">
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500">Abstained</span>
+                                  </td>
+                                </tr>
+                              );
+                            })()}
                           </tbody>
                         </table>
                       </div>
@@ -1192,12 +1237,12 @@ export default function ReportsPage() {
                   <div className="space-y-6">
                     {resultsData.positions.map((pos) => (
                       <div key={pos.position} className="border border-gray-200 rounded-xl overflow-hidden">
-                        <div className="bg-green-700 px-5 py-3 flex items-center justify-between">
-                          <h3 className="font-bold text-white text-sm">{pos.position}</h3>
-                          <span className="text-xs text-green-100">{pos.totalVotes} total votes</span>
+                        <div className=" px-5 py-3 flex items-center justify-between">
+                          <h3 className="font-bold text-black text-sm">{pos.position}</h3>
+                          <span className="text-xs text-black">{pos.totalVotes} total votes</span>
                         </div>
                         <div className="overflow-x-auto">
-                        <table className="w-full text-sm min-w-[560px]">
+                        <table className="w-full text-sm min-w-140">
                           <thead className="bg-gray-50 border-b border-gray-100">
                             <tr>
                               {["Candidate", "Ballot #", "Votes", "Agent Signature"].map((h) => (
@@ -1297,9 +1342,9 @@ export default function ReportsPage() {
                     {/* Per-position EC table */}
                     {resultsData.positions.map((pos) => (
                       <div key={pos.position} className="border border-gray-200 rounded-xl overflow-hidden">
-                        <div className="bg-emerald-700 px-5 py-3 flex items-center justify-between">
-                          <h3 className="font-bold text-white text-sm">{pos.position}</h3>
-                          <span className="text-xs text-emerald-100">{pos.totalVotes} votes</span>
+                        <div className=" px-5 py-3 flex items-center justify-between">
+                          <h3 className="font-bold text-black text-sm">{pos.position}</h3>
+                          <span className="text-xs text-black">{pos.totalVotes} votes</span>
                         </div>
                         <table className="w-full text-sm">
                           <thead className="bg-gray-50 border-b border-gray-100">
@@ -1312,6 +1357,10 @@ export default function ReportsPage() {
                           <tbody className="divide-y divide-gray-50">
                             {pos.candidates.map((c) => {
                               const isWinner = c.rank === 1 && c.votes > 0;
+                              const isSolo = pos.candidates.length === 1;
+                              const displayPct = isSolo && resultsData.totalVoters > 0
+                                ? ((c.votes / resultsData.totalVoters) * 100).toFixed(1)
+                                : c.percentage;
                               return (
                                 <tr key={c.rank} className={isWinner ? "bg-emerald-50" : "hover:bg-gray-50"}>
                                   <td className="py-4 px-5">
@@ -1322,28 +1371,67 @@ export default function ReportsPage() {
                                   <td className="py-4 px-5">
                                     <div className="flex items-center gap-3">
                                       <Avatar name={c.name} />
-                                      <span className="font-semibold text-gray-900">{c.name}</span>
+                                      <div>
+                                        <span className="font-semibold text-gray-900">{c.name}</span>
+                                        {isSolo && <p className="text-xs text-gray-400 mt-0.5">Voted for this candidate</p>}
+                                      </div>
                                     </div>
                                   </td>
                                   <td className="py-4 px-5 font-bold text-gray-900">{c.votes.toLocaleString()}</td>
                                   <td className="py-4 px-5">
                                     <div className="flex items-center gap-2">
-                                      <MiniBar pct={parseFloat(c.percentage)} color={isWinner ? "bg-emerald-500" : "bg-gray-300"} />
-                                      <span className="text-xs text-gray-600 w-10">{c.percentage}%</span>
+                                      <MiniBar pct={parseFloat(displayPct)} color={isWinner ? "bg-emerald-500" : "bg-gray-300"} />
+                                      <span className="text-xs text-gray-600 w-10">{displayPct}%</span>
                                     </div>
                                   </td>
                                   <td className="py-4 px-5">
                                     <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${
-                                      c.status === "Elected" ? "bg-emerald-600 text-white"
+                                      c.status === "Tied" ? "bg-amber-100 text-amber-700 border border-amber-200"
+                                      : c.status === "Elected" || (c.status === "Leading" && (resultsData.election.status === "ended" || (currentElection && new Date(currentElection.endDate) < new Date()))) ? "bg-emerald-600 text-white"
                                       : c.status === "Leading" ? "bg-amber-100 text-amber-800 border border-amber-200"
                                       : "bg-gray-100 text-gray-500"
                                     }`}>
-                                      {c.status}
+                                      {c.status === "Leading" && (resultsData.election.status === "ended" || (currentElection && new Date(currentElection.endDate) < new Date())) ? "Elected" : c.status}
                                     </span>
                                   </td>
                                 </tr>
                               );
                             })}
+                            {/* Solo candidate: "Did Not Vote" row */}
+                            {pos.candidates.length === 1 && (() => {
+                              const notVotedCount = Math.max(0, resultsData.totalVoters - pos.candidates[0].votes);
+                              const notVotedPct = resultsData.totalVoters > 0 ? ((notVotedCount / resultsData.totalVoters) * 100).toFixed(1) : "0.0";
+                              return (
+                                <tr className="hover:bg-gray-50 border-t-2 border-gray-100">
+                                  <td className="py-4 px-5">
+                                    <div className="w-7 h-7 rounded-full flex items-center justify-center bg-gray-100">
+                                      <span className="text-gray-400 text-xs font-bold">—</span>
+                                    </div>
+                                  </td>
+                                  <td className="py-4 px-5">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+                                        <Users size={14} className="text-gray-400" />
+                                      </div>
+                                      <div>
+                                        <span className="font-semibold text-gray-500 italic">Did Not Vote</span>
+                                        <p className="text-xs text-gray-400 mt-0.5">Registered voters who abstained</p>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="py-4 px-5 font-bold text-gray-600">{notVotedCount.toLocaleString()}</td>
+                                  <td className="py-4 px-5">
+                                    <div className="flex items-center gap-2">
+                                      <MiniBar pct={parseFloat(notVotedPct)} color="bg-gray-300" />
+                                      <span className="text-xs text-gray-500 w-10">{notVotedPct}%</span>
+                                    </div>
+                                  </td>
+                                  <td className="py-4 px-5">
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500">Abstained</span>
+                                  </td>
+                                </tr>
+                              );
+                            })()}
                           </tbody>
                         </table>
                       </div>
@@ -1430,12 +1518,12 @@ export default function ReportsPage() {
                     {/* Per-position pink sheets */}
                     {resultsData.positions.map((pos) => (
                       <div key={pos.position} className="border-2 border-gray-200 rounded-xl overflow-hidden">
-                        <div className="bg-gray-900 text-white px-6 py-3 text-center">
+                        <div className=" text-black px-6 py-3 text-center">
                           <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-0.5">Position</p>
                           <h3 className="font-bold text-base tracking-wide">{pos.position}</h3>
                         </div>
                         <div className="overflow-x-auto">
-                        <table className="w-full text-sm min-w-[600px]">
+                        <table className="w-full text-sm min-w-150">
                           <thead className="bg-gray-100 border-b-2 border-gray-200">
                             <tr>
                               <th className="text-left py-3 px-4 font-bold text-gray-700">Candidate</th>
