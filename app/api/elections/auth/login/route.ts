@@ -70,6 +70,17 @@ export async function POST(req: NextRequest) {
     const startDate = new Date(election.startDate);
     const endDate = new Date(election.endDate);
 
+    // Reject login before election starts
+    if (now < startDate) {
+      return NextResponse.json(
+        {
+          error: 'Voting has not started yet. Please wait until the election begins.',
+          startDate: election.startDate,
+        },
+        { status: 403 }
+      );
+    }
+
     // Reject login after election period ends — token has expired
     if (election.status === 'ended' || now > endDate) {
       // Mark voter as expired so future attempts also fail fast

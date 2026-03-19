@@ -23,6 +23,7 @@ export default function VoterLoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [votingStartDate, setVotingStartDate] = useState<string | null>(null);
 
   // OTP state
   const [showOtpModal, setShowOtpModal] = useState(false);
@@ -128,6 +129,8 @@ export default function VoterLoginPage() {
           router.push(`/election?token=${token.trim().toUpperCase()}`);
         }
       } else {
+        if (data.startDate) setVotingStartDate(data.startDate);
+        else setVotingStartDate(null);
         toast.error(data.error || 'Invalid credentials', { id: loadingToast, duration: 4000 });
       }
     } catch {
@@ -302,6 +305,28 @@ export default function VoterLoginPage() {
                   {loading ? 'Verifying...' : 'Login to Vote'}
                 </motion.button>
               </form>
+
+              {votingStartDate && (
+                <div className="mt-4 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+                  <span className="text-amber-500 mt-0.5 shrink-0">🕒</span>
+                  <div>
+                    <p className="text-sm font-semibold text-amber-800">Voting not yet open</p>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      Voting begins on{' '}
+                      <span className="font-bold">
+                        {new Date(votingStartDate).toLocaleString(undefined, {
+                          weekday: 'short',
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <div className="text-center mt-6">
                 <p className="text-gray-500 text-sm">Powered by Pawavotes Election System</p>

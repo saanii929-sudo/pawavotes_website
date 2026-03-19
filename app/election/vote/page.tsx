@@ -331,21 +331,21 @@ function VotingPageContent() {
                                       <img
                                         src={candidate.image}
                                         alt={candidate.name}
-                                        className={`w-24 h-24 rounded-full object-cover border-4 transition-all ${
-                                          isSelected 
-                                            ? "border-green-600 shadow-xl" 
+                                        className={`w-36 h-44 rounded-xl object-cover object-top border-4 transition-all ${
+                                          isSelected
+                                            ? "border-green-600 shadow-xl"
                                             : "border-gray-200 group-hover:border-green-400"
                                         }`}
                                       />
                                     ) : (
-                                      <div className={`w-24 h-24 rounded-full flex items-center justify-center border-4 transition-all ${
-                                        isSelected 
-                                          ? "bg-green-600 border-green-700 shadow-xl" 
+                                      <div className={`w-36 h-44 rounded-xl flex items-center justify-center border-4 transition-all ${
+                                        isSelected
+                                          ? "bg-green-600 border-green-700 shadow-xl"
                                           : "bg-green-100 border-gray-200 group-hover:border-green-400"
                                       }`}>
                                         <Users
                                           className={isSelected ? "text-white" : "text-green-600"}
-                                          size={36}
+                                          size={48}
                                         />
                                       </div>
                                     )}
@@ -437,21 +437,21 @@ function VotingPageContent() {
                                     <img
                                       src={candidate.image}
                                       alt={candidate.name}
-                                      className={`w-24 h-24 rounded-full object-cover border-4 transition-all ${
-                                        isSelected 
-                                          ? "border-green-600 shadow-xl" 
+                                      className={`w-full h-44 rounded-xl object-cover object-top border-4 transition-all ${
+                                        isSelected
+                                          ? "border-green-600 shadow-xl"
                                           : "border-gray-200 group-hover:border-green-400"
                                       }`}
                                     />
                                   ) : (
-                                    <div className={`w-24 h-24 rounded-full flex items-center justify-center border-4 transition-all ${
-                                      isSelected 
-                                        ? "bg-green-600 border-green-700 shadow-xl" 
+                                    <div className={`w-full h-44 rounded-xl flex items-center justify-center border-4 transition-all ${
+                                      isSelected
+                                        ? "bg-green-600 border-green-700 shadow-xl"
                                         : "bg-green-100 border-gray-200 group-hover:border-green-400"
                                     }`}>
                                       <Users
                                         className={isSelected ? "text-white" : "text-green-600"}
-                                        size={36}
+                                        size={48}
                                       />
                                     </div>
                                   )}
