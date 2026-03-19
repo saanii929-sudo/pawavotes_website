@@ -5,6 +5,7 @@ export interface IPinkSheet extends Document {
   organizationId: mongoose.Types.ObjectId;
   signatures: Record<string, string>;
   dates: Record<string, string>;
+  decisions: Record<string, string>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -15,6 +16,7 @@ const PinkSheetSchema = new Schema<IPinkSheet>(
     organizationId: { type: Schema.Types.ObjectId, ref: 'Organization', required: true },
     signatures: { type: Schema.Types.Mixed, default: {} },
     dates: { type: Schema.Types.Mixed, default: {} },
+    decisions: { type: Schema.Types.Mixed, default: {} },
   },
   { timestamps: true }
 );

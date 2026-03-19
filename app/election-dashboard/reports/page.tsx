@@ -321,27 +321,30 @@ export default function ReportsPage() {
   const [signatures, setSignatures] = useState<Record<string, string>>({});
   const [sigModal, setSigModal] = useState<{ key: string; label: string } | null>(null);
   const [pinkSheetDates, setPinkSheetDates] = useState<Record<string, string>>({});
+  const [tiebreakerDecisions, setTiebreakerDecisions] = useState<Record<string, string>>({});
   const [pinkSheetSaving, setPinkSheetSaving] = useState(false);
   const saveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Load signatures + dates from DB when election changes
+  // Load signatures + dates + decisions from DB when election changes
   useEffect(() => {
     if (!selectedElection) return;
     setSignatures({});
     setPinkSheetDates({});
+    setTiebreakerDecisions({});
     authFetch(`/api/elections/pinksheet?electionId=${selectedElection}`)
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         if (data?.success) {
           setSignatures(data.data.signatures || {});
           setPinkSheetDates(data.data.dates || {});
+          setTiebreakerDecisions(data.data.decisions || {});
         }
       })
       .catch(() => {});
   }, [selectedElection]);
 
-  // Debounced save to DB whenever signatures or dates change
-  const savePinkSheet = useCallback((sigs: Record<string, string>, dates: Record<string, string>) => {
+  // Debounced save to DB whenever signatures, dates, or decisions change
+  const savePinkSheet = useCallback((sigs: Record<string, string>, dates: Record<string, string>, decisions: Record<string, string>) => {
     if (!selectedElection) return;
     if (saveTimeout.current) clearTimeout(saveTimeout.current);
     saveTimeout.current = setTimeout(async () => {
@@ -350,7 +353,7 @@ export default function ReportsPage() {
         await authFetch('/api/elections/pinksheet', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ electionId: selectedElection, signatures: sigs, dates }),
+          body: JSON.stringify({ electionId: selectedElection, signatures: sigs, dates, decisions }),
         });
       } catch {}
       finally { setPinkSheetSaving(false); }
@@ -365,20 +368,28 @@ export default function ReportsPage() {
     if (!sigModal) return;
     setSignatures(prev => {
       const next = { ...prev, [sigModal.key]: dataUrl };
-      savePinkSheet(next, pinkSheetDates);
+      savePinkSheet(next, pinkSheetDates, tiebreakerDecisions);
       return next;
     });
     setSigModal(null);
     toast.success('Signature saved');
-  }, [sigModal, pinkSheetDates, savePinkSheet]);
+  }, [sigModal, pinkSheetDates, tiebreakerDecisions, savePinkSheet]);
 
   const handleDateChange = useCallback((position: string, value: string) => {
     setPinkSheetDates(prev => {
       const next = { ...prev, [position]: value };
-      savePinkSheet(signatures, next);
+      savePinkSheet(signatures, next, tiebreakerDecisions);
       return next;
     });
-  }, [signatures, savePinkSheet]);
+  }, [signatures, tiebreakerDecisions, savePinkSheet]);
+
+  const handleTiebreakerDecisionChange = useCallback((position: string, value: string) => {
+    setTiebreakerDecisions(prev => {
+      const next = { ...prev, [position]: value };
+      savePinkSheet(signatures, pinkSheetDates, next);
+      return next;
+    });
+  }, [signatures, pinkSheetDates, savePinkSheet]);
 
   useEffect(() => { fetchElections(); }, []);
   useEffect(() => {
@@ -617,21 +628,16 @@ export default function ReportsPage() {
     const now = new Date().toLocaleString();
     const electionTitle = resultsData.election.title;
 
-    // Check if any pink sheet signatures exist
+    // Check if any pink sheet data (signatures or tiebreaker decisions) exists
     const hasSigs = resultsData.positions.some((p) =>
       p.candidates.some((c) => !!signatures[`agent_${p.position}_${c.name}`]) ||
       !!signatures[`officer_${p.position}`] ||
-      !!signatures[`tiebreaker_${p.position}`]
+      !!tiebreakerDecisions[p.position]
     );
 
     if (hasSigs) {
       // ── PDF via print ──
       const positionsHTML = resultsData.positions.map((p) => {
-        const tieNotice = p.isTied
-          ? `<div style="background:#fffbeb;border-left:4px solid #f59e0b;padding:10px 16px;font-size:13px;color:#92400e;">
-               <strong>⚠ Dead Heat — ${p.tiedCount} candidates tied.</strong> A tiebreaker process is required before a winner can be declared.
-             </div>`
-          : '';
         const rows = p.candidates.map((c) => {
           const sigKey = `agent_${p.position}_${c.name}`;
           const sig = signatures[sigKey];
@@ -664,14 +670,13 @@ export default function ReportsPage() {
         const dateVal = pinkSheetDates[p.position] || '_______________';
 
         const tiebreakerSection = p.isTied ? (() => {
-          const tbKey = `tiebreaker_${p.position}`;
-          const tbSig = signatures[tbKey];
-          const tbCell = tbSig
-            ? `<img src="${tbSig}" style="height:46px;max-width:210px;object-fit:contain;display:inline-block;" />`
-            : `<span style="display:inline-block;width:210px;border-bottom:1.5px dashed #d97706;">&nbsp;</span>`;
+          const tbDecision = tiebreakerDecisions[p.position];
+          const tbContent = tbDecision
+            ? `<p style="font-size:13px;color:#78350f;margin:0;white-space:pre-wrap;">${tbDecision}</p>`
+            : `<p style="font-size:13px;color:#b45309;margin:0;font-style:italic;">No decision recorded.</p>`;
           return `<div style="padding:12px 18px;background:#fffbeb;border-top:2px solid #f59e0b;">
-            <span style="font-size:11px;font-weight:700;text-transform:uppercase;color:#92400e;letter-spacing:.05em;">Tiebreaker Decision Signature</span>
-            <div style="margin-top:8px;">${tbCell}</div>
+            <span style="font-size:11px;font-weight:700;text-transform:uppercase;color:#92400e;letter-spacing:.05em;">Tiebreaker Decision</span>
+            <div style="margin-top:8px;">${tbContent}</div>
           </div>`;
         })() : '';
 
@@ -681,7 +686,6 @@ export default function ReportsPage() {
               <p style="font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#9ca3af;margin-bottom:3px;">Position</p>
               <h3 style="font-size:15px;font-weight:700;">${p.position}</h3>
             </div>
-            ${tieNotice}
             <table style="width:100%;border-collapse:collapse;font-size:13px;">
               <thead><tr style="background:#f3f4f6;border-bottom:2px solid #e5e7eb;">
                 <th style="text-align:center;padding:9px 14px;font-size:11px;color:#6b7280;text-transform:uppercase;">#</th>
@@ -1583,15 +1587,18 @@ export default function ReportsPage() {
                         </table>
                         </div>
 
-                        {/* Tiebreaker signature when tied */}
+                        {/* Tiebreaker decision when tied */}
                         {pos.isTied && (
-                          <div className="px-6 py-4 bg-amber-50 border-t-2 border-amber-200 flex items-center gap-4">
-                            <span className="text-xs font-bold text-amber-700 uppercase tracking-wide shrink-0">Tiebreaker Decision:</span>
-                            <SignatureField
-                              fieldKey={`tiebreaker_${pos.position}`}
-                              label={`Tiebreaker Decision — ${pos.position}`}
-                              signatures={signatures}
-                              onSign={openSigModal}
+                          <div className="px-6 py-4 bg-amber-50 border-t-2 border-amber-200">
+                            <label className="block text-xs font-bold text-amber-700 uppercase tracking-wide mb-2">
+                              Tiebreaker Decision
+                            </label>
+                            <textarea
+                              rows={3}
+                              placeholder="Enter the official tiebreaker decision here (e.g. method used, outcome, presiding officer's ruling)…"
+                              value={tiebreakerDecisions[pos.position] || ''}
+                              onChange={(e) => handleTiebreakerDecisionChange(pos.position, e.target.value)}
+                              className="w-full border border-amber-300 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none placeholder:text-gray-400"
                             />
                           </div>
                         )}

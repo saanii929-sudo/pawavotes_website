@@ -30,6 +30,7 @@ export async function GET(req: NextRequest) {
       data: {
         signatures: sheet?.signatures ?? {},
         dates: sheet?.dates ?? {},
+        decisions: sheet?.decisions ?? {},
       },
     });
   } catch (error) {
@@ -51,7 +52,7 @@ export async function PUT(req: NextRequest) {
     if (!decoded) return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
 
     const body = await req.json();
-    const { electionId, signatures, dates } = body;
+    const { electionId, signatures, dates, decisions } = body;
 
     if (!electionId) return NextResponse.json({ error: 'electionId is required' }, { status: 400 });
 
@@ -66,6 +67,7 @@ export async function PUT(req: NextRequest) {
         $set: {
           ...(signatures !== undefined && { signatures }),
           ...(dates !== undefined && { dates }),
+          ...(decisions !== undefined && { decisions }),
         },
       },
       { upsert: true, new: true }
@@ -74,6 +76,7 @@ export async function PUT(req: NextRequest) {
     // Mixed fields need markModified to guarantee Mongoose flushes the change
     if (signatures !== undefined) sheet.markModified('signatures');
     if (dates !== undefined) sheet.markModified('dates');
+    if (decisions !== undefined) sheet.markModified('decisions');
     await sheet.save();
 
     return NextResponse.json({ success: true, data: { id: sheet._id } });
@@ -103,8 +106,10 @@ export async function DELETE(req: NextRequest) {
     if (sheet) {
       sheet.signatures = {};
       sheet.dates = {};
+      sheet.decisions = {};
       sheet.markModified('signatures');
       sheet.markModified('dates');
+      sheet.markModified('decisions');
       await sheet.save();
     }
 
