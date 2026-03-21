@@ -2,12 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import PendingVote from "@/models/PendingVote";
 import PendingNomination from "@/models/PendingNomination";
+import TicketOrder from "@/models/TicketOrder";
 import Vote from "@/models/Vote";
 import Nominee from "@/models/Nominee";
 import Category from "@/models/Category";
 import Award from "@/models/Award";
 import Payment from "@/models/Payment";
 import NomineeCampaign from "@/models/NomineeCampaign";
+import EventModel from "@/models/Event";
+import crypto from "crypto";
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,7 +24,7 @@ export async function POST(req: NextRequest) {
       
       if (Data?.ClientReference) {
         const reference = Data.ClientReference;
-        
+
         if (reference.startsWith("VOTE") || reference.startsWith("USSD-")) {
           await PendingVote.findOneAndUpdate(
             { reference },
@@ -29,6 +32,11 @@ export async function POST(req: NextRequest) {
           );
         } else if (reference.startsWith("NOM")) {
           await PendingNomination.findOneAndUpdate(
+            { reference },
+            { status: "failed", paymentData: body }
+          );
+        } else if (reference.startsWith("TKT")) {
+          await TicketOrder.findOneAndUpdate(
             { reference },
             { status: "failed", paymentData: body }
           );
@@ -50,6 +58,8 @@ export async function POST(req: NextRequest) {
       await processVotePayment(ClientReference, Amount, CustomerPhoneNumber, PaymentDetails, Data);
     } else if (ClientReference.startsWith("NOM")) {
       await processNominationPayment(ClientReference, Amount, CustomerPhoneNumber, PaymentDetails, Data);
+    } else if (ClientReference.startsWith("TKT")) {
+      await processTicketPayment(ClientReference, PaymentDetails, Data);
     } else {
       return NextResponse.json({ error: "Unknown reference format" }, { status: 400 });
     }
@@ -189,4 +199,57 @@ async function processNominationPayment(
   pendingNomination.status = "completed";
   pendingNomination.paymentData = fullData;
   await pendingNomination.save();
+}
+
+async function processTicketPayment(
+  reference: string,
+  paymentDetails: any,
+  fullData: any
+) {
+  const order = await TicketOrder.findOne({ reference });
+  if (!order || order.status === "completed") return;
+
+  // Generate unique ticket codes
+  const ticketCodes: string[] = [];
+  for (let i = 0; i < order.quantity; i++) {
+    ticketCodes.push(
+      `${reference.slice(0, 8)}-${String(i + 1).padStart(2, "0")}-${crypto.randomBytes(3).toString("hex").toUpperCase()}`
+    );
+  }
+
+  // Mark order completed
+  order.status = "completed";
+  order.ticketCodes = ticketCodes;
+  order.paymentData = fullData;
+  await order.save();
+
+  // Increment sold count on event ticket type
+  await EventModel.findOneAndUpdate(
+    { _id: order.eventId, "ticketTypes.id": order.ticketTypeId },
+    { $inc: { "ticketTypes.$.sold": order.quantity, totalSold: order.quantity, totalRevenue: order.totalAmount } }
+  );
+
+  // Send ticket email (non-blocking, fire-and-forget)
+  const event = await EventModel.findById(order.eventId).lean();
+  if (event) {
+    const { sendTicketConfirmationEmail } = await import("@/lib/email");
+    sendTicketConfirmationEmail({
+      buyerName: order.buyerName,
+      buyerEmail: order.buyerEmail,
+      eventTitle: order.eventTitle,
+      ticketTypeName: order.ticketTypeName,
+      ticketTypeColor: order.ticketTypeColor,
+      quantity: order.quantity,
+      unitPrice: order.unitPrice,
+      totalAmount: order.totalAmount,
+      ticketCodes,
+      eventDate: event.startDate.toISOString(),
+      eventTime: event.startTime,
+      venueName: event.venue?.isVirtual ? "Virtual Event" : (event.venue?.name || ""),
+      venueAddress: event.venue?.isVirtual
+        ? (event.venue?.virtualLink || "")
+        : [event.venue?.address, event.venue?.city, event.venue?.country].filter(Boolean).join(", "),
+      reference,
+    }).catch(() => {});
+  }
 }

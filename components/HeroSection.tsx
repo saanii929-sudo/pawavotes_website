@@ -343,7 +343,7 @@ export default function HeroSection() {
                 ) : label === "Events" ? (
                   <a href="/find-vote">{label}</a>
                 ) : label === "Ticketing" ? (
-                  <span className="cursor-default opacity-70">{label}</span>
+                  <a href="/ticketing">{label}</a>
                 ) : (
                   label
                 )}
