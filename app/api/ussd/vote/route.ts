@@ -485,7 +485,20 @@ function showNomineeMenu(session: any) {
   return { message: compressMessage(menu), continueSession: true };
 }
 
+const WELCOME_MENU = `Welcome to PawaVotes\n\n1. Vote\n2. Quick Vote (Code)\n3. Purchase Tickets\n\n${getNavigationText("welcome")}`;
+
 async function showWelcome(session: any, userInput?: string) {
+  // ── Always show the menu first — options 1/2/3 are only acted on when chosen ──
+
+  // Initial dial or unrecognised input → just show the menu
+  if (!userInput || (userInput !== "1" && userInput !== "2" && userInput !== "3")) {
+    return {
+      message: compressMessage(WELCOME_MENU),
+      continueSession: true,
+    };
+  }
+
+  // Option 2 — Quick Vote by nominee code
   if (userInput === "2") {
     session.currentStep = "quick_vote_code";
     return {
@@ -496,8 +509,8 @@ async function showWelcome(session: any, userInput?: string) {
     };
   }
 
+  // Option 3 — Purchase Tickets (independent of any voting awards)
   if (userInput === "3") {
-    // Load ticket events fresh each time
     const now = new Date();
     const ticketEvents = await EventModel.find({
       status: { $in: ["published", "ongoing"] },
@@ -513,8 +526,10 @@ async function showWelcome(session: any, userInput?: string) {
 
     if (available.length === 0) {
       return {
-        message: "No events with available tickets at the moment. Please check back later.",
-        continueSession: false,
+        message: compressMessage(
+          `No events with available tickets right now.\n\n${compressMessage(WELCOME_MENU)}`,
+        ),
+        continueSession: true,
       };
     }
 
@@ -525,61 +540,48 @@ async function showWelcome(session: any, userInput?: string) {
     return showTicketEventMenu(session);
   }
 
-  const awards = await Award.find({
-    status: { $in: ["published", "active"] },
-  })
-    .select(
-      "name status votingStartDate votingEndDate votingStartTime votingEndTime settings pricing",
-    )
+  // Option 1 — Vote (only here do we check for active awards)
+  const awards = await Award.find({ status: { $in: ["published", "active"] } })
+    .select("name status votingStartDate votingEndDate votingStartTime votingEndTime settings pricing")
     .lean();
-
-  if (awards.length === 0) {
-    return {
-      message:
-        "No voting events are currently available. Please try again later.",
-      continueSession: false,
-    };
-  }
 
   const now = new Date();
   const activeAwards: any[] = [];
 
   for (const award of awards) {
     let isActive = false;
-
     if (award.votingStartDate && award.votingEndDate) {
       const start = new Date(award.votingStartDate);
       const end = new Date(award.votingEndDate);
-
       if (award.votingStartTime) {
         const [h, m] = award.votingStartTime.split(":");
         start.setHours(parseInt(h), parseInt(m), 0, 0);
       } else {
         start.setHours(0, 0, 0, 0);
       }
-
       if (award.votingEndTime) {
         const [h, m] = award.votingEndTime.split(":");
         end.setHours(parseInt(h), parseInt(m), 59, 999);
       } else {
         end.setHours(23, 59, 59, 999);
       }
-
       isActive = now >= start && now <= end;
     } else {
       isActive = true;
     }
-
     if (isActive) activeAwards.push(award);
   }
 
   if (activeAwards.length === 0) {
+    // Voting is closed — tell them but keep the session alive so they can pick option 3
     return {
-      message:
-        "Voting is currently closed for all events. Please check back later.",
-      continueSession: false,
+      message: compressMessage(
+        `Voting is currently closed.\n\nYou can still purchase tickets:\n\n${compressMessage(WELCOME_MENU)}`,
+      ),
+      continueSession: true,
     };
   }
+
   session.data.awards = activeAwards;
   session.data.currentPage = 1;
   if (activeAwards.length === 1) {
@@ -593,26 +595,9 @@ async function showWelcome(session: any, userInput?: string) {
       votingEndTime: activeAwards[0].votingEndTime,
     };
   }
-  
-  session.markModified('data');
-  if (!userInput) {
-    return {
-      message: compressMessage(
-        `Welcome to PawaVotes\n\n1. Vote\n2. Quick Vote (Code)\n3. Purchase Tickets\n\n${getNavigationText("welcome")}`,
-      ),
-      continueSession: true,
-    };
-  }
-  if (userInput === "1") {
-    session.currentStep = "select_award";
-    return showAwardMenu(session);
-  }
-  return {
-    message: compressMessage(
-      `Welcome to PawaVotes\n\n1. Vote\n2. Quick Vote (Code)\n3. Purchase Tickets\n\n${getNavigationText("welcome")}`,
-    ),
-    continueSession: true,
-  };
+  session.markModified("data");
+  session.currentStep = "select_award";
+  return showAwardMenu(session);
 }
 
 async function handleQuickVoteCode(session: any, userInput: string) {
