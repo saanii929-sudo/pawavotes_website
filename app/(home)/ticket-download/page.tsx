@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -430,7 +430,7 @@ function TicketCard({ code, index, order, isShared, sharedInfo, onShareClick, pr
 }
 
 /* ─── Page ─── */
-export default function TicketDownloadPage() {
+function TicketDownloadContent() {
   const searchParams = useSearchParams();
   const reference = searchParams.get("ref") || "";
 
@@ -645,5 +645,20 @@ export default function TicketDownloadPage() {
         </div>
       </div>
     </>
+  );
+}
+
+export default function TicketDownloadPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-4">
+        <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
+        </div>
+        <p className="text-gray-500 text-sm font-medium">Loading your tickets…</p>
+      </div>
+    }>
+      <TicketDownloadContent />
+    </Suspense>
   );
 }

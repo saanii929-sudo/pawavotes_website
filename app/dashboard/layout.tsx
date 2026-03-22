@@ -59,11 +59,9 @@ export default function DashboardLayout({
       setLoading(false);
     }
 
-    // Real-time expiry: redirect immediately when any API call returns 401
     const handleExpired = () => router.push('/login');
     window.addEventListener(AUTH_EXPIRED_EVENT, handleExpired);
 
-    // Proactive check every 30 s — catches expiry even when user is idle
     const interval = setInterval(() => {
       if (isTokenExpired()) {
         localStorage.removeItem('token');

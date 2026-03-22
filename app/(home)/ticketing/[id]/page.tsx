@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -89,7 +89,7 @@ function formatShort(d: string) {
 }
 
 /* ─── Page ─── */
-export default function EventDetailPage() {
+function EventDetailContent() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -607,5 +607,20 @@ export default function EventDetailPage() {
         </div>
       </main>
     </>
+  );
+}
+
+export default function EventDetailPage() {
+  return (
+    <Suspense fallback={
+      <>
+        <PublicNav />
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
+        </div>
+      </>
+    }>
+      <EventDetailContent />
+    </Suspense>
   );
 }

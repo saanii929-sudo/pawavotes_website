@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import { motion } from "framer-motion";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -46,7 +46,7 @@ function ConfettiPiece({ style }: { style: React.CSSProperties }) {
 
 const COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4"];
 
-export default function TicketSuccessPage() {
+function TicketSuccessContent() {
   const searchParams = useSearchParams();
   const reference = searchParams.get("ref") || "";
   const isFree = searchParams.get("free") === "1";
@@ -295,5 +295,17 @@ export default function TicketSuccessPage() {
         </div>
       </div>
     </>
+  );
+}
+
+export default function TicketSuccessPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
+      </div>
+    }>
+      <TicketSuccessContent />
+    </Suspense>
   );
 }

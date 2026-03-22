@@ -229,7 +229,7 @@ async function processTicketPayment(
     { $inc: { "ticketTypes.$.sold": order.quantity, totalSold: order.quantity, totalRevenue: order.totalAmount } }
   );
 
-  // Send ticket email (non-blocking, fire-and-forget)
+  // Send ticket email + SMS (non-blocking, fire-and-forget)
   const event = await EventModel.findById(order.eventId).lean();
   if (event) {
     const { sendTicketConfirmationEmail } = await import("@/lib/email");
@@ -251,5 +251,18 @@ async function processTicketPayment(
         : [event.venue?.address, event.venue?.city, event.venue?.country].filter(Boolean).join(", "),
       reference,
     }).catch(() => {});
+  }
+
+  // SMS confirmation (non-blocking)
+  if (order.buyerPhone) {
+    const { sendTicketSmsConfirmation } = await import("@/services/sms.service");
+    sendTicketSmsConfirmation(
+      order.buyerPhone,
+      order.buyerName,
+      order.eventTitle,
+      order.ticketTypeName,
+      order.quantity,
+      reference,
+    ).catch(() => {});
   }
 }

@@ -736,8 +736,6 @@ const AdminsManagement = () => {
           </div>
         </div>
       )}
-      
-      {/* Confirm Modal */}
       <ConfirmModal
         isOpen={confirmModal.isOpen}
         onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}

@@ -24,7 +24,6 @@ function scientificToDecimal(num: string): string {
   const [intPart, decPart = ''] = base.split('.');
   const digits = intPart + decPart;
   if (exp > 0) {
-    const totalDigits = digits.length;
     const zerosToAdd = exp - decPart.length;
     
     if (zerosToAdd >= 0) {
@@ -185,15 +184,16 @@ export async function sendVoterOtpSms(
     });
   };
 
-  let dateInfo = "";
-  if (startDate && endDate) {
-    dateInfo = `\n\nVoting Period:\n${formatDate(startDate)} - ${formatDate(endDate)}`;
-  }
+  const dateInfo =
+    startDate && endDate
+      ? `\n\nVoting Period:\n${formatDate(startDate)} - ${formatDate(endDate)}`
+      : "";
+
   const message = `Hello ${name},
 
 Your otp for ${electionTitle}:
 
-OTP: ${OTP}
+OTP: ${OTP}${dateInfo}
 
 Keep these credentials safe.
 
@@ -209,6 +209,37 @@ Keep these credentials safe.
     console.log("Voter credentials SMS sent successfully to:", phone);
   } else {
     console.error("Failed to send voter credentials SMS:", result.error);
+  }
+
+  return result.success;
+}
+
+export async function sendTicketSmsConfirmation(
+  phone: string,
+  buyerName: string,
+  eventTitle: string,
+  ticketTypeName: string,
+  quantity: number,
+  reference: string,
+): Promise<boolean> {
+  const appUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+  const downloadLink = `${appUrl}/ticket-download?ref=${reference}`;
+
+  // Keep event + ticket names short to stay within a single 160-char SMS
+  const shortEvent = eventTitle.length > 28 ? eventTitle.substring(0, 25) + '...' : eventTitle;
+  const shortType = ticketTypeName.length > 20 ? ticketTypeName.substring(0, 17) + '...' : ticketTypeName;
+  const firstName = buyerName.split(' ')[0];
+
+  const message =
+    `Hi ${firstName}! Your ${quantity}x ${shortType} ticket(s) for "${shortEvent}" are confirmed.\n` +
+    `Download: ${downloadLink}`;
+
+  const result = await sendSms({ to: phone, message, senderId: 'PAWAVOTES' });
+
+  if (result.success) {
+    console.log(`[SMS] Ticket confirmation sent to ${phone} for ref ${reference}`);
+  } else {
+    console.warn(`[SMS] Failed to send ticket confirmation to ${phone}:`, result.error);
   }
 
   return result.success;

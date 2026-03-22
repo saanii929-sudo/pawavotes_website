@@ -7,7 +7,7 @@ import { Menu, X } from "lucide-react";
 const navLinks = [
   { label: "Home", href: "/" },
   { label: "Ticketing", href: "/ticketing" },
-  { label: "Events", href: "/events" },
+  { label: "Events", href: "/find-vote" },
 ];
 
 const PublicNav = () => {

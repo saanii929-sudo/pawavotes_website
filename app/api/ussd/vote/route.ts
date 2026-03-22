@@ -7,6 +7,10 @@ import Category from "@/models/Category";
 import Nominee from "@/models/Nominee";
 import Vote from "@/models/Vote";
 import PendingVote from "@/models/PendingVote";
+import EventModel from "@/models/Event";
+import TicketOrder from "@/models/TicketOrder";
+import { sendTicketConfirmationEmail } from "@/lib/email";
+import { sendTicketSmsConfirmation } from "@/services/sms.service";
 
 const MAX_MESSAGE_LENGTH = 160;
 const MAX_ERROR_COUNT = 3;
@@ -15,6 +19,7 @@ const ITEMS_PER_PAGE = 5;
 const MIN_VOTES = 1;
 const MAX_VOTES = 1000;
 const HIGH_VOTE_THRESHOLD = 100;
+const MAX_TICKET_QTY = 10;
 
 
 function getNavigationText(step: string): string {
@@ -205,6 +210,19 @@ async function handleUssdFlow(
       return await handleNetworkConfirmation(session, userInput, phoneNumber);
     case "enter_payment_otp":
       return await handlePaymentOTP(session, userInput);
+    // ── Ticket purchase steps ──
+    case "select_ticket_event":
+      return await handleTicketEventSelection(session, userInput);
+    case "select_ticket_type":
+      return await handleTicketTypeSelection(session, userInput);
+    case "enter_ticket_qty":
+      return await handleTicketQtyInput(session, userInput);
+    case "enter_ticket_name":
+      return await handleTicketNameInput(session, userInput);
+    case "confirm_ticket":
+      return await handleTicketConfirmation(session, userInput, phoneNumber);
+    case "confirm_ticket_network":
+      return await handleTicketNetworkConfirmation(session, userInput, phoneNumber);
     default:
       return {
         message: "Invalid session. Please try again.",
@@ -228,6 +246,13 @@ function handleBackNavigation(session: any) {
     confirm: "enter_votes",
     confirm_network: "confirm",
     enter_payment_otp: "confirm",
+    // ticket steps
+    select_ticket_event: "welcome",
+    select_ticket_type: "select_ticket_event",
+    enter_ticket_qty: "select_ticket_type",
+    enter_ticket_name: "enter_ticket_qty",
+    confirm_ticket: "enter_ticket_name",
+    confirm_ticket_network: "confirm_ticket",
   };
 
   const previousStep = stepFlow[session.currentStep];
@@ -273,6 +298,31 @@ function handleBackNavigation(session: any) {
       };
     }
 
+    case "select_ticket_event":
+      return showTicketEventMenu(session);
+
+    case "select_ticket_type":
+      return showTicketTypeMenu(session);
+
+    case "enter_ticket_qty": {
+      const price = session.data.tkt_typePrice || 0;
+      const priceStr = price === 0 ? "Free" : `GHS ${price.toFixed(2)}`;
+      return {
+        message: compressMessage(
+          `${truncateName(session.data.tkt_typeName, 22)}\n${priceStr}/ticket\n\nQty (1-${session.data.tkt_maxQty || MAX_TICKET_QTY}):\n\n${getNavigationText("enter_ticket_qty")}`,
+        ),
+        continueSession: true,
+      };
+    }
+
+    case "enter_ticket_name":
+      return {
+        message: compressMessage(
+          `Qty: ${session.data.tkt_qty} ticket(s)\n\nEnter your full name:\n\n${getNavigationText("enter_ticket_name")}`,
+        ),
+        continueSession: true,
+      };
+
     default:
       return { message: "Error navigating back.", continueSession: false };
   }
@@ -299,6 +349,10 @@ function handleNextPage(session: any) {
       return showCategoryMenu(session);
     case "select_nominee":
       return showNomineeMenu(session);
+    case "select_ticket_event":
+      return showTicketEventMenu(session);
+    case "select_ticket_type":
+      return showTicketTypeMenu(session);
     default:
       return {
         message: "Pagination not available on this screen.",
@@ -326,6 +380,10 @@ function handlePreviousPage(session: any) {
       return showCategoryMenu(session);
     case "select_nominee":
       return showNomineeMenu(session);
+    case "select_ticket_event":
+      return showTicketEventMenu(session);
+    case "select_ticket_type":
+      return showTicketTypeMenu(session);
     default:
       return {
         message: "Pagination not available on this screen.",
@@ -438,6 +496,35 @@ async function showWelcome(session: any, userInput?: string) {
     };
   }
 
+  if (userInput === "3") {
+    // Load ticket events fresh each time
+    const now = new Date();
+    const ticketEvents = await EventModel.find({
+      status: { $in: ["published", "ongoing"] },
+      "settings.isPublic": true,
+      endDate: { $gte: now },
+    })
+      .select("_id title startDate startTime venue ticketTypes code ticketBg ticketTextColor")
+      .lean();
+
+    const available = ticketEvents.filter((ev: any) =>
+      ev.ticketTypes?.some((tt: any) => tt.capacity - tt.sold > 0)
+    );
+
+    if (available.length === 0) {
+      return {
+        message: "No events with available tickets at the moment. Please check back later.",
+        continueSession: false,
+      };
+    }
+
+    session.data.tkt_events = available;
+    session.data.currentPage = 1;
+    session.markModified("data");
+    session.currentStep = "select_ticket_event";
+    return showTicketEventMenu(session);
+  }
+
   const awards = await Award.find({
     status: { $in: ["published", "active"] },
   })
@@ -511,7 +598,7 @@ async function showWelcome(session: any, userInput?: string) {
   if (!userInput) {
     return {
       message: compressMessage(
-        `Welcome to PawaVotes\n\n1. Browse Events\n2. Quick Vote (Code)\n\n${getNavigationText("welcome")}`,
+        `Welcome to PawaVotes\n\n1. Vote\n2. Quick Vote (Code)\n3. Purchase Tickets\n\n${getNavigationText("welcome")}`,
       ),
       continueSession: true,
     };
@@ -522,7 +609,7 @@ async function showWelcome(session: any, userInput?: string) {
   }
   return {
     message: compressMessage(
-      `Welcome to PawaVotes\n\n1. Browse Events\n2. Quick Vote (Code)\n\n${getNavigationText("welcome")}`,
+      `Welcome to PawaVotes\n\n1. Vote\n2. Quick Vote (Code)\n3. Purchase Tickets\n\n${getNavigationText("welcome")}`,
     ),
     continueSession: true,
   };
@@ -1248,19 +1335,6 @@ async function initiateHubtelCharge(
   }
 }
 
-// function getOfflineInstructions(provider: string, amount: number): string {
-//   const amountStr = `GHS ${amount.toFixed(2)}`;
-//   switch (provider) {
-//     case "mtn":
-//       return `Dial *170# > My Approvals > Approve ${amountStr}`;
-//     case "vod":
-//       return `Dial *110# > Pending Payments > Approve ${amountStr}`;
-//     case "tgo":
-//       return `Check phone > Approve ${amountStr}`;
-//     default:
-//       return `Check phone > Approve ${amountStr}`;
-//   }
-// }
 
 function checkAwardVotingWindow(award: any, now: Date): boolean {
   if (!award.votingStartDate || !award.votingEndDate) return true;
@@ -1361,6 +1435,494 @@ async function checkHubtelTransactionStatus(clientReference: string, pendingVote
     }
   } catch (error: any) {
     return { success: false, error: error.message };
+  }
+}
+
+function showTicketEventMenu(session: any) {
+  const events: any[] = session.data.tkt_events || [];
+  const currentPage = session.data.currentPage || 1;
+  const totalPages = Math.ceil(events.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const pageEvents = events.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+  if (pageEvents.length === 0) {
+    return { message: "No events available at the moment.", continueSession: false };
+  }
+
+  let menu = `Select Event (${currentPage}/${totalPages}):\n\n`;
+  pageEvents.forEach((ev: any, i: number) => {
+    menu += `${i + 1}. ${truncateName(ev.title, 28)}\n`;
+  });
+  if (currentPage < totalPages) menu += `\n#. Next Page`;
+  menu += `\n\n${getNavigationText("select_ticket_event")}`;
+
+  session.data.totalPages = totalPages;
+  session.data.pageStartIndex = startIndex;
+
+  return { message: compressMessage(menu), continueSession: true };
+}
+
+function showTicketTypeMenu(session: any) {
+  const types: any[] = session.data.tkt_types || [];
+  const currentPage = session.data.currentPage || 1;
+  const totalPages = Math.ceil(types.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const pageTypes = types.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+  if (pageTypes.length === 0) {
+    return { message: "No ticket types available for this event.", continueSession: false };
+  }
+
+  const eventName = truncateName(session.data.tkt_eventTitle, 22);
+  let menu = `${eventName}\n\nSelect Ticket:\n\n`;
+  pageTypes.forEach((tt: any, i: number) => {
+    const avail = tt.capacity - tt.sold;
+    const priceStr = tt.price === 0 ? "Free" : `GHS ${tt.price.toFixed(2)}`;
+    menu += `${i + 1}. ${truncateName(tt.name, 14)} - ${priceStr} (${avail} left)\n`;
+  });
+  if (currentPage < totalPages) menu += `\n#. Next Page`;
+  menu += `\n\n${getNavigationText("select_ticket_type")}`;
+
+  session.data.totalPages = totalPages;
+  session.data.pageStartIndex = startIndex;
+
+  return { message: compressMessage(menu), continueSession: true };
+}
+
+async function handleTicketEventSelection(session: any, userInput: string) {
+  const events: any[] = session.data.tkt_events || [];
+  if (events.length === 0) {
+    return { message: "Session expired. Please dial again.", continueSession: false };
+  }
+
+  const selectedIndex = parseInt(userInput) - 1;
+  const pageStartIndex = session.data.pageStartIndex || 0;
+  const actualIndex = pageStartIndex + selectedIndex;
+
+  if (
+    isNaN(selectedIndex) ||
+    selectedIndex < 0 ||
+    selectedIndex >= ITEMS_PER_PAGE ||
+    actualIndex >= events.length
+  ) {
+    return handleError(session, "Invalid selection. Enter a valid number.");
+  }
+
+  const selected = events[actualIndex];
+  if (!selected) return handleError(session, "Event not found. Please try again.");
+
+  const fresh: any = await EventModel.findById(selected._id)
+    .select("title startDate startTime venue ticketTypes code ticketBg ticketTextColor")
+    .lean();
+
+  if (!fresh) return handleError(session, "Event not found. Please try again.");
+
+  const availTypes = (fresh.ticketTypes || []).filter(
+    (tt: any) => tt.capacity - tt.sold > 0
+  );
+  if (availTypes.length === 0) {
+    return handleError(session, "This event is sold out. Please choose another.");
+  }
+
+  const venueName = fresh.venue?.isVirtual ? "Virtual Event" : (fresh.venue?.name || "TBD");
+  const venueAddress = fresh.venue?.isVirtual
+    ? (fresh.venue?.virtualLink || "")
+    : [fresh.venue?.address, fresh.venue?.city, fresh.venue?.country].filter(Boolean).join(", ");
+
+  session.data.tkt_eventId = fresh._id.toString();
+  session.data.tkt_eventTitle = fresh.title;
+  session.data.tkt_eventCode = fresh.code;
+  session.data.tkt_eventDate = fresh.startDate?.toISOString() || "";
+  session.data.tkt_eventTime = fresh.startTime || "";
+  session.data.tkt_venueName = venueName;
+  session.data.tkt_venueAddress = venueAddress;
+  session.data.tkt_ticketBg = fresh.ticketBg || "";
+  session.data.tkt_ticketTextColor = fresh.ticketTextColor || "light";
+  session.data.tkt_types = availTypes;
+  session.data.currentPage = 1;
+  session.data.errorCount = 0;
+  session.markModified("data");
+
+  session.currentStep = "select_ticket_type";
+  return showTicketTypeMenu(session);
+}
+
+async function handleTicketTypeSelection(session: any, userInput: string) {
+  const types: any[] = session.data.tkt_types || [];
+  if (types.length === 0) {
+    return { message: "Session expired. Please dial again.", continueSession: false };
+  }
+
+  const selectedIndex = parseInt(userInput) - 1;
+  const pageStartIndex = session.data.pageStartIndex || 0;
+  const actualIndex = pageStartIndex + selectedIndex;
+
+  if (
+    isNaN(selectedIndex) ||
+    selectedIndex < 0 ||
+    selectedIndex >= ITEMS_PER_PAGE ||
+    actualIndex >= types.length
+  ) {
+    return handleError(session, "Invalid selection. Enter a valid number.");
+  }
+
+  const selected = types[actualIndex];
+  if (!selected) return handleError(session, "Ticket type not found. Please try again.");
+
+  const available = selected.capacity - selected.sold;
+
+  session.data.tkt_typeId = selected.id;
+  session.data.tkt_typeName = selected.name;
+  session.data.tkt_typePrice = selected.price;
+  session.data.tkt_typeColor = selected.color;
+  session.data.tkt_maxQty = Math.min(MAX_TICKET_QTY, available);
+  session.data.errorCount = 0;
+  session.markModified("data");
+
+  session.currentStep = "enter_ticket_qty";
+
+  const priceStr = selected.price === 0 ? "Free" : `GHS ${selected.price.toFixed(2)}`;
+  return {
+    message: compressMessage(
+      `${truncateName(selected.name, 22)}\n${priceStr}/ticket\n${available} available\n\nEnter qty (1-${session.data.tkt_maxQty}):\n\n${getNavigationText("enter_ticket_qty")}`,
+    ),
+    continueSession: true,
+  };
+}
+
+async function handleTicketQtyInput(session: any, userInput: string) {
+  const qty = parseInt(userInput);
+  const maxAllowed = session.data.tkt_maxQty || MAX_TICKET_QTY;
+
+  if (isNaN(qty) || qty < 1 || qty > maxAllowed) {
+    return handleError(session, `Enter a number between 1 and ${maxAllowed}.`);
+  }
+
+  session.data.tkt_qty = qty;
+  session.data.tkt_total = qty * (session.data.tkt_typePrice || 0);
+  session.data.errorCount = 0;
+  session.markModified("data");
+  session.currentStep = "enter_ticket_name";
+
+  const totalStr =
+    session.data.tkt_typePrice === 0 ? "Free" : `GHS ${session.data.tkt_total.toFixed(2)}`;
+
+  return {
+    message: compressMessage(
+      `Qty: ${qty} ticket(s)\nTotal: ${totalStr}\n\nEnter your full name:\n\n${getNavigationText("enter_ticket_name")}`,
+    ),
+    continueSession: true,
+  };
+}
+
+async function handleTicketNameInput(session: any, userInput: string) {
+  const name = userInput.trim();
+
+  if (!name || name.length < 2) {
+    return handleError(session, "Please enter a valid name (min 2 characters).");
+  }
+  if (name.length > 60) {
+    return handleError(session, "Name too long. Please enter a shorter name.");
+  }
+
+  session.data.tkt_buyerName = name;
+  session.data.errorCount = 0;
+  session.markModified("data");
+  session.currentStep = "confirm_ticket";
+
+  const eventName = truncateName(session.data.tkt_eventTitle, 20);
+  const typeName = truncateName(session.data.tkt_typeName, 14);
+  const totalStr =
+    session.data.tkt_typePrice === 0 ? "Free" : `GHS ${session.data.tkt_total.toFixed(2)}`;
+
+  return {
+    message: compressMessage(
+      `Order Summary\n\nEvent: ${eventName}\nTicket: ${typeName}\nQty: ${session.data.tkt_qty}\nName: ${truncateName(name, 16)}\nTotal: ${totalStr}\n\n1. Confirm\n2. Cancel`,
+    ),
+    continueSession: true,
+  };
+}
+
+async function handleTicketConfirmation(
+  session: any,
+  userInput: string,
+  phoneNumber: string,
+) {
+  if (userInput === "2") {
+    session.isActive = false;
+    return { message: "Order cancelled. Thank you for using PawaVotes.", continueSession: false };
+  }
+  if (userInput !== "1") {
+    return handleError(session, "Enter 1 to confirm or 2 to cancel.");
+  }
+
+  // Free ticket — skip payment, complete immediately
+  if (session.data.tkt_typePrice === 0) {
+    return await processFreeTicket(session, phoneNumber);
+  }
+
+  // Paid — detect network and initiate mobile money charge
+  const provider = detectMobileProvider(phoneNumber);
+  if (!provider) {
+    session.currentStep = "confirm_ticket_network";
+    return {
+      message: `Confirm your network:\n\n1. MTN\n2. Telecel\n3. AirtelTigo\n\n0. Cancel`,
+      continueSession: true,
+    };
+  }
+
+  return await processTicketPayment(session, phoneNumber, provider);
+}
+
+async function handleTicketNetworkConfirmation(
+  session: any,
+  userInput: string,
+  phoneNumber: string,
+) {
+  const networkMap: { [key: string]: string } = { "1": "mtn", "2": "vod", "3": "tgo" };
+  const provider = networkMap[userInput];
+
+  if (!provider) {
+    return {
+      message: "Invalid selection. Enter 1 for MTN, 2 for Telecel, 3 for AirtelTigo.",
+      continueSession: false,
+    };
+  }
+
+  return await processTicketPayment(session, phoneNumber, provider);
+}
+
+async function processFreeTicket(session: any, phoneNumber: string) {
+  try {
+    const reference = `TKT${Date.now()}${randomBytes(2).toString("hex")}`.substring(0, 32);
+    const ticketCodes = Array.from({ length: session.data.tkt_qty }, (_, i) =>
+      `${session.data.tkt_eventCode}-${Date.now()}-${i + 1}-${randomBytes(3)
+        .toString("hex")
+        .toUpperCase()}`
+    );
+
+    await TicketOrder.create({
+      reference,
+      eventId: session.data.tkt_eventId,
+      eventTitle: session.data.tkt_eventTitle,
+      eventDate: session.data.tkt_eventDate,
+      eventTime: session.data.tkt_eventTime,
+      venueName: session.data.tkt_venueName,
+      venueAddress: session.data.tkt_venueAddress,
+      ticketTypeId: session.data.tkt_typeId,
+      ticketTypeName: session.data.tkt_typeName,
+      ticketTypeColor: session.data.tkt_typeColor || "#10b981",
+      ticketBg: session.data.tkt_ticketBg || "",
+      ticketTextColor: session.data.tkt_ticketTextColor || "light",
+      quantity: session.data.tkt_qty,
+      unitPrice: 0,
+      totalAmount: 0,
+      buyerName: session.data.tkt_buyerName,
+      buyerEmail: `${phoneNumber.replace(/[^0-9]/g, "")}@ussd.pawavotes.com`,
+      buyerPhone: phoneNumber,
+      status: "completed",
+      ticketCodes,
+    });
+
+    await EventModel.findOneAndUpdate(
+      { _id: session.data.tkt_eventId, "ticketTypes.id": session.data.tkt_typeId },
+      { $inc: { "ticketTypes.$.sold": session.data.tkt_qty, totalSold: session.data.tkt_qty } }
+    );
+
+    session.isActive = false;
+
+    // SMS with download link (non-blocking)
+    sendTicketSmsConfirmation(
+      phoneNumber,
+      session.data.tkt_buyerName,
+      session.data.tkt_eventTitle,
+      session.data.tkt_typeName,
+      session.data.tkt_qty,
+      reference,
+    ).catch(() => {});
+
+    // Email confirmation (non-blocking)
+    sendTicketConfirmationEmail({
+      buyerName: session.data.tkt_buyerName,
+      buyerEmail: `${phoneNumber.replace(/[^0-9]/g, "")}@ussd.pawavotes.com`,
+      eventTitle: session.data.tkt_eventTitle,
+      ticketTypeName: session.data.tkt_typeName,
+      ticketTypeColor: session.data.tkt_typeColor || "#10b981",
+      quantity: session.data.tkt_qty,
+      unitPrice: 0,
+      totalAmount: 0,
+      ticketCodes,
+      eventDate: session.data.tkt_eventDate || "",
+      eventTime: session.data.tkt_eventTime || "",
+      venueName: session.data.tkt_venueName || "",
+      venueAddress: session.data.tkt_venueAddress || "",
+      reference,
+    }).catch(() => {});
+
+    return {
+      message: compressMessage(
+        `Ticket Confirmed!\nRef: ${reference.slice(-10)}\n\nEvent: ${truncateName(session.data.tkt_eventTitle, 18)}\nType: ${truncateName(session.data.tkt_typeName, 12)} (Free)\nQty: ${session.data.tkt_qty}\n\nDownload link sent via SMS!`,
+      ),
+      continueSession: false,
+    };
+  } catch (error: any) {
+    console.error("[USSD Tickets] processFreeTicket error:", error);
+    return { message: "Error processing your ticket. Please try again.", continueSession: false };
+  }
+}
+
+async function processTicketPayment(session: any, phoneNumber: string, provider: string) {
+  try {
+    const reference = `TKTUSSD${Date.now()}${randomBytes(3).toString("hex")}`.substring(0, 32);
+    const dummyEmail = `${phoneNumber.replace(/[^0-9]/g, "")}@ussd.pawavotes.com`;
+
+    await TicketOrder.create({
+      reference,
+      eventId: session.data.tkt_eventId,
+      eventTitle: session.data.tkt_eventTitle,
+      eventDate: session.data.tkt_eventDate,
+      eventTime: session.data.tkt_eventTime,
+      venueName: session.data.tkt_venueName,
+      venueAddress: session.data.tkt_venueAddress,
+      ticketTypeId: session.data.tkt_typeId,
+      ticketTypeName: session.data.tkt_typeName,
+      ticketTypeColor: session.data.tkt_typeColor || "#10b981",
+      ticketBg: session.data.tkt_ticketBg || "",
+      ticketTextColor: session.data.tkt_ticketTextColor || "light",
+      quantity: session.data.tkt_qty,
+      unitPrice: session.data.tkt_typePrice,
+      totalAmount: session.data.tkt_total,
+      buyerName: session.data.tkt_buyerName,
+      buyerEmail: dummyEmail,
+      buyerPhone: phoneNumber,
+      status: "pending",
+    });
+
+    session.data.tkt_paymentRef = reference;
+    session.markModified("data");
+    session.isActive = false;
+
+    const shortRef = reference.substring(7, 20);
+
+    // Fire Hubtel charge after 4s to let the USSD session close cleanly
+    setTimeout(async () => {
+      try {
+        const hubtelRes = await initiateHubtelCharge(
+          dummyEmail,
+          session.data.tkt_total,
+          phoneNumber,
+          reference,
+          provider,
+        );
+
+        if (!hubtelRes.success) {
+          await TicketOrder.findOneAndUpdate({ reference }, { status: "failed" });
+          return;
+        }
+
+        // Auto status check after 5 minutes as a safety net
+        setTimeout(async () => {
+          try {
+            const order = await TicketOrder.findOne({ reference });
+            if (!order || order.status !== "pending") return;
+            await checkAndCompleteTicketOrder(reference);
+          } catch (e) {
+            console.error(`[${reference}] Ticket status check error:`, e);
+          }
+        }, 5 * 60 * 1000);
+      } catch (err: any) {
+        console.error(`[${reference}] Hubtel ticket charge error:`, err);
+        await TicketOrder.findOneAndUpdate({ reference }, { status: "failed" });
+      }
+    }, 4000);
+
+    return {
+      message: compressMessage(
+        `Payment request sent!\nRef: ${shortRef}\n\nTicket: ${truncateName(session.data.tkt_typeName, 14)} x${session.data.tkt_qty}\nAmount: GHS ${session.data.tkt_total.toFixed(2)}\n\nApprove on your phone. Download link sent via SMS on success.`,
+      ),
+      continueSession: false,
+    };
+  } catch (error: any) {
+    console.error("[USSD Tickets] processTicketPayment error:", error);
+    return { message: "Error processing payment. Please try again.", continueSession: false };
+  }
+}
+
+async function checkAndCompleteTicketOrder(clientReference: string) {
+  try {
+    const hubtelApiId = process.env.HUBTEL_API_ID;
+    const hubtelApiKey = process.env.HUBTEL_API_KEY;
+    const hubtelPrepaidDepositId = process.env.HUBTEL_PREPAID_DEPOSIT_ID;
+
+    if (!hubtelApiId || !hubtelApiKey || !hubtelPrepaidDepositId) return;
+
+    const base64Auth = Buffer.from(`${hubtelApiId}:${hubtelApiKey}`).toString("base64");
+    const statusUrl = `https://smrsc.hubtel.com/api/merchants/${hubtelPrepaidDepositId}/transactions/status?clientReference=${clientReference}`;
+
+    const res = await fetch(statusUrl, {
+      method: "GET",
+      headers: { Authorization: `Basic ${base64Auth}` },
+    });
+    const data = await res.json();
+    if (!res.ok) return;
+
+    if (data.ResponseCode === "success" && data.Data?.transactionStatus === "success") {
+      const order = await TicketOrder.findOne({ reference: clientReference });
+      if (!order || order.status !== "pending") return;
+
+      const ticketCodes = Array.from({ length: order.quantity }, (_, i) =>
+        `${clientReference.slice(-8)}-${i + 1}-${randomBytes(3)
+          .toString("hex")
+          .toUpperCase()}`
+      );
+
+      await TicketOrder.findOneAndUpdate(
+        { reference: clientReference },
+        { status: "completed", ticketCodes, paymentData: data.Data }
+      );
+
+      await EventModel.findOneAndUpdate(
+        { _id: order.eventId, "ticketTypes.id": order.ticketTypeId },
+        { $inc: { "ticketTypes.$.sold": order.quantity, totalSold: order.quantity } }
+      );
+
+      // SMS with download link (non-blocking)
+      if (order.buyerPhone) {
+        sendTicketSmsConfirmation(
+          order.buyerPhone,
+          order.buyerName,
+          order.eventTitle,
+          order.ticketTypeName,
+          order.quantity,
+          clientReference,
+        ).catch(() => {});
+      }
+
+      // Email confirmation (non-blocking)
+      sendTicketConfirmationEmail({
+        buyerName: order.buyerName,
+        buyerEmail: order.buyerEmail,
+        eventTitle: order.eventTitle,
+        ticketTypeName: order.ticketTypeName,
+        ticketTypeColor: order.ticketTypeColor,
+        quantity: order.quantity,
+        unitPrice: order.unitPrice,
+        totalAmount: order.totalAmount,
+        ticketCodes,
+        eventDate: order.eventDate || "",
+        eventTime: order.eventTime || "",
+        venueName: order.venueName || "",
+        venueAddress: order.venueAddress || "",
+        reference: clientReference,
+      }).catch(() => {});
+    } else if (data.Data?.transactionStatus === "failed") {
+      await TicketOrder.findOneAndUpdate(
+        { reference: clientReference },
+        { status: "failed", paymentData: data.Data }
+      );
+    }
+  } catch (error: any) {
+    console.error("[USSD Tickets] checkAndCompleteTicketOrder error:", error);
   }
 }
 

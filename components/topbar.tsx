@@ -214,7 +214,6 @@ export default function Topbar() {
           </div>
         </div>
 
-        {/* Mobile */}
         <div className="md:hidden relative" ref={mobileDropdownRef}>
           <button
             onClick={() => setShowDropdown((v) => !v)}

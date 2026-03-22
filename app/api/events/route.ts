@@ -120,7 +120,7 @@ async function createEvent(req: NextRequest) {
       color: t.color || '#10b981',
     }));
 
-    const event = await Event.create([{
+    const event = await Event.create({
       title: title.trim(),
       description: description?.trim() || '',
       category: category || 'other',
@@ -143,10 +143,10 @@ async function createEvent(req: NextRequest) {
         isPublic: settings?.isPublic ?? true,
       },
       status: status || 'draft',
-    }], { strict: false });
+    });
 
     return NextResponse.json(
-      { success: true, message: 'Event created successfully', data: event[0] },
+      { success: true, message: 'Event created successfully', data: event },
       { status: 201 }
     );
   } catch (error: any) {
