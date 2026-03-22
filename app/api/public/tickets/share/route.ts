@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
       `*Ticket Code:* \`${ticketCode}\``,
       ``,
       `Present this code at the entrance or scan the QR code.`,
-      `View & download your ticket: ${appUrl}/ticket-view?code=${encodeURIComponent(ticketCode)}&ref=${reference}`,
+      `View & download your ticket: ${appUrl}/ticket-download?code=${encodeURIComponent(ticketCode)}&ref=${reference}`,
       ``,
       `Sent by ${updated.buyerName} via Pawavotes 🎉`,
     ].join('\n');
