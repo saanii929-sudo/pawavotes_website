@@ -74,7 +74,7 @@ export default function ScannersPage() {
       }
       if (evRes.ok) {
         const d = await evRes.json();
-        setEvents(d.events || []);
+        setEvents(d.data || d.events || []);
       }
     } finally {
       setLoading(false);
