@@ -4,6 +4,7 @@ import Admin from '@/models/Admin';
 import Organization from '@/models/Organization';
 import OrganizationAdmin from '@/models/OrganizationAdmin';
 import EventOrganizer from '@/models/EventOrganizer';
+import Scanner from '@/models/Scanner';
 import { verifyPassword, generateToken } from '@/lib/auth';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
@@ -46,6 +47,9 @@ export async function POST(req: NextRequest) {
     } else if (userType === 'event-organizer') {
       user = await EventOrganizer.findOne({ email: email.toLowerCase().trim(), status: 'active' });
       role = 'event-organizer';
+    } else if (userType === 'scanner') {
+      user = await Scanner.findOne({ email: email.toLowerCase().trim(), status: 'active' });
+      role = 'scanner';
     } else {
       return NextResponse.json(
         { error: 'Invalid user type' },
@@ -92,7 +96,7 @@ export async function POST(req: NextRequest) {
       id: user._id,
       email: user.email,
       role: role,
-      name: role === 'event-organizer' ? (user as any).name : undefined,
+      name: (role === 'event-organizer' || role === 'scanner') ? (user as any).name : undefined,
       eventType: role === 'organization' ? (user as any).eventType : undefined,
       organizationId: role === 'org-admin' ? primaryOrgId : undefined,
       assignedAwards: role === 'org-admin' ? primaryAssignedAwards : undefined,
@@ -105,6 +109,7 @@ export async function POST(req: NextRequest) {
         email: user.email,
         name: (user as any).username || (user as any).name,
         role: role,
+        assignedEvents: role === 'scanner' ? (user as any).assignedEvents : undefined,
         eventType: role === 'organization' ? (user as any).eventType : undefined,
         organizationId: role === 'org-admin' ? primaryOrgId : undefined,
         organizationName: role === 'org-admin' ? primaryOrgName : undefined,

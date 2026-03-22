@@ -28,6 +28,7 @@ export interface ITicketOrder extends Document {
   buyerPhone: string;
   status: 'pending' | 'completed' | 'failed';
   ticketCodes: string[];
+  checkedInCodes: string[];
   sharedCodes: ISharedCode[];
   paymentData?: any;
   createdAt: Date;
@@ -56,6 +57,7 @@ const TicketOrderSchema = new Schema<ITicketOrder>(
     buyerPhone: { type: String, required: true, trim: true },
     status: { type: String, enum: ['pending', 'completed', 'failed'], default: 'pending' },
     ticketCodes: [{ type: String }],
+    checkedInCodes: [{ type: String }],
     sharedCodes: [
       {
         code: { type: String, required: true },

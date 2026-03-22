@@ -21,6 +21,7 @@ import {
   UserCog,
   Settings,
   Target,
+  UserCheck,
 } from "lucide-react";
 
 import { useState, useEffect } from "react";
@@ -88,6 +89,7 @@ const menu = [
     children: [
       { name: "All Events", href: "/dashboard/events", icon: Calendar },
       { name: "Transfers", href: "/dashboard/events/transfers", icon: ArrowRightLeft },
+      { name: "Scanners", href: "/dashboard/events/scanners", icon: UserCheck },
     ],
   },
   {
