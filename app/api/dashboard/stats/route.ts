@@ -5,9 +5,9 @@ import Category from '@/models/Category';
 import Nominee from '@/models/Nominee';
 import Vote from '@/models/Vote';
 import Payment from '@/models/Payment';
+import Event from '@/models/Event';
+import TicketOrder from '@/models/TicketOrder';
 import { verifyToken } from '@/lib/auth';
-import OrganizationAdmin from '@/models/OrganizationAdmin';
-
 export async function GET(req: NextRequest) {
   try {
     const token = req.headers.get('authorization')?.replace('Bearer ', '');
@@ -24,8 +24,7 @@ export async function GET(req: NextRequest) {
     // Determine which awards this user can see
     let awardFilter: any = {};
     if (decoded.role === 'org-admin') {
-      const admin = await OrganizationAdmin.findById(decoded.id).select('assignedAwards').lean();
-      const assignedAwards = admin?.assignedAwards || [];
+      const assignedAwards = decoded.assignedAwards || [];
       if (assignedAwards.length === 0) {
         return NextResponse.json({
           success: true,
@@ -42,7 +41,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Get award IDs in one query
-    const awards = await Award.find(awardFilter).select('_id').lean();
+    const awards = await Award.find(awardFilter).select('_id organizationId').lean();
     // ObjectId array for models that use Schema.Types.ObjectId (Vote, Nominee, Payment)
     const awardObjectIds = awards.map(a => a._id);
     // String array for models that use String type (Category)
@@ -65,6 +64,14 @@ export async function GET(req: NextRequest) {
     // work with either, but ObjectIds match the actual stored BSON type.
     const stringIdFilter = { awardId: { $in: awardStringIds } };
 
+    // Get event IDs for this organization to include ticket revenue
+    const orgId = decoded.role === 'org-admin'
+      ? (awards[0] as any)?.organizationId?.toString()
+      : decoded.id;
+    const orgEventIds = orgId
+      ? (await Event.find({ organizationId: orgId }).distinct('_id')).map((id: any) => id.toString())
+      : [];
+
     // Run ALL aggregations in parallel — single DB round trip per collection
     const [
       totalCategories,
@@ -72,6 +79,7 @@ export async function GET(req: NextRequest) {
       nomineeVoteSum,
       voteAgg,
       paymentAgg,
+      ticketAgg,
       recentVotes,
       recentPayments,
     ] = await Promise.all([
@@ -92,6 +100,11 @@ export async function GET(req: NextRequest) {
         { $match: { awardId: { $in: awardObjectIds }, status: 'successful' } },
         { $group: { _id: null, count: { $sum: 1 }, amount: { $sum: '$amount' } } },
       ]),
+      // Ticket order stats (count + amount)
+      TicketOrder.aggregate([
+        { $match: { eventId: { $in: orgEventIds }, status: 'completed' } },
+        { $group: { _id: null, count: { $sum: 1 }, amount: { $sum: '$totalAmount' } } },
+      ]),
       // Recent votes (last 10) for the feed
       Vote.find({ awardId: { $in: awardStringIds } as any, paymentStatus: 'completed' })
         .sort({ createdAt: -1 })
@@ -109,8 +122,9 @@ export async function GET(req: NextRequest) {
     const totalVotes = nomineeVoteSum[0]?.total || 0;
     const voteStats = voteAgg[0] || { count: 0, amount: 0 };
     const paymentStats = paymentAgg[0] || { count: 0, amount: 0 };
-    const totalAmount = voteStats.amount + paymentStats.amount;
-    const totalPayments = voteStats.count + paymentStats.count;
+    const ticketStats = ticketAgg[0] || { count: 0, amount: 0 };
+    const totalAmount = voteStats.amount + paymentStats.amount + ticketStats.amount;
+    const totalPayments = voteStats.count + paymentStats.count + ticketStats.count;
 
     // Voting velocity — last 7 days aggregation
     const sevenDaysAgo = new Date();

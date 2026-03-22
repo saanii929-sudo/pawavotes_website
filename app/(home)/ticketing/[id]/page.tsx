@@ -251,9 +251,9 @@ export default function EventDetailPage() {
           {event.banner ? (
             <img src={event.banner} alt={event.title} className="w-full h-full object-cover" />
           ) : (
-            <div className="w-full h-full bg-gradient-to-br from-emerald-500 via-teal-600 to-cyan-700" />
+            <div className="w-full h-full bg-linear-to-br from-emerald-500 via-teal-600 to-cyan-700" />
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+          <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent" />
 
           <div className="absolute bottom-6 left-4 sm:left-8">
             <div className="flex flex-wrap items-center gap-2 mb-2">
@@ -355,10 +355,7 @@ export default function EventDetailPage() {
                 {/* Attendee count */}
                 {event.settings?.showAttendeeCount && event.totalCapacity > 0 && (
                   <div className="bg-white border border-gray-100 rounded-2xl p-3 mb-4 shadow-sm">
-                    <div className="flex justify-between text-xs text-gray-500 mb-1.5">
-                      <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {event.totalSold} attending</span>
-                      <span>{Math.round((event.totalSold / event.totalCapacity) * 100)}% filled</span>
-                    </div>
+                    
                     <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-emerald-500 rounded-full"
@@ -416,7 +413,7 @@ export default function EventDetailPage() {
                               {isSoldOut ? (
                                 <span className="text-xs text-red-500 font-semibold">Sold Out</span>
                               ) : (
-                                <span className="text-xs text-gray-400">{avail} left</span>
+                                <span className="text-xs text-gray-400"></span>
                               )}
                             </div>
                           </div>

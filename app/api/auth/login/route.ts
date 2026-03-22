@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
       user = await Organization.findOne({ email, status: 'active' });
       role = 'organization';
     } else if (userType === 'org-admin') {
-      user = await OrganizationAdmin.findOne({ email, status: 'active' }).populate('organizationId', 'name');
+      user = await OrganizationAdmin.findOne({ email, status: 'active' });
       role = 'org-admin';
     } else {
       return NextResponse.json(
@@ -64,13 +64,33 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // For org-admins, derive all context from the organizations array
+    let primaryOrgId: string | undefined;
+    let primaryOrgName: string | undefined;
+    let primaryAssignedAwards: any[] = [];
+    let allOrgs: Array<{ organizationId: string; organizationName: string; assignedAwards: any[] }> = [];
+
+    if (role === 'org-admin') {
+      const activeOrgs = ((user as any).organizations || []).filter((o: any) => o.status === 'active');
+      allOrgs = activeOrgs.map((o: any) => ({
+        organizationId: o.organizationId.toString(),
+        organizationName: o.organizationName,
+        assignedAwards: o.assignedAwards || [],
+      }));
+      if (allOrgs.length > 0) {
+        primaryOrgId = allOrgs[0].organizationId;
+        primaryOrgName = allOrgs[0].organizationName;
+        primaryAssignedAwards = allOrgs[0].assignedAwards;
+      }
+    }
+
     const token = generateToken({
       id: user._id,
       email: user.email,
       role: role,
       eventType: role === 'organization' ? (user as any).eventType : undefined,
-      organizationId: role === 'org-admin' ? (user as any).organizationId._id : undefined,
-      assignedAwards: role === 'org-admin' ? (user as any).assignedAwards : undefined,
+      organizationId: role === 'org-admin' ? primaryOrgId : undefined,
+      assignedAwards: role === 'org-admin' ? primaryAssignedAwards : undefined,
     });
     return NextResponse.json({
       success: true,
@@ -81,9 +101,10 @@ export async function POST(req: NextRequest) {
         name: (user as any).username || (user as any).name,
         role: role,
         eventType: role === 'organization' ? (user as any).eventType : undefined,
-        organizationId: role === 'org-admin' ? (user as any).organizationId._id : undefined,
-        organizationName: role === 'org-admin' ? (user as any).organizationId.name : undefined,
-        assignedAwards: role === 'org-admin' ? (user as any).assignedAwards : undefined,
+        organizationId: role === 'org-admin' ? primaryOrgId : undefined,
+        organizationName: role === 'org-admin' ? primaryOrgName : undefined,
+        assignedAwards: role === 'org-admin' ? primaryAssignedAwards : undefined,
+        organizations: role === 'org-admin' ? allOrgs : undefined,
       },
     });
   } catch (error: any) {

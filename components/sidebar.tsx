@@ -124,11 +124,17 @@ export default function Sidebar() {
     }
   }, []);
 
-  const filteredMenu = menu.filter(item => {
-    if (userRole === 'org-admin' && item.name === 'Organization') {
-      return false;
+  const filteredMenu = menu.map(item => {
+    // For org-admin, show Organization section but only relevant children
+    if (userRole === 'org-admin' && item.name === 'Organization' && item.children) {
+      return {
+        ...item,
+        children: item.children.filter(c =>
+          c.name === 'My Organization' || c.name === 'Join Organization' || c.name === 'Admins'
+        ),
+      };
     }
-    return true;
+    return item;
   });
 
   const hasActiveChild = (children: any[]) =>

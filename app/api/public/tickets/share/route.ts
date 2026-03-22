@@ -78,6 +78,8 @@ export async function POST(req: NextRequest) {
         eventTitle: updated.eventTitle,
         ticketTypeName: updated.ticketTypeName,
         ticketTypeColor: updated.ticketTypeColor,
+        ticketBg: updated.ticketBg || '',
+        ticketTextColor: (updated.ticketTextColor as 'light' | 'dark') || 'light',
         unitPrice: updated.unitPrice,
         eventDate: updated.eventDate,
         eventTime: updated.eventTime,

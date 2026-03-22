@@ -83,6 +83,8 @@ export async function POST(req: NextRequest) {
       ticketTypeId,
       ticketTypeName: ticketType.name,
       ticketTypeColor: ticketType.color,
+      ticketBg: event.ticketBg || '',
+      ticketTextColor: event.ticketTextColor || 'light',
       quantity,
       unitPrice,
       totalAmount,

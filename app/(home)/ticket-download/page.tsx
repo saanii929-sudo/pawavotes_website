@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -37,6 +37,8 @@ interface OrderData {
   venueAddress?: string;
   ticketTypeName: string;
   ticketTypeColor: string;
+  ticketBg?: string;
+  ticketTextColor?: string; // 'light' | 'dark'
   quantity: number;
   unitPrice: number;
   totalAmount: number;
@@ -249,6 +251,11 @@ interface TicketCardProps {
 function TicketCard({ code, index, order, isShared, sharedInfo, onShareClick, printable }: TicketCardProps) {
   const [hovered, setHovered] = useState(false);
   const color = order.ticketTypeColor || "#10b981";
+  const hasBg = !!order.ticketBg;
+  const isLightText = !hasBg || order.ticketTextColor !== "dark";
+  const textColor = hasBg ? (isLightText ? "#fff" : "#111") : "#111";
+  const subColor = hasBg ? (isLightText ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.55)") : "#888";
+  const overlayBg = hasBg ? (isLightText ? "rgba(0,0,0,0.45)" : "rgba(255,255,255,0.55)") : "transparent";
 
   return (
     <div
@@ -256,7 +263,9 @@ function TicketCard({ code, index, order, isShared, sharedInfo, onShareClick, pr
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        background: "#fff",
+        ...(hasBg
+          ? { backgroundImage: `url(${order.ticketBg})`, backgroundSize: "cover", backgroundPosition: "center" }
+          : { background: "#fff" }),
         borderRadius: 20,
         overflow: "hidden",
         boxShadow: isShared
@@ -310,29 +319,36 @@ function TicketCard({ code, index, order, isShared, sharedInfo, onShareClick, pr
           )}
         </div>
       )}
+      {/* Overlay for background image */}
+      {hasBg && (
+        <div style={{ position: "absolute", inset: 0, background: overlayBg, zIndex: 0, pointerEvents: "none" }} />
+      )}
+
       {/* Header */}
       <div
         style={{
+          position: "relative",
+          zIndex: 1,
           padding: "18px 22px 14px",
-          background: `linear-gradient(135deg, ${color}15 0%, ${color}06 100%)`,
-          borderBottom: `1px solid ${color}20`,
+          background: hasBg ? "transparent" : `linear-gradient(135deg, ${color}15 0%, ${color}06 100%)`,
+          borderBottom: hasBg ? `1px solid ${isLightText ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.1)"}` : `1px solid ${color}20`,
         }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 9, background: color, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ width: 34, height: 34, borderRadius: 9, background: color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z" />
               </svg>
             </div>
             <div>
-              <p style={{ fontSize: 9, color: "#888", fontWeight: 700, letterSpacing: "0.09em", textTransform: "uppercase", margin: 0 }}>PAWAVOTES EVENTS</p>
-              <p style={{ fontSize: 13, fontWeight: 700, color: "#111", margin: 0 }}>{order.ticketTypeName}</p>
+              <p style={{ fontSize: 9, color: subColor, fontWeight: 700, letterSpacing: "0.09em", textTransform: "uppercase", margin: 0 }}>PAWAVOTES EVENTS</p>
+              <p style={{ fontSize: 13, fontWeight: 700, color: textColor, margin: 0 }}>{order.ticketTypeName}</p>
             </div>
           </div>
           <div style={{ textAlign: "right" }}>
-            <p style={{ fontSize: 10, color: "#aaa", margin: 0 }}>Ticket {index + 1} of {order.quantity}</p>
-            <p style={{ fontSize: 17, fontWeight: 800, color, margin: 0 }}>
+            <p style={{ fontSize: 10, color: subColor, margin: 0 }}>Ticket {index + 1} of {order.quantity}</p>
+            <p style={{ fontSize: 17, fontWeight: 800, color: hasBg ? textColor : color, margin: 0 }}>
               {order.unitPrice === 0 ? "FREE" : `GHS ${order.unitPrice.toFixed(2)}`}
             </p>
           </div>
@@ -340,73 +356,73 @@ function TicketCard({ code, index, order, isShared, sharedInfo, onShareClick, pr
       </div>
 
       {/* Main body */}
-      <div style={{ display: "flex", flex: 1 }}>
+      <div style={{ display: "flex", flex: 1, position: "relative", zIndex: 1 }}>
         {/* Event info */}
         <div style={{ flex: 1, padding: "16px 18px 16px 22px" }}>
-          <h2 style={{ fontSize: 17, fontWeight: 800, color: "#111", margin: "0 0 12px 0", lineHeight: 1.25 }}>
+          <h2 style={{ fontSize: 17, fontWeight: 800, color: textColor, margin: "0 0 12px 0", lineHeight: 1.25 }}>
             {order.eventTitle}
           </h2>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {order.eventDate && (
               <div style={{ display: "flex", alignItems: "flex-start", gap: 7 }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginTop: 1, flexShrink: 0 }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={hasBg ? textColor : color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginTop: 1, flexShrink: 0 }}>
                   <rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
                 </svg>
-                <p style={{ fontSize: 12, color: "#333", margin: 0, fontWeight: 500 }}>{formatDate(order.eventDate)}</p>
+                <p style={{ fontSize: 12, color: hasBg ? textColor : "#333", margin: 0, fontWeight: 500 }}>{formatDate(order.eventDate)}</p>
               </div>
             )}
             {order.eventTime && (
               <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={hasBg ? textColor : color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
                   <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
                 </svg>
-                <p style={{ fontSize: 12, color: "#333", margin: 0, fontWeight: 500 }}>{order.eventTime}</p>
+                <p style={{ fontSize: 12, color: hasBg ? textColor : "#333", margin: 0, fontWeight: 500 }}>{order.eventTime}</p>
               </div>
             )}
             {order.venueName && (
               <div style={{ display: "flex", alignItems: "flex-start", gap: 7 }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginTop: 1, flexShrink: 0 }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={hasBg ? textColor : color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginTop: 1, flexShrink: 0 }}>
                   <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
                 </svg>
                 <div>
-                  <p style={{ fontSize: 12, color: "#333", margin: 0, fontWeight: 600 }}>{order.venueName}</p>
-                  {order.venueAddress && <p style={{ fontSize: 11, color: "#888", margin: "2px 0 0 0" }}>{order.venueAddress}</p>}
+                  <p style={{ fontSize: 12, color: hasBg ? textColor : "#333", margin: 0, fontWeight: 600 }}>{order.venueName}</p>
+                  {order.venueAddress && <p style={{ fontSize: 11, color: subColor, margin: "2px 0 0 0" }}>{order.venueAddress}</p>}
                 </div>
               </div>
             )}
             <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 2 }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={hasBg ? textColor : color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
               </svg>
-              <p style={{ fontSize: 12, color: "#333", margin: 0, fontWeight: 500 }}>{order.buyerName}</p>
+              <p style={{ fontSize: 12, color: hasBg ? textColor : "#333", margin: 0, fontWeight: 500 }}>{order.buyerName}</p>
             </div>
           </div>
         </div>
 
         {/* Perforated divider */}
-        <div style={{ width: 1, background: `repeating-linear-gradient(to bottom, ${color}35 0px, ${color}35 6px, transparent 6px, transparent 12px)`, margin: "10px 0", position: "relative", flexShrink: 0 }}>
+        <div style={{ width: 1, background: `repeating-linear-gradient(to bottom, ${hasBg ? (isLightText ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.2)") : `${color}35`} 0px, ${hasBg ? (isLightText ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.2)") : `${color}35`} 6px, transparent 6px, transparent 12px)`, margin: "10px 0", position: "relative", flexShrink: 0 }}>
           <div style={{ position: "absolute", top: -9, left: "50%", transform: "translateX(-50%)", width: 18, height: 18, borderRadius: "50%", background: "#f3f4f6", border: "1px solid #e5e7eb" }} />
           <div style={{ position: "absolute", bottom: -9, left: "50%", transform: "translateX(-50%)", width: 18, height: 18, borderRadius: "50%", background: "#f3f4f6", border: "1px solid #e5e7eb" }} />
         </div>
 
-        {/* QR code */}
+        {/* QR code — always white bg for scanability */}
         <div style={{ width: 148, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "16px 18px", gap: 8, flexShrink: 0 }}>
-          <div style={{ padding: 5, background: "#fff", border: `2px solid ${color}28`, borderRadius: 11 }}>
+          <div style={{ padding: 5, background: "#fff", border: "2px solid rgba(0,0,0,0.08)", borderRadius: 11 }}>
             <QRCode code={code} size={108} />
           </div>
-          <p style={{ fontSize: 8, color: "#aaa", textAlign: "center", margin: 0, letterSpacing: "0.05em", textTransform: "uppercase" }}>Scan at entrance</p>
+          <p style={{ fontSize: 8, color: subColor, textAlign: "center", margin: 0, letterSpacing: "0.05em", textTransform: "uppercase" }}>Scan at entrance</p>
         </div>
       </div>
 
-      {/* Stub */}
-      <div style={{ borderTop: `2px dashed ${color}35`, background: `${color}07`, padding: "9px 22px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      {/* Stub — always neutral for readability */}
+      <div style={{ position: "relative", zIndex: 1, borderTop: `2px dashed ${hasBg ? (isLightText ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.15)") : `${color}35`}`, background: hasBg ? (isLightText ? "rgba(0,0,0,0.25)" : "rgba(255,255,255,0.4)") : `${color}07`, padding: "9px 22px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
-          <p style={{ fontSize: 8, color: "#aaa", letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 2px 0" }}>TICKET CODE</p>
-          <p style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: "#111", letterSpacing: "0.08em", margin: 0 }}>{code}</p>
+          <p style={{ fontSize: 8, color: subColor, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 2px 0" }}>TICKET CODE</p>
+          <p style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: textColor, letterSpacing: "0.08em", margin: 0 }}>{code}</p>
         </div>
         <div style={{ textAlign: "right" }}>
-          <p style={{ fontSize: 8, color: "#aaa", letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 2px 0" }}>REF</p>
-          <p style={{ fontFamily: "monospace", fontSize: 10, color: "#888", margin: 0 }}>{order.reference}</p>
+          <p style={{ fontSize: 8, color: subColor, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 2px 0" }}>REF</p>
+          <p style={{ fontFamily: "monospace", fontSize: 10, color: subColor, margin: 0 }}>{order.reference}</p>
         </div>
       </div>
     </div>

@@ -434,6 +434,8 @@ export async function sendSharedTicketEmail(data: {
   eventTitle: string;
   ticketTypeName: string;
   ticketTypeColor: string;
+  ticketBg?: string;
+  ticketTextColor?: 'light' | 'dark';
   unitPrice: number;
   eventDate?: string;
   eventTime?: string;
@@ -445,6 +447,11 @@ export async function sendSharedTicketEmail(data: {
   const appUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
   const logoUrl = `${appUrl}/images/logo.png`;
   const accentColor = data.ticketTypeColor || '#16a34a';
+  const hasBg = !!data.ticketBg;
+  const isLight = !hasBg || data.ticketTextColor !== 'dark';
+  const textColor = hasBg ? (isLight ? '#ffffff' : '#111827') : '#111827';
+  const subColor = hasBg ? (isLight ? 'rgba(255,255,255,0.75)' : 'rgba(0,0,0,0.55)') : '#9ca3af';
+  const overlayBg = hasBg ? (isLight ? 'rgba(0,0,0,0.48)' : 'rgba(255,255,255,0.55)') : 'transparent';
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=${encodeURIComponent(data.ticketCode)}&bgcolor=ffffff&color=111827&margin=6`;
 
   const shortDate = data.eventDate
@@ -502,10 +509,10 @@ export async function sendSharedTicketEmail(data: {
         <tr>
           <td>
             <table width="100%" cellpadding="0" cellspacing="0" border="0"
-                   style="border-radius:20px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.12);">
+                   style="border-radius:20px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.12);${hasBg ? `background-image:url('${data.ticketBg}');background-size:cover;background-position:center;` : ''}">
               <tr>
-                <td width="8" style="background:${accentColor};"></td>
-                <td style="background:#fff;padding:0;">
+                ${!hasBg ? `<td width="8" style="background:${accentColor};"></td>` : ''}
+                <td style="${hasBg ? `background:${overlayBg};` : 'background:#fff;'}padding:0;">
 
                   <table width="100%" cellpadding="0" cellspacing="0" border="0">
                     <tr>
@@ -518,41 +525,41 @@ export async function sendSharedTicketEmail(data: {
                             <td style="padding-right:8px;vertical-align:middle;">
                               <img src="${logoUrl}" width="24" height="24" style="border-radius:6px;display:block;" alt="${appName}" />
                             </td>
-                            <td style="vertical-align:middle;font-size:9px;font-weight:700;color:#9ca3af;letter-spacing:2px;text-transform:uppercase;">${appName} · E-TICKET</td>
+                            <td style="vertical-align:middle;font-size:9px;font-weight:700;color:${subColor};letter-spacing:2px;text-transform:uppercase;">${appName} · E-TICKET</td>
                             <td style="padding-left:10px;vertical-align:middle;">
                               <span style="background:${accentColor};color:#fff;font-size:8px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;padding:3px 8px;border-radius:20px;">${data.ticketTypeName}</span>
                             </td>
                           </tr>
                         </table>
 
-                        <div style="font-size:17px;font-weight:800;color:#111827;line-height:1.3;margin-bottom:14px;">${data.eventTitle}</div>
+                        <div style="font-size:17px;font-weight:800;color:${textColor};line-height:1.3;margin-bottom:14px;">${data.eventTitle}</div>
 
                         <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:8px;">
                           <tr>
                             ${shortDate ? `<td style="padding-right:16px;">
-                              <div style="font-size:9px;color:#9ca3af;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:2px;">DATE</div>
-                              <div style="font-size:12px;font-weight:700;color:#111827;">${shortDate}</div>
+                              <div style="font-size:9px;color:${subColor};font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:2px;">DATE</div>
+                              <div style="font-size:12px;font-weight:700;color:${textColor};">${shortDate}</div>
                             </td>` : ''}
                             ${data.eventTime ? `<td style="padding-right:16px;">
-                              <div style="font-size:9px;color:#9ca3af;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:2px;">TIME</div>
-                              <div style="font-size:12px;font-weight:700;color:#111827;">${data.eventTime}</div>
+                              <div style="font-size:9px;color:${subColor};font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:2px;">TIME</div>
+                              <div style="font-size:12px;font-weight:700;color:${textColor};">${data.eventTime}</div>
                             </td>` : ''}
                             <td>
-                              <div style="font-size:9px;color:#9ca3af;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:2px;">PRICE</div>
-                              <div style="font-size:12px;font-weight:700;color:${accentColor};">${data.unitPrice === 0 ? 'FREE' : `GHS ${data.unitPrice.toFixed(2)}`}</div>
+                              <div style="font-size:9px;color:${subColor};font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:2px;">PRICE</div>
+                              <div style="font-size:12px;font-weight:700;color:${hasBg ? textColor : accentColor};">${data.unitPrice === 0 ? 'FREE' : `GHS ${data.unitPrice.toFixed(2)}`}</div>
                             </td>
                           </tr>
                         </table>
 
-                        ${data.venueName ? `<div style="font-size:11px;color:#6b7280;margin-top:6px;">📍 ${data.venueName}${data.venueAddress ? ` · ${data.venueAddress}` : ''}</div>` : ''}
+                        ${data.venueName ? `<div style="font-size:11px;color:${subColor};margin-top:6px;">📍 ${data.venueName}${data.venueAddress ? ` · ${data.venueAddress}` : ''}</div>` : ''}
 
                       </td>
 
                       <!-- Dashed divider -->
-                      <td width="1" style="background:repeating-linear-gradient(to bottom,#e5e7eb 0,#e5e7eb 6px,transparent 6px,transparent 12px);margin:12px 0;"></td>
+                      <td width="1" style="background:repeating-linear-gradient(to bottom,${hasBg ? (isLight ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.15)') : '#e5e7eb'} 0,${hasBg ? (isLight ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.15)') : '#e5e7eb'} 6px,transparent 6px,transparent 12px);margin:12px 0;"></td>
 
-                      <!-- QR -->
-                      <td width="150" style="padding:20px 18px;text-align:center;vertical-align:middle;background:#fafafa;">
+                      <!-- QR — always white bg for scanability -->
+                      <td width="150" style="padding:20px 18px;text-align:center;vertical-align:middle;background:#ffffff;">
                         <img src="${qrUrl}" width="130" height="130"
                              style="display:block;margin:0 auto 8px;border-radius:10px;border:1px solid #f0f0f0;" alt="QR" />
                         <div style="font-size:8px;color:#9ca3af;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;">SCAN AT DOOR</div>
@@ -564,24 +571,25 @@ export async function sendSharedTicketEmail(data: {
                   <table width="100%" cellpadding="0" cellspacing="0" border="0">
                     <tr>
                       <td width="14" style="padding:0;"><div style="width:14px;height:14px;background:#f0f2f5;border-radius:50%;margin-left:-7px;"></div></td>
-                      <td style="padding:0 4px;"><div style="border-top:2px dashed #e5e7eb;width:100%;"></div></td>
+                      <td style="padding:0 4px;"><div style="border-top:2px dashed ${hasBg ? (isLight ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.15)') : '#e5e7eb'};width:100%;"></div></td>
                       <td width="14" style="padding:0;"><div style="width:14px;height:14px;background:#f0f2f5;border-radius:50%;margin-right:-7px;"></div></td>
                     </tr>
                   </table>
 
                   <!-- Stub -->
-                  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#fafafa;">
+                  <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                         style="${hasBg ? `background:${isLight ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.35)'};` : 'background:#fafafa;'}">
                     <tr>
                       <td style="padding:12px 24px;">
                         <table width="100%" cellpadding="0" cellspacing="0" border="0">
                           <tr>
                             <td>
-                              <div style="font-size:9px;color:#aaa;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:3px;">TICKET CODE</div>
-                              <div style="font-family:monospace;font-size:14px;font-weight:800;color:#111827;letter-spacing:2px;">${data.ticketCode}</div>
+                              <div style="font-size:9px;color:${subColor};letter-spacing:0.1em;text-transform:uppercase;margin-bottom:3px;">TICKET CODE</div>
+                              <div style="font-family:monospace;font-size:14px;font-weight:800;color:${textColor};letter-spacing:2px;">${data.ticketCode}</div>
                             </td>
                             <td style="text-align:right;">
-                              <div style="font-size:9px;color:#aaa;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:3px;">ORDER REF</div>
-                              <div style="font-family:monospace;font-size:10px;color:#6b7280;">${data.reference}</div>
+                              <div style="font-size:9px;color:${subColor};letter-spacing:0.1em;text-transform:uppercase;margin-bottom:3px;">ORDER REF</div>
+                              <div style="font-family:monospace;font-size:10px;color:${subColor};">${data.reference}</div>
                             </td>
                           </tr>
                         </table>
@@ -590,7 +598,7 @@ export async function sendSharedTicketEmail(data: {
                   </table>
 
                 </td>
-                <td width="8" style="background:${accentColor};opacity:0.12;"></td>
+                ${!hasBg ? `<td width="8" style="background:${accentColor};opacity:0.12;"></td>` : ''}
               </tr>
             </table>
           </td>

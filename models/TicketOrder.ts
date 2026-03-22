@@ -18,6 +18,8 @@ export interface ITicketOrder extends Document {
   ticketTypeId: string;
   ticketTypeName: string;
   ticketTypeColor: string;
+  ticketBg?: string;
+  ticketTextColor?: string;
   quantity: number;
   unitPrice: number;
   totalAmount: number;
@@ -44,6 +46,8 @@ const TicketOrderSchema = new Schema<ITicketOrder>(
     ticketTypeId: { type: String, required: true },
     ticketTypeName: { type: String, required: true },
     ticketTypeColor: { type: String, default: '#10b981' },
+    ticketBg: { type: String, default: '' },
+    ticketTextColor: { type: String, default: 'light' },
     quantity: { type: Number, required: true, min: 1 },
     unitPrice: { type: Number, required: true, min: 0 },
     totalAmount: { type: Number, required: true, min: 0 },

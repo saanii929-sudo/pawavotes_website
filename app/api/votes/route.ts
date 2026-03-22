@@ -27,12 +27,9 @@ export async function GET(req: NextRequest) {
     let query: any = {};
 
     if (awardId) {
-      let assignedAwards: string[] = [];
-      if (decoded.role === 'org-admin') {
-        const OrganizationAdmin = (await import('@/models/OrganizationAdmin')).default;
-        const admin = await OrganizationAdmin.findById(decoded.id);
-        assignedAwards = admin?.assignedAwards?.map((id: any) => id.toString()) || [];
-      }
+      const assignedAwards: string[] = decoded.role === 'org-admin'
+        ? (decoded.assignedAwards || []).map((id: any) => id.toString())
+        : [];
       const hasAccess = await hasAwardAccess(decoded.id, decoded.role, awardId, assignedAwards);
       
       if (!hasAccess) {
@@ -41,12 +38,11 @@ export async function GET(req: NextRequest) {
       query.awardId = awardId;
     } else {
       if (decoded.role === 'org-admin') {
-        const OrganizationAdmin = (await import('@/models/OrganizationAdmin')).default;
-        const admin = await OrganizationAdmin.findById(decoded.id);
-        if (!admin || !admin.assignedAwards || admin.assignedAwards.length === 0) {
+        const assignedAwards = decoded.assignedAwards || [];
+        if (assignedAwards.length === 0) {
           return NextResponse.json({ success: true, data: [] });
         }
-        query.awardId = { $in: admin.assignedAwards };
+        query.awardId = { $in: assignedAwards };
       } else if (decoded.role === 'organization') {
         const Award = (await import('@/models/Award')).default;
         const awards = await Award.find({ organizationId: decoded.id }).select('_id');

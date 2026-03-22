@@ -54,7 +54,7 @@ async function getCurrentUser(req: NextRequest) {
           organizationId: (orgAdmin.organizationId as any)._id,
           organizationName: (orgAdmin.organizationId as any).name,
           serviceFeePercentage: (orgAdmin.organizationId as any).serviceFeePercentage,
-          assignedAwards: orgAdmin.assignedAwards,
+          assignedAwards: user.assignedAwards || [],
         };
       }
     }

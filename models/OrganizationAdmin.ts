@@ -1,15 +1,26 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
-export interface IOrganizationAdmin extends Document {
+export interface IOrgMembership {
   organizationId: mongoose.Types.ObjectId;
+  organizationName: string;
+  assignedAwards: mongoose.Types.ObjectId[];
+  invitedBy: mongoose.Types.ObjectId;
+  status: 'pending' | 'active' | 'inactive';
+  invitationToken?: string;
+  invitationExpiry?: Date;
+}
+
+export interface IOrganizationAdmin extends Document {
+  // Array of all org IDs this admin belongs to (enables MongoDB array-in queries)
+  organizationId: mongoose.Types.ObjectId[];
   name: string;
   email: string;
   password: string;
   role: 'admin';
+  // Overall status: active if at least one org membership is active
   status: 'pending' | 'active' | 'inactive';
-  assignedAwards: mongoose.Types.ObjectId[];
-  invitationToken?: string;
-  invitationExpiry?: Date;
+  // Per-org membership details (includes ALL orgs, primary + additional)
+  organizations: IOrgMembership[];
   invitedBy: mongoose.Types.ObjectId;
   resetPasswordToken?: string;
   resetPasswordExpiry?: Date;
@@ -17,13 +28,24 @@ export interface IOrganizationAdmin extends Document {
   updatedAt: Date;
 }
 
+const OrgMembershipSchema = new Schema<IOrgMembership>(
+  {
+    organizationId: { type: Schema.Types.ObjectId, ref: 'Organization', required: true },
+    organizationName: { type: String, required: true },
+    assignedAwards: [{ type: Schema.Types.ObjectId, ref: 'Award' }],
+    invitedBy: { type: Schema.Types.ObjectId, ref: 'Organization', required: true },
+    status: { type: String, enum: ['pending', 'active', 'inactive'], default: 'pending' },
+    invitationToken: { type: String },
+    invitationExpiry: { type: Date },
+  },
+  { _id: false }
+);
+
 const OrganizationAdminSchema: Schema = new Schema(
   {
-    organizationId: {
-      type: Schema.Types.ObjectId,
-      ref: 'Organization',
-      required: true,
-    },
+    // Array of all org IDs — MongoDB's { organizationId: someId } query
+    // automatically matches documents where the array contains that value
+    organizationId: [{ type: Schema.Types.ObjectId, ref: 'Organization' }],
     name: {
       type: String,
       required: [true, 'Name is required'],
@@ -49,34 +71,22 @@ const OrganizationAdminSchema: Schema = new Schema(
       enum: ['pending', 'active', 'inactive'],
       default: 'pending',
     },
-    assignedAwards: [{
-      type: Schema.Types.ObjectId,
-      ref: 'Award',
-    }],
-    invitationToken: {
-      type: String,
-    },
-    invitationExpiry: {
-      type: Date,
+    organizations: {
+      type: [OrgMembershipSchema],
+      default: [],
     },
     invitedBy: {
       type: Schema.Types.ObjectId,
       ref: 'Organization',
       required: true,
     },
-    resetPasswordToken: {
-      type: String,
-    },
-    resetPasswordExpiry: {
-      type: Date,
-    },
+    resetPasswordToken: { type: String },
+    resetPasswordExpiry: { type: Date },
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
-// Delete existing model if it exists
+// Delete existing model if it exists (enables hot-reload in dev)
 if (mongoose.models.OrganizationAdmin) {
   delete mongoose.models.OrganizationAdmin;
 }

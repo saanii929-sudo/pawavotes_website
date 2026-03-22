@@ -37,7 +37,6 @@ export async function GET(
       _id: id,
       organizationId: decoded.id,
     })
-      .populate('assignedAwards', 'name')
       .select('-password');
 
     if (!admin) {
@@ -47,9 +46,21 @@ export async function GET(
       );
     }
 
+    // Normalize: populate assignedAwards for this org's membership entry
+    const membership = (admin as any).organizations?.find(
+      (o: any) => o.organizationId?.toString() === decoded.id
+    );
+    const awardIds = membership?.assignedAwards || [];
+    const awardDocs = awardIds.length > 0
+      ? await Award.find({ _id: { $in: awardIds } }).select('_id name').lean()
+      : [];
+    const plain = (admin as any).toObject();
+    plain.assignedAwards = awardDocs;
+    plain.status = membership?.status || plain.status;
+
     return NextResponse.json({
       success: true,
-      data: admin,
+      data: plain,
     });
   } catch (error: any) {
     console.error('Get admin error:', error);
@@ -118,24 +129,43 @@ export async function PUT(
       }
     }
 
-    // Update admin
+    // Determine the index of this org's membership entry
+    const orgIdx = admin.organizations
+      ? admin.organizations.findIndex(
+          (o: any) => o.organizationId?.toString() === decoded.id
+        )
+      : -1;
+
+    // Build update
     const updateData: any = {};
     if (name) updateData.name = name;
-    if (assignedAwards !== undefined) updateData.assignedAwards = assignedAwards;
     if (status) updateData.status = status;
+    if (assignedAwards !== undefined && orgIdx >= 0) {
+      updateData[`organizations.${orgIdx}.assignedAwards`] = assignedAwards;
+    }
 
     const updatedAdmin = await OrganizationAdmin.findByIdAndUpdate(
       id,
-      updateData,
+      { $set: updateData },
       { new: true, runValidators: true }
     )
-      .populate('assignedAwards', 'name')
       .select('-password');
+
+    // Normalize: return assignedAwards as flat populated array for this org
+    const membership = (updatedAdmin as any)?.organizations?.find(
+      (o: any) => o.organizationId?.toString() === decoded.id
+    );
+    const awardIds = membership?.assignedAwards || [];
+    const awardDocs = awardIds.length > 0
+      ? await Award.find({ _id: { $in: awardIds } }).select('_id name').lean()
+      : [];
+    const plain = (updatedAdmin as any).toObject();
+    plain.assignedAwards = awardDocs;
 
     return NextResponse.json({
       success: true,
       message: 'Admin updated successfully',
-      data: updatedAdmin,
+      data: plain,
     });
   } catch (error: any) {
     console.error('Update admin error:', error);

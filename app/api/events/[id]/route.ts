@@ -32,25 +32,29 @@ async function updateEvent(req: NextRequest, { params }: { params: Promise<{ id:
     const body = await req.json();
 
     const orgId = String(user.role === 'org-admin' ? user.organizationId : user.id);
-    const event = await Event.findOne({ _id: id, organizationId: orgId });
-    if (!event) {
-      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
-    }
 
     const allowedFields = [
-      'title', 'description', 'category', 'banner', 'venue',
+      'title', 'description', 'category', 'banner', 'ticketBg', 'ticketTextColor', 'venue',
       'startDate', 'endDate', 'startTime', 'endTime',
       'ticketTypes', 'settings', 'status',
     ];
 
+    const $set: Record<string, any> = {};
     allowedFields.forEach((field) => {
-      if (body[field] !== undefined) {
-        (event as any)[field] = body[field];
-      }
+      if (body[field] !== undefined) $set[field] = body[field];
     });
 
-    await event.save();
-    return NextResponse.json({ success: true, message: 'Event updated successfully', data: event });
+    const updated = await Event.findOneAndUpdate(
+      { _id: id, organizationId: orgId },
+      { $set },
+      { new: true, runValidators: false, strict: false }
+    );
+
+    if (!updated) {
+      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, message: 'Event updated successfully', data: updated });
   } catch (error: any) {
     console.error('[PUT /api/events/[id]]', error);
     return NextResponse.json({ error: 'Failed to update event', details: error.message }, { status: 500 });

@@ -20,6 +20,8 @@ export interface IEvent extends Document {
   category: 'conference' | 'concert' | 'sports' | 'workshop' | 'gala' | 'festival' | 'networking' | 'other';
   status: 'draft' | 'published' | 'ongoing' | 'completed' | 'cancelled';
   banner?: string;
+  ticketBg?: string;
+  ticketTextColor?: string;
   venue: {
     name: string;
     address?: string;
@@ -79,6 +81,8 @@ const EventSchema = new Schema<IEvent>(
       default: 'draft',
     },
     banner: { type: String, default: '' },
+    ticketBg: { type: String, default: '' },
+    ticketTextColor: { type: String, default: 'light' }, // 'light' | 'dark'
     venue: {
       name: { type: String, default: '' },
       address: { type: String, default: '' },

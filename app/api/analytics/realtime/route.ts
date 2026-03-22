@@ -37,15 +37,14 @@ export async function GET(req: NextRequest) {
       voteQuery.awardId = { $in: awardIds };
       paymentQuery.awardId = { $in: awardIds };
     } else if (decoded.role === 'org-admin') {
-      const OrganizationAdmin = (await import('@/models/OrganizationAdmin')).default;
-      const admin = await OrganizationAdmin.findById(decoded.id);
-      
-      if (!admin || !admin.assignedAwards || admin.assignedAwards.length === 0) {
+      const assignedAwards = decoded.assignedAwards || [];
+
+      if (assignedAwards.length === 0) {
         return NextResponse.json({ success: true, data: getEmptyAnalytics() });
       }
-      
-      voteQuery.awardId = { $in: admin.assignedAwards };
-      paymentQuery.awardId = { $in: admin.assignedAwards };
+
+      voteQuery.awardId = { $in: assignedAwards };
+      paymentQuery.awardId = { $in: assignedAwards };
     }
     if (awardId) {
       voteQuery.awardId = awardId;

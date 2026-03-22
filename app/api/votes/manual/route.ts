@@ -39,12 +39,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    let assignedAwards: string[] = [];
-    if (decoded.role === 'org-admin') {
-      const OrganizationAdmin = (await import('@/models/OrganizationAdmin')).default;
-      const admin = await OrganizationAdmin.findById(decoded.id);
-      assignedAwards = admin?.assignedAwards?.map((id: any) => id.toString()) || [];
-    }
+    const assignedAwards: string[] = decoded.role === 'org-admin'
+      ? (decoded.assignedAwards || []).map((id: any) => id.toString())
+      : [];
 
     const hasAccess = await hasAwardAccess(decoded.id, decoded.role, awardId, assignedAwards);
     if (!hasAccess) {

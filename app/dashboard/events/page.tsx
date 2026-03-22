@@ -30,6 +30,8 @@ import {
   Star,
   BarChart3,
   ArrowUpRight,
+  Upload,
+  ImageIcon,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { authFetch } from "@/lib/authFetch";
@@ -54,6 +56,8 @@ interface Event {
   category: string;
   status: "draft" | "published" | "ongoing" | "completed" | "cancelled";
   banner: string;
+  ticketBg?: string;
+  ticketTextColor?: string;
   venue: {
     name: string;
     address: string;
@@ -80,7 +84,6 @@ interface Event {
   };
 }
 
-/* ─────────────────── Constants ─────────────────── */
 const CATEGORIES = [
   { value: "conference", label: "Conference", emoji: "🎤" },
   { value: "concert", label: "Concert", emoji: "🎵" },
@@ -110,6 +113,8 @@ const INITIAL_FORM = {
   description: "",
   category: "conference",
   banner: "",
+  ticketBg: "",
+  ticketTextColor: "light" as "light" | "dark",
   venue: {
     name: "",
     address: "",
@@ -132,7 +137,6 @@ const INITIAL_FORM = {
   },
 };
 
-/* ─────────────────── Helpers ─────────────────── */
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("en-US", {
     month: "short",
@@ -142,7 +146,7 @@ function formatDate(dateStr: string) {
 }
 
 function formatCurrency(amount: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0 }).format(amount);
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "GHS", minimumFractionDigits: 0 }).format(amount);
 }
 
 function getCategoryEmoji(category: string) {
@@ -153,7 +157,6 @@ function calcRevenue(tickets: TicketType[]) {
   return tickets.reduce((s, t) => s + t.sold * t.price, 0);
 }
 
-/* ─────────────────── Sub-components ─────────────────── */
 function StatCard({ label, value, icon: Icon, color, sub }: { label: string; value: string | number; icon: any; color: string; sub?: string }) {
   return (
     <motion.div
@@ -262,7 +265,252 @@ function TicketTypeRow({
   );
 }
 
-/* ─────────────────── Main Page ─────────────────── */
+function TicketBgUploader({
+  value,
+  onChange,
+  folder = "ticket-backgrounds",
+  aspectHint = "PNG, JPG, WebP · max 10 MB",
+}: {
+  value: string;
+  onChange: (url: string) => void;
+  folder?: string;
+  aspectHint?: string;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleFile(file: File) {
+    if (!file.type.startsWith("image/")) {
+      setError("Please select an image file.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setError("Image must be under 10 MB.");
+      return;
+    }
+    setError("");
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("folder", folder);
+      const res = await authFetch("/api/upload/image", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok || !data.url) throw new Error(data.error || "Upload failed");
+      onChange(data.url);
+    } catch (e: any) {
+      setError(e.message || "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file) handleFile(file);
+  }
+
+  return (
+    <div>
+      {value ? (
+        <div className="relative rounded-xl overflow-hidden border border-gray-200 group" style={{ height: 96 }}>
+          <img src={value} alt="Uploaded image" className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              className="text-xs font-semibold text-white bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-lg border border-white/40 transition-colors flex items-center gap-1.5"
+            >
+              <Upload className="w-3.5 h-3.5" /> Change
+            </button>
+            <button
+              type="button"
+              onClick={() => onChange("")}
+              className="text-xs font-semibold text-white bg-white/20 hover:bg-red-500/70 px-3 py-1.5 rounded-lg border border-white/40 transition-colors flex items-center gap-1.5"
+            >
+              <X className="w-3.5 h-3.5" /> Remove
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div
+          onDrop={handleDrop}
+          onDragOver={(e) => e.preventDefault()}
+          onClick={() => !uploading && inputRef.current?.click()}
+          className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-200 hover:border-green-400 bg-gray-50 hover:bg-green-50/40 transition-all cursor-pointer"
+          style={{ height: 96 }}
+        >
+          {uploading ? (
+            <>
+              <div className="w-5 h-5 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
+              <p className="text-xs text-gray-500">Uploading…</p>
+            </>
+          ) : (
+            <>
+              <ImageIcon className="w-6 h-6 text-gray-300" />
+              <p className="text-xs text-gray-500 text-center">
+                <span className="font-semibold text-green-600">Click to upload</span> or drag &amp; drop
+              </p>
+              <p className="text-xs text-gray-400">{aspectHint}</p>
+            </>
+          )}
+        </div>
+      )}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }}
+      />
+      {error && <p className="text-xs text-red-500 mt-1.5">{error}</p>}
+    </div>
+  );
+}
+
+function TicketPreview({
+  title,
+  ticketBg,
+  ticketTextColor,
+  startDate,
+  startTime,
+  venueName,
+  ticketTypes,
+}: {
+  title: string;
+  ticketBg: string;
+  ticketTextColor: "light" | "dark";
+  startDate: string;
+  startTime: string;
+  venueName: string;
+  ticketTypes: TicketType[];
+}) {
+  const [typeIdx, setTypeIdx] = useState(0);
+  const activeType = ticketTypes[Math.min(typeIdx, Math.max(0, ticketTypes.length - 1))] ?? null;
+  const isLight = ticketTextColor === "light";
+  const textColor = isLight ? "#fff" : "#111";
+  const subColor = isLight ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.55)";
+  const overlayBg = isLight ? "rgba(0,0,0,0.48)" : "rgba(255,255,255,0.55)";
+  const accentColor = activeType?.color || "#10b981";
+  const shortDate = startDate
+    ? new Date(startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    : "Date TBD";
+
+  return (
+    <div>
+    <div
+      style={{
+        borderRadius: 14,
+        overflow: "hidden",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
+        position: "relative",
+        ...(ticketBg
+          ? { backgroundImage: `url(${ticketBg})`, backgroundSize: "cover", backgroundPosition: "center" }
+          : { background: `linear-gradient(135deg, ${accentColor}cc, ${accentColor}66)` }),
+        border: "1px solid rgba(255,255,255,0.1)",
+      }}
+    >
+      {ticketBg && (
+        <div style={{ position: "absolute", inset: 0, background: overlayBg, zIndex: 0, pointerEvents: "none" }} />
+      )}
+
+      {/* Content */}
+      <div style={{ position: "relative", zIndex: 1, padding: "16px 18px 12px" }}>
+        {/* Brand row */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: subColor, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+            PAWAVOTES · E-TICKET
+          </div>
+          {activeType && (
+            <span style={{ background: accentColor, color: "#fff", fontSize: 8, fontWeight: 800, padding: "2px 8px", borderRadius: 20, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+              {activeType.name}
+            </span>
+          )}
+        </div>
+
+        {/* Event title */}
+        <div style={{ fontSize: 15, fontWeight: 800, color: textColor, lineHeight: 1.25, marginBottom: 10 }}>
+          {title || "Event Title"}
+        </div>
+
+        {/* Info row */}
+        <div style={{ display: "flex", gap: 12, marginBottom: 10 }}>
+          <div>
+            <div style={{ fontSize: 8, color: subColor, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 2 }}>DATE</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: textColor }}>{shortDate}</div>
+          </div>
+          {startTime && (
+            <div>
+              <div style={{ fontSize: 8, color: subColor, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 2 }}>TIME</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: textColor }}>{startTime}</div>
+            </div>
+          )}
+          {venueName && (
+            <div style={{ flex: 1, overflow: "hidden" }}>
+              <div style={{ fontSize: 8, color: subColor, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 2 }}>VENUE</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: textColor, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{venueName}</div>
+            </div>
+          )}
+        </div>
+
+        {/* Perforated line + QR row */}
+        <div style={{ borderTop: `1px dashed ${isLight ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.15)"}`, paddingTop: 10, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontSize: 8, color: subColor, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 2 }}>TICKET CODE</div>
+            <div style={{ fontFamily: "monospace", fontSize: 10, fontWeight: 700, color: textColor, letterSpacing: "0.12em" }}>XXXX-XXXX-XXXX</div>
+          </div>
+          {/* Mini QR placeholder */}
+          <div style={{ width: 38, height: 38, background: "#fff", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid rgba(0,0,0,0.08)" }}>
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+              <rect x="2" y="2" width="10" height="10" rx="1" fill="#111" />
+              <rect x="4" y="4" width="6" height="6" fill="#fff" />
+              <rect x="5" y="5" width="4" height="4" fill="#111" />
+              <rect x="16" y="2" width="10" height="10" rx="1" fill="#111" />
+              <rect x="18" y="4" width="6" height="6" fill="#fff" />
+              <rect x="19" y="5" width="4" height="4" fill="#111" />
+              <rect x="2" y="16" width="10" height="10" rx="1" fill="#111" />
+              <rect x="4" y="18" width="6" height="6" fill="#fff" />
+              <rect x="5" y="19" width="4" height="4" fill="#111" />
+              <rect x="16" y="16" width="3" height="3" fill="#111" />
+              <rect x="20" y="16" width="3" height="3" fill="#111" />
+              <rect x="24" y="16" width="2" height="2" fill="#111" />
+              <rect x="16" y="20" width="3" height="3" fill="#111" />
+              <rect x="20" y="20" width="2" height="2" fill="#111" />
+              <rect x="23" y="22" width="3" height="4" fill="#111" />
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+    {/* Ticket type dot navigation */}
+    {ticketTypes.length > 1 && (
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 5, marginTop: 8 }}>
+        {ticketTypes.map((t, i) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTypeIdx(i)}
+            title={t.name}
+            style={{
+              width: i === typeIdx ? 18 : 8,
+              height: 8,
+              borderRadius: 4,
+              background: i === typeIdx ? t.color : "#d1d5db",
+              border: "none",
+              cursor: "pointer",
+              padding: 0,
+              transition: "all 0.2s",
+            }}
+          />
+        ))}
+      </div>
+    )}
+    </div>
+  );
+}
+
 export default function EventsPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
@@ -343,6 +591,8 @@ export default function EventsPage() {
       description: event.description || "",
       category: event.category,
       banner: event.banner || "",
+      ticketBg: event.ticketBg || "",
+      ticketTextColor: (event.ticketTextColor as "light" | "dark") || "light",
       venue: { ...event.venue },
       startDate: event.startDate.split("T")[0],
       endDate: event.endDate.split("T")[0],
@@ -595,7 +845,7 @@ export default function EventsPage() {
                   className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden group"
                 >
                   {/* Banner / Placeholder */}
-                  <div className="relative h-36 bg-gradient-to-br from-green-400 via-teal-500 to-blue-600 overflow-hidden">
+                  <div className="relative h-36 bg-linear-to-br from-green-400 via-teal-500 to-blue-600 overflow-hidden">
                     {event.banner ? (
                       <img src={event.banner} alt={event.title} className="w-full h-full object-cover" />
                     ) : (
@@ -693,7 +943,7 @@ export default function EventsPage() {
                             className="text-xs px-2 py-0.5 rounded-full text-white font-medium"
                             style={{ backgroundColor: t.color }}
                           >
-                            {t.name} {t.price > 0 ? `• $${t.price}` : "• Free"}
+                            {t.name} {t.price > 0 ? `• GHS ${t.price}` : "• Free"}
                           </span>
                         ))}
                         {event.ticketTypes.length > 3 && (
@@ -858,12 +1108,12 @@ export default function EventsPage() {
                         </div>
                       </div>
                       <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1.5">Banner URL (optional)</label>
-                        <input
+                        <label className="block text-sm font-semibold text-gray-700 mb-1.5">Banner (optional)</label>
+                        <TicketBgUploader
                           value={formData.banner}
-                          onChange={(e) => setFormData((p) => ({ ...p, banner: e.target.value }))}
-                          placeholder="https://…"
-                          className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-400"
+                          onChange={(url) => setFormData((p) => ({ ...p, banner: url }))}
+                          folder="event-banners"
+                          aspectHint="Recommended: 16:9 · PNG, JPG, WebP · max 10 MB"
                         />
                       </div>
                       <div>
@@ -1047,11 +1297,11 @@ export default function EventsPage() {
                                   settings: { ...p.settings, [key]: !(p.settings as any)[key] },
                                 }))
                               }
-                              className={`w-10 h-5.5 rounded-full transition-colors relative flex-shrink-0 ${(formData.settings as any)[key] ? "bg-green-500" : "bg-gray-300"}`}
+                              className={`w-10 h-5.5 rounded-full transition-colors relative shrink-0 ${(formData.settings as any)[key] ? "bg-green-500" : "bg-gray-300"}`}
                               style={{ width: 40, height: 22 }}
                             >
                               <span
-                                className={`absolute top-0.5 left-0.5 w-4.5 h-4.5 rounded-full bg-white shadow transition-transform ${(formData.settings as any)[key] ? "translate-x-[18px]" : ""}`}
+                                className={`absolute top-0.5 left-0.5 w-4.5 h-4.5 rounded-full bg-white shadow transition-transform ${(formData.settings as any)[key] ? "translate-x-4.5" : ""}`}
                                 style={{ width: 18, height: 18 }}
                               />
                             </button>
@@ -1109,9 +1359,77 @@ export default function EventsPage() {
                         </div>
                       )}
 
+                      {/* ── Ticket Appearance ── */}
+                      <div className="border border-gray-200 rounded-xl overflow-hidden">
+                        <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+                          <p className="text-sm font-bold text-gray-800">Ticket Appearance</p>
+                          <p className="text-xs text-gray-500 mt-0.5">Set a background image and text color for your tickets</p>
+                        </div>
+                        <div className="p-4 space-y-4">
+                          {/* Two-column: controls + preview */}
+                          <div className="flex gap-4">
+                            {/* Controls */}
+                            <div className="flex-1 space-y-3">
+                              <div>
+                                <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                                  Ticket Background Image
+                                </label>
+                                <TicketBgUploader
+                                  value={formData.ticketBg}
+                                  onChange={(url) => setFormData((p) => ({ ...p, ticketBg: url }))}
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-semibold text-gray-600 mb-2">
+                                  Ticket Text Color
+                                </label>
+                                <div className="flex gap-2">
+                                  {([
+                                    { value: "light", label: "Light", bg: "#1f2937", fg: "#fff", desc: "White text" },
+                                    { value: "dark",  label: "Dark",  bg: "#f9fafb", fg: "#111", desc: "Dark text" },
+                                  ] as const).map((opt) => (
+                                    <button
+                                      key={opt.value}
+                                      type="button"
+                                      onClick={() => setFormData((p) => ({ ...p, ticketTextColor: opt.value }))}
+                                      className={`flex-1 flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-left transition-all ${formData.ticketTextColor === opt.value ? "border-green-500 bg-green-50" : "border-gray-200 hover:border-gray-300"}`}
+                                    >
+                                      <div
+                                        className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold border border-gray-200"
+                                        style={{ background: opt.bg, color: opt.fg }}
+                                      >
+                                        Aa
+                                      </div>
+                                      <div>
+                                        <p className="text-xs font-semibold text-gray-800">{opt.label}</p>
+                                        <p className="text-xs text-gray-400">{opt.desc}</p>
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Live preview */}
+                            <div className="w-52 shrink-0">
+                              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Preview</p>
+                              <TicketPreview
+                                title={formData.title}
+                                ticketBg={formData.ticketBg}
+                                ticketTextColor={formData.ticketTextColor}
+                                startDate={formData.startDate}
+                                startTime={formData.startTime}
+                                venueName={formData.venue.name}
+                                ticketTypes={formData.ticketTypes}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
                       {/* Summary */}
                       {formData.ticketTypes.length > 0 && (
-                        <div className="bg-gradient-to-r from-green-50 to-teal-50 rounded-xl p-4 border border-green-100">
+                        <div className="bg-linear-to-r from-green-50 to-teal-50 rounded-xl p-4 border border-green-100">
                           <p className="text-xs font-semibold text-green-800 uppercase tracking-wider mb-2">Summary</p>
                           <div className="grid grid-cols-3 gap-3">
                             <div>
@@ -1197,10 +1515,10 @@ export default function EventsPage() {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              className="bg-white w-full sm:w-[480px] h-full overflow-y-auto shadow-2xl"
+              className="bg-white w-full sm:w-120 h-full overflow-y-auto shadow-2xl"
             >
               {/* Detail header */}
-              <div className="relative h-52 bg-gradient-to-br from-green-400 via-teal-500 to-blue-600 overflow-hidden">
+              <div className="relative h-52 bg-linear-to-br from-green-400 via-teal-500 to-blue-600 overflow-hidden">
                 {detailEvent.banner && (
                   <img src={detailEvent.banner} alt="" className="w-full h-full object-cover" />
                 )}
@@ -1317,7 +1635,7 @@ export default function EventsPage() {
                 </div>
 
                 {/* Revenue summary */}
-                <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-100">
+                <div className="bg-linear-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-100">
                   <p className="text-xs font-semibold text-green-800 uppercase tracking-wider mb-3">Revenue Overview</p>
                   <div className="grid grid-cols-3 gap-3 text-center">
                     <div>

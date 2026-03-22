@@ -1,10 +1,17 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Mail, Edit, Trash2, CheckCircle, XCircle, Clock, Search, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { Plus, Mail, Edit, Trash2, CheckCircle, XCircle, Clock, Search, Eye, EyeOff, UserCheck, UserX, Inbox } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
 import ConfirmModal from "@/components/ConfirmModal";
+
+interface JoinRequest {
+  _id: string;
+  adminName: string;
+  adminEmail: string;
+  createdAt: string;
+}
 
 interface Award {
   _id: string;
@@ -19,6 +26,7 @@ interface Admin {
   assignedAwards: Award[];
   createdAt: string;
   invitationExpiry?: string;
+  type?: 'owner' | 'admin';
 }
 
 const AdminsManagement = () => {
@@ -26,7 +34,9 @@ const AdminsManagement = () => {
   const [admins, setAdmins] = useState<Admin[]>([]);
   const [awards, setAwards] = useState<Award[]>([]);
   const [loading, setLoading] = useState(true);
-  const [accessDenied, setAccessDenied] = useState(false);
+  const [isOrgAdmin, setIsOrgAdmin] = useState(false);
+  const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
+  const [processingRequest, setProcessingRequest] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [password, setPassword] = useState('');
@@ -52,19 +62,49 @@ const AdminsManagement = () => {
   }>({ isOpen: false, title: "", message: "", onConfirm: () => {}, type: "warning" });
 
   useEffect(() => {
-    // Check user role
     const userData = localStorage.getItem('user');
-    if (userData) {
-      const user = JSON.parse(userData);
-      if (user.role === 'org-admin') {
-        setAccessDenied(true);
-        setLoading(false);
-        return;
-      }
+    const user = userData ? JSON.parse(userData) : {};
+    if (user.role === 'org-admin') {
+      setIsOrgAdmin(true);
     }
     fetchAdmins();
     fetchAwards();
+    if (user.role !== 'org-admin') fetchJoinRequests();
   }, []);
+
+  const fetchJoinRequests = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/organization/join-requests', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok && data.success) setJoinRequests(data.data);
+    } catch {
+      // non-critical
+    }
+  };
+
+  const handleJoinRequestAction = async (requestId: string, action: 'approve' | 'reject') => {
+    setProcessingRequest(requestId + action);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/organization/join-requests/${requestId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error || 'Failed'); return; }
+      toast.success(data.message);
+      setJoinRequests(prev => prev.filter(r => r._id !== requestId));
+      if (action === 'approve') fetchAdmins();
+    } catch {
+      toast.error('Something went wrong');
+    } finally {
+      setProcessingRequest(null);
+    }
+  };
 
   const fetchAdmins = async () => {
     try {
@@ -109,7 +149,6 @@ const AdminsManagement = () => {
   };
 
   const handleOpenModal = (admin?: Admin) => {
-    // Show password verification modal first
     setPendingAdminAction(admin || 'new');
     setShowPasswordModal(true);
     setPassword('');
@@ -141,8 +180,6 @@ const AdminsManagement = () => {
         setShowPasswordModal(false);
         setPassword('');
         setShowPassword(false);
-
-        // Now open the admin modal with the pending action
         if (pendingAdminAction === 'new') {
           setEditingAdmin(null);
           setFormData({
@@ -193,7 +230,6 @@ const AdminsManagement = () => {
       const token = localStorage.getItem('token');
       
       if (editingAdmin) {
-        // Update admin
         const response = await fetch(`/api/organization/admins/${editingAdmin._id}`, {
           method: 'PUT',
           headers: {
@@ -210,7 +246,6 @@ const AdminsManagement = () => {
 
         toast.success('Admin updated successfully');
       } else {
-        // Create and invite admin
         const response = await fetch('/api/organization/admins', {
           method: 'POST',
           headers: {
@@ -312,44 +347,73 @@ const AdminsManagement = () => {
     );
   }
 
-  if (accessDenied) {
-    return (
-      <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
-        <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full text-center">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <AlertCircle className="w-10 h-10 text-red-600" />
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
-          <p className="text-gray-600 mb-6">
-            Only organization owners can manage admins. You are logged in as an admin with limited permissions.
-          </p>
-          <button
-            onClick={() => router.push('/dashboard')}
-            className="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition-colors"
-          >
-            Go to Dashboard
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       {/* Header */}
       <div className="mb-6 flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Organization Admins</h1>
-          <p className="text-gray-500 mt-1">Invite and manage administrators for your organization</p>
+          <p className="text-gray-500 mt-1">
+            {isOrgAdmin ? 'View administrators in this organization' : 'Invite and manage administrators for your organization'}
+          </p>
         </div>
-        <button
-          onClick={() => handleOpenModal()}
-          className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
-        >
-          <Plus size={20} />
-          Invite Admin
-        </button>
+        {isOrgAdmin ? (
+          <div className="flex items-center gap-2 bg-gray-100 text-gray-500 px-4 py-2 rounded-lg cursor-not-allowed text-sm" title="Only organization owners can invite admins">
+            <Plus size={18} />
+            Invite Admin
+          </div>
+        ) : (
+          <button
+            onClick={() => handleOpenModal()}
+            className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+          >
+            <Plus size={20} />
+            Invite Admin
+          </button>
+        )}
       </div>
+
+      {/* Join Requests — visible to org owners only */}
+      {!isOrgAdmin && joinRequests.length > 0 && (
+        <div className="mb-6 bg-white rounded-lg shadow-sm borde overflow-hidden">
+          <div className="flex items-center gap-2 px-6 py-3 bg-amber-50">
+            <Inbox size={16} className="text-black" />
+            <h2 className="text-sm font-semibold text-amber-800">
+              Join Requests <span className="ml-1.5 bg-black text-white text-xs font-bold px-1.5 py-0.5 rounded-full">{joinRequests.length}</span>
+            </h2>
+            <p className="text-xs text-black ml-auto">People requesting to join your organization</p>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {joinRequests.map(req => (
+              <div key={req._id} className="flex items-center justify-between px-6 py-4">
+                <div>
+                  <p className="font-medium text-gray-900 text-sm">{req.adminName}</p>
+                  <p className="text-xs text-gray-500">{req.adminEmail}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Requested {new Date(req.createdAt).toLocaleDateString()}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleJoinRequestAction(req._id, 'approve')}
+                    disabled={!!processingRequest}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 transition disabled:opacity-50"
+                  >
+                    <UserCheck size={14} />
+                    {processingRequest === req._id + 'approve' ? 'Approving...' : 'Approve'}
+                  </button>
+                  <button
+                    onClick={() => handleJoinRequestAction(req._id, 'reject')}
+                    disabled={!!processingRequest}
+                    className="flex items-center gap-1.5 px-3 py-1.5 border border-red-300 text-red-600 rounded-lg text-xs font-medium hover:bg-red-50 transition disabled:opacity-50"
+                  >
+                    <UserX size={14} />
+                    {processingRequest === req._id + 'reject' ? 'Rejecting...' : 'Reject'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Search */}
       <div className="mb-6">
@@ -399,18 +463,33 @@ const AdminsManagement = () => {
                 </tr>
               ) : (
                 filteredAdmins.map((admin) => (
-                  <tr key={admin._id} className="hover:bg-gray-50">
+                  <tr key={admin._id} className={`hover:bg-gray-50 ${admin.type === 'owner' ? 'bg-green-50/40' : ''}`}>
                     <td className="px-6 py-4">
-                      <div>
-                        <p className="font-medium text-gray-900">{admin.name}</p>
-                        <p className="text-sm text-gray-500">{admin.email}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-gray-900">{admin.name}</p>
+                            {admin.type === 'owner' ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800 border border-green-200">
+                                Owner
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200">
+                                Admin
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-500">{admin.email}</p>
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       {getStatusBadge(admin.status)}
                     </td>
                     <td className="px-6 py-4">
-                      {admin.assignedAwards.length === 0 ? (
+                      {admin.type === 'owner' ? (
+                        <span className="text-xs text-gray-400 italic">Full access</span>
+                      ) : admin.assignedAwards.length === 0 ? (
                         <span className="text-sm text-gray-500">No awards assigned</span>
                       ) : (
                         <div className="flex flex-wrap gap-1">
@@ -434,22 +513,28 @@ const AdminsManagement = () => {
                       {new Date(admin.createdAt).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => handleOpenModal(admin)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Edit"
-                        >
-                          <Edit size={18} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(admin._id)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
+                      {isOrgAdmin || admin.type === 'owner' ? (
+                        <span className="text-xs text-gray-400 italic">
+                          {admin.type === 'owner' ? '—' : 'View only'}
+                        </span>
+                      ) : (
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleOpenModal(admin)}
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="Edit"
+                          >
+                            <Edit size={18} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(admin._id)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))

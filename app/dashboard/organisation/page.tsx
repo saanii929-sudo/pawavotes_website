@@ -1,76 +1,263 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { Upload, AlertCircle } from 'lucide-react';
+import { Building2, CheckCircle, Clock, ArrowRightLeft, Trophy, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
 import ImageUpload from '@/components/ImageUpload';
 
-interface OrganizationData {
-  _id: string;
-  name: string;
-  email: string;
-  description?: string;
-  website?: string;
-  logo?: string;
-  socialMedia?: {
-    facebook?: string;
-    instagram?: string;
-    twitter?: string;
-    tiktok?: string;
-  };
+interface OrgMembership {
+  organizationId: string;
+  organizationName: string;
+  assignedAwards: any[];
+  status: 'active' | 'pending' | 'inactive';
 }
 
-const OrganizationSettings = () => {
+// ─── Org-Admin View ────────────────────────────────────────────────────────────
+function OrgAdminView() {
+  const router = useRouter();
+  const [memberships, setMemberships] = useState<OrgMembership[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [responding, setResponding] = useState<string | null>(null);
+  const [currentOrgId, setCurrentOrgId] = useState<string>('');
+
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    setCurrentOrgId(user.organizationId || '');
+    fetchMemberships();
+  }, []);
+
+  const fetchMemberships = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/auth/my-organizations?all=true', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok && data.success) setMemberships(data.data);
+    } catch {
+      toast.error('Failed to load organizations');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRespond = async (organizationId: string, action: 'accept' | 'decline') => {
+    setResponding(organizationId + action);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/auth/respond-invitation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ organizationId, action }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error || 'Failed'); return; }
+      toast.success(action === 'accept' ? 'Invitation accepted!' : 'Invitation declined');
+      fetchMemberships();
+    } catch {
+      toast.error('Something went wrong');
+    } finally {
+      setResponding(null);
+    }
+  };
+
+  const handleSwitch = async (org: OrgMembership) => {
+    if (org.organizationId === currentOrgId) return;
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/auth/switch-org', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ organizationId: org.organizationId }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error || 'Failed to switch'); return; }
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      localStorage.setItem('tokenTimestamp', Date.now().toString());
+      toast.success(`Switched to ${org.organizationName}`);
+      window.location.reload();
+    } catch {
+      toast.error('Failed to switch organization');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-10 h-10 border-4 border-gray-200 border-t-green-600 rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-gray-500 text-sm">Loading your organizations...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const active = memberships.filter(m => m.status === 'active');
+  const pending = memberships.filter(m => m.status === 'pending');
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-6 md:p-8">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">My Organizations</h1>
+            <p className="text-gray-500 mt-1 text-sm">Organizations you are a member of or have been invited to.</p>
+          </div>
+          <button
+            onClick={() => router.push('/dashboard/organisation/join')}
+            className="flex items-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+          >
+            <Plus size={16} />
+            Join Organization
+          </button>
+        </div>
+
+        {/* Pending Invitations */}
+        {pending.length > 0 && (
+          <div className="mb-8">
+            <div className="flex items-center gap-2 mb-4">
+              <Clock size={16} className="text-yellow-500" />
+              <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                Pending Invitations ({pending.length})
+              </h2>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {pending.map(org => (
+                <div key={org.organizationId} className="bg-white rounded-xl border border-yellow-200 shadow-sm p-5">
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-full bg-yellow-100 flex items-center justify-center shrink-0">
+                      <Building2 size={22} className="text-yellow-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-gray-900 truncate">{org.organizationName}</h3>
+                      <span className="inline-flex items-center gap-1 mt-1 text-xs font-medium text-yellow-700 bg-yellow-50 border border-yellow-200 px-2 py-0.5 rounded-full">
+                        <Clock size={10} />
+                        Pending invitation
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 mt-4">
+                    <button
+                      onClick={() => handleRespond(org.organizationId, 'accept')}
+                      disabled={!!responding}
+                      className="flex-1 bg-green-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition disabled:opacity-50"
+                    >
+                      {responding === org.organizationId + 'accept' ? 'Accepting...' : 'Accept'}
+                    </button>
+                    <button
+                      onClick={() => handleRespond(org.organizationId, 'decline')}
+                      disabled={!!responding}
+                      className="flex-1 border border-red-300 text-red-600 py-2 rounded-lg text-sm font-medium hover:bg-red-50 transition disabled:opacity-50"
+                    >
+                      {responding === org.organizationId + 'decline' ? 'Declining...' : 'Decline'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Active Memberships */}
+        {active.length > 0 ? (
+          <div>
+            <div className="flex items-center gap-2 mb-4">
+              <CheckCircle size={16} className="text-green-500" />
+              <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                Active Memberships ({active.length})
+              </h2>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {active.map(org => {
+                const isCurrent = org.organizationId === currentOrgId;
+                return (
+                  <div
+                    key={org.organizationId}
+                    className={`bg-white rounded-xl border shadow-sm p-5 transition ${isCurrent ? 'border-green-300 ring-2 ring-green-100' : 'border-gray-200'}`}
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${isCurrent ? 'bg-green-100' : 'bg-gray-100'}`}>
+                        <Building2 size={22} className={isCurrent ? 'text-green-600' : 'text-gray-500'} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-semibold text-gray-900 truncate">{org.organizationName}</h3>
+                          {isCurrent && (
+                            <span className="text-xs font-medium text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
+                              Current
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
+                          <Trophy size={11} />
+                          <span>{org.assignedAwards.length} award{org.assignedAwards.length !== 1 ? 's' : ''} assigned</span>
+                        </div>
+                        <span className="inline-flex items-center gap-1 mt-1.5 text-xs font-medium text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
+                          <CheckCircle size={10} />
+                          Active member
+                        </span>
+                      </div>
+                    </div>
+                    {!isCurrent && (
+                      <button
+                        onClick={() => handleSwitch(org)}
+                        className="w-full mt-4 flex items-center justify-center gap-2 border border-gray-200 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition"
+                      >
+                        <ArrowRightLeft size={14} />
+                        Switch to this organization
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          !loading && pending.length === 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Building2 size={28} className="text-gray-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No organizations yet</h3>
+              <p className="text-gray-500 text-sm mb-6">You haven't joined any organization yet. Request to join one.</p>
+              <button
+                onClick={() => router.push('/dashboard/organisation/join')}
+                className="bg-green-600 text-white px-6 py-2.5 rounded-lg hover:bg-green-700 transition text-sm font-medium"
+              >
+                Join an Organization
+              </button>
+            </div>
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Organization Owner View ───────────────────────────────────────────────────
+function OrganizationOwnerView() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [organization, setOrganization] = useState<OrganizationData | null>(null);
-  const [accessDenied, setAccessDenied] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     description: '',
     website: '',
     logo: '',
-    socialMedia: {
-      facebook: '',
-      instagram: '',
-      twitter: '',
-      tiktok: '',
-    },
+    socialMedia: { facebook: '', instagram: '', twitter: '', tiktok: '' },
   });
 
-  useEffect(() => {
-    // Check user role
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      const user = JSON.parse(userData);
-      if (user.role === 'org-admin') {
-        setAccessDenied(true);
-        setLoading(false);
-        return;
-      }
-    }
-    fetchOrganization();
-  }, []);
+  useEffect(() => { fetchOrganization(); }, []);
 
   const fetchOrganization = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/organization/profile', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch organization data');
-      }
-
-      const data = await response.json();
-      setOrganization(data.data);
-      
-      // Populate form with existing data
+      const res = await fetch('/api/organization/profile', { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error('Failed to fetch organization data');
+      const data = await res.json();
       setFormData({
         name: data.data.name || '',
         email: data.data.email || '',
@@ -93,72 +280,35 @@ const OrganizationSettings = () => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    
     if (name.startsWith('socialMedia.')) {
-      const socialField = name.split('.')[1];
-      setFormData(prev => ({
-        ...prev,
-        socialMedia: {
-          ...prev.socialMedia,
-          [socialField]: value,
-        },
-      }));
+      const field = name.split('.')[1];
+      setFormData(prev => ({ ...prev, socialMedia: { ...prev.socialMedia, [field]: value } }));
     } else {
-      setFormData(prev => ({
-        ...prev,
-        [name]: value,
-      }));
+      setFormData(prev => ({ ...prev, [name]: value }));
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // Validation
-    if (!formData.name.trim()) {
-      toast.error('Organization name is required');
-      return;
-    }
-
-    if (!formData.email.trim()) {
-      toast.error('Organization email is required');
-      return;
-    }
-
-    if (!formData.description?.trim()) {
-      toast.error('Description is required');
-      return;
-    }
-
+    if (!formData.name.trim()) { toast.error('Organization name is required'); return; }
+    if (!formData.email.trim()) { toast.error('Organization email is required'); return; }
+    if (!formData.description?.trim()) { toast.error('Description is required'); return; }
     setSaving(true);
-
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/organization/profile', {
+      const res = await fetch('/api/organization/profile', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(formData),
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to update profile');
-      }
-
-      const data = await response.json();
-      setOrganization(data.data);
-      
-      // Update user data in localStorage
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Failed to update profile'); }
+      const data = await res.json();
       const userData = localStorage.getItem('user');
       if (userData) {
         const user = JSON.parse(userData);
         user.name = data.data.name;
         localStorage.setItem('user', JSON.stringify(user));
       }
-
       toast.success('Profile updated successfully');
     } catch (error: any) {
       toast.error(error.message || 'Failed to update profile');
@@ -178,53 +328,22 @@ const OrganizationSettings = () => {
     );
   }
 
-  if (accessDenied) {
-    return (
-      <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
-        <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full text-center">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <AlertCircle className="w-10 h-10 text-red-600" />
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
-          <p className="text-gray-600 mb-6">
-            Only organization owners can access organization settings. You are logged in as an admin with limited permissions.
-          </p>
-          <button
-            onClick={() => router.push('/dashboard')}
-            className="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition-colors"
-          >
-            Go to Dashboard
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div>
-        {/* Header */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Manage Organization Profile</h1>
           <p className="text-gray-500 mt-1">Manage the primary identity and settings for your organization account.</p>
         </div>
-
-        {/* Form Container */}
         <form onSubmit={handleSubmit}>
           <div className="bg-white rounded-lg shadow-sm">
-            {/* Green Header */}
             <div className="bg-green-600 text-white px-6 py-4 rounded-t-lg">
               <h2 className="text-lg font-semibold">Edit Organization</h2>
               <p className="text-sm text-green-100">Update your organization identity details.</p>
             </div>
-
-            {/* Form Body */}
             <div className="p-6 space-y-6">
-              {/* Organization Profile Image */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Organization Profile Image
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Organization Profile Image</label>
                 <ImageUpload
                   onUploadComplete={(url) => setFormData(prev => ({ ...prev, logo: url }))}
                   currentImage={formData.logo}
@@ -232,193 +351,36 @@ const OrganizationSettings = () => {
                   maxSize={5}
                 />
               </div>
-
-              {/* Organization Name */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Organization Name <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    placeholder="Enter organization name"
-                    className="w-full text-black px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 pr-10"
-                    required
-                  />
-                  <svg className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                  </svg>
-                </div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Organization Name <span className="text-red-500">*</span></label>
+                <input type="text" name="name" value={formData.name} onChange={handleInputChange} placeholder="Enter organization name" className="w-full text-black px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" required />
               </div>
-
-              {/* Organization Email */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Organization Email <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    readOnly
-                    className="w-full text-black px-4 py-2.5 border border-gray-300 rounded-lg bg-gray-50 cursor-not-allowed pr-10"
-                  />
-                  <svg className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
-                </div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Organization Email <span className="text-red-500">*</span></label>
+                <input type="email" name="email" value={formData.email} readOnly className="w-full text-black px-4 py-2.5 border border-gray-300 rounded-lg bg-gray-50 cursor-not-allowed" />
                 <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
               </div>
-
-              {/* Description */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Description <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  name="description"
-                  value={formData.description}
-                  onChange={handleInputChange}
-                  rows={4}
-                  placeholder="Describe what your organisation is all about your purpose and the type of events you host...."
-                  className="w-full text-black px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
-                  required
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-2">Description <span className="text-red-500">*</span></label>
+                <textarea name="description" value={formData.description} onChange={handleInputChange} rows={4} placeholder="Describe your organization..." className="w-full text-black px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 resize-none" required />
               </div>
-
-              {/* Website */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Website
-                </label>
-                <div className="relative">
-                  <input
-                    type="url"
-                    name="website"
-                    value={formData.website}
-                    onChange={handleInputChange}
-                    placeholder="https://"
-                    className="w-full text-black px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 pr-10"
-                  />
-                  <svg className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                  </svg>
-                </div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Website</label>
+                <input type="url" name="website" value={formData.website} onChange={handleInputChange} placeholder="https://" className="w-full text-black px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" />
               </div>
-
-              {/* Social Media Links - Row 1 */}
               <div className="grid grid-cols-2 gap-4">
-                {/* Facebook */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Facebook
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="url"
-                      name="socialMedia.facebook"
-                      value={formData.socialMedia.facebook}
-                      onChange={handleInputChange}
-                      placeholder="https://facebook.com/"
-                      className="w-full text-black px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 pr-10"
-                    />
-                    <svg className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-                    </svg>
+                {(['facebook', 'instagram', 'tiktok', 'twitter'] as const).map(platform => (
+                  <div key={platform}>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 capitalize">{platform === 'twitter' ? 'Twitter (X)' : platform}</label>
+                    <input type="url" name={`socialMedia.${platform}`} value={(formData.socialMedia as any)[platform]} onChange={handleInputChange} placeholder={`https://${platform}.com/`} className="w-full text-black px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" />
                   </div>
-                </div>
-
-                {/* Instagram */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Instagram
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="url"
-                      name="socialMedia.instagram"
-                      value={formData.socialMedia.instagram}
-                      onChange={handleInputChange}
-                      placeholder="https://instagram.com/"
-                      className="w-full text-black px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 pr-10"
-                    />
-                    <svg className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
-                    </svg>
-                  </div>
-                </div>
-              </div>
-
-              {/* Social Media Links - Row 2 */}
-              <div className="grid grid-cols-2 gap-4">
-                {/* Tiktok */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tiktok
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="url"
-                      name="socialMedia.tiktok"
-                      value={formData.socialMedia.tiktok}
-                      onChange={handleInputChange}
-                      placeholder="https://tiktok.com/"
-                      className="w-full text-black px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 pr-10"
-                    />
-                    <svg className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
-                    </svg>
-                  </div>
-                </div>
-
-                {/* Twitter (X) */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Twitter (X)
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="url"
-                      name="socialMedia.twitter"
-                      value={formData.socialMedia.twitter}
-                      onChange={handleInputChange}
-                      placeholder="https://twitter.com/"
-                      className="w-full text-black px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 pr-10"
-                    />
-                    <svg className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
-                    </svg>
-                  </div>
-                </div>
+                ))}
               </div>
             </div>
-
-            {/* Form Footer */}
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3 rounded-b-lg">
-              <button
-                type="button"
-                onClick={() => window.location.reload()}
-                className="px-6 py-2.5 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className="px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                {saving ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  'Save'
-                )}
+              <button type="button" onClick={() => window.location.reload()} className="px-6 py-2.5 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors">Cancel</button>
+              <button type="submit" disabled={saving} className="px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2">
+                {saving ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Saving...</> : 'Save'}
               </button>
             </div>
           </div>
@@ -426,6 +388,18 @@ const OrganizationSettings = () => {
       </div>
     </div>
   );
-};
+}
 
-export default OrganizationSettings;
+// ─── Main Export ───────────────────────────────────────────────────────────────
+export default function OrganizationPage() {
+  const [role, setRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    setRole(user.role || 'organization');
+  }, []);
+
+  if (role === null) return null;
+  if (role === 'org-admin') return <OrgAdminView />;
+  return <OrganizationOwnerView />;
+}

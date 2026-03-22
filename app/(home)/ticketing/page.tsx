@@ -93,11 +93,11 @@ function EventCard({ event, index }: { event: Event; index: number }) {
         {event.banner ? (
           <img src={event.banner} alt={event.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
         ) : (
-          <div className="w-full h-full bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-600 flex items-center justify-center">
+          <div className="w-full h-full bg-linear-to-br from-emerald-400 via-teal-500 to-cyan-600 flex items-center justify-center">
             <span className="text-6xl opacity-70">{cat?.emoji || "📅"}</span>
           </div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent" />
+        <div className="absolute inset-0 bg-linear-to-t from-black/50 via-transparent" />
 
         {/* Category badge */}
         <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full text-xs font-semibold text-gray-800">
@@ -142,24 +142,6 @@ function EventCard({ event, index }: { event: Event; index: number }) {
             </span>
           </div>
         </div>
-
-        {/* Capacity */}
-        {event.totalCapacity > 0 && (
-          <div className="mb-4">
-            <div className="flex justify-between text-xs text-gray-500 mb-1">
-              <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {event.totalSold} attending</span>
-              <span>{Math.round(pct)}% filled</span>
-            </div>
-            <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${Math.min(pct, 100)}%` }}
-                transition={{ duration: 1, ease: "easeOut", delay: index * 0.06 + 0.3 }}
-                className={`h-full rounded-full ${pct >= 90 ? "bg-red-500" : pct >= 70 ? "bg-amber-500" : "bg-emerald-500"}`}
-              />
-            </div>
-          </div>
-        )}
 
         {/* CTA */}
         <Link
@@ -217,10 +199,10 @@ export default function TicketingPage() {
       <main className="min-h-screen bg-gray-50">
 
         {/* ── Hero ── */}
-        <section className="relative bg-gradient-to-br from-emerald-700 via-teal-700 to-cyan-800 overflow-hidden">
+        <section className="relative bg-linear-to-br from-green-700 to-green-800 overflow-hidden">
           <div className="absolute inset-0 pointer-events-none">
             <div className="absolute top-0 left-0 w-96 h-96 bg-white/5 rounded-full -translate-x-1/2 -translate-y-1/2" />
-            <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-white/5 rounded-full translate-x-1/3 translate-y-1/3" />
+            <div className="absolute bottom-0 right-0 w-150 h-150 bg-white/5 rounded-full translate-x-1/3 translate-y-1/3" />
           </div>
           <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24 text-center">
             <motion.div
@@ -374,7 +356,7 @@ export default function TicketingPage() {
         </div>
 
         {/* ── Footer CTA ── */}
-        <section className="bg-gradient-to-r from-emerald-700 to-teal-700 py-16 mt-16">
+        <section className="bg-linear-to-r from-green-700 to-green-700 py-16 mt-16">
           <div className="max-w-2xl mx-auto px-4 text-center">
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white mb-3">Organising an event?</h2>
             <p className="text-white/80 mb-6 text-sm">Create your event, set up ticketing, and start selling in minutes.</p>

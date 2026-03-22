@@ -65,6 +65,8 @@ async function createEvent(req: NextRequest) {
       description,
       category,
       banner,
+      ticketBg,
+      ticketTextColor,
       venue,
       startDate,
       endDate,
@@ -118,11 +120,13 @@ async function createEvent(req: NextRequest) {
       color: t.color || '#10b981',
     }));
 
-    const event = await Event.create({
+    const event = await Event.create([{
       title: title.trim(),
       description: description?.trim() || '',
       category: category || 'other',
       banner: banner || '',
+      ticketBg: ticketBg || '',
+      ticketTextColor: ticketTextColor || 'light',
       venue: venueData,
       startDate: new Date(startDate),
       endDate: new Date(endDate),
@@ -139,10 +143,10 @@ async function createEvent(req: NextRequest) {
         isPublic: settings?.isPublic ?? true,
       },
       status: status || 'draft',
-    });
+    }], { strict: false });
 
     return NextResponse.json(
-      { success: true, message: 'Event created successfully', data: event },
+      { success: true, message: 'Event created successfully', data: event[0] },
       { status: 201 }
     );
   } catch (error: any) {
