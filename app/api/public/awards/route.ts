@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
       ];
       
       // Only search by _id if the search term is a valid ObjectId
-      if (mongoose.Types.ObjectId.isValid(search) && search.length === 24) {
+      if (mongoose.isValidObjectId(search) && search.length === 24) {
         searchConditions.push({ _id: search });
       }
       

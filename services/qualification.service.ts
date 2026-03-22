@@ -191,7 +191,7 @@ export class QualificationProcessor {
     const results = await Vote.aggregate([
       {
         $match: {
-          stageId: new mongoose.Types.ObjectId(stageId),
+          stageId: new (mongoose.Types.ObjectId as any)(stageId),
           paymentStatus: 'completed',
         },
       },

@@ -433,6 +433,7 @@ function TicketCard({ code, index, order, isShared, sharedInfo, onShareClick, pr
 function TicketDownloadContent() {
   const searchParams = useSearchParams();
   const reference = searchParams.get("ref") || "";
+  const sharedCode = searchParams.get("code") || ""; // specific ticket code from a share link
 
   const [order, setOrder] = useState<OrderData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -461,13 +462,47 @@ function TicketDownloadContent() {
     setDownloading(true);
     try {
       const html2canvas = (await import("html2canvas")).default;
-      const canvas = await html2canvas(printableRef.current, {
+      const el = printableRef.current;
+
+      // Pre-convert background-image URLs to data URLs so html2canvas can capture them
+      const bgEls = Array.from(el.querySelectorAll<HTMLElement>("[style]")).filter((e) =>
+        e.style.backgroundImage
+      );
+      const restored: { el: HTMLElement; orig: string }[] = [];
+      await Promise.all(
+        bgEls.map(async (bgEl) => {
+          const orig = bgEl.style.backgroundImage;
+          const match = orig.match(/url\(["']?(.+?)["']?\)/);
+          if (!match) return;
+          try {
+            // Use a server-side proxy so CORS on external image hosts is never an issue
+            const proxyResp = await fetch(
+              `/api/proxy-image?url=${encodeURIComponent(match[1])}`
+            );
+            const json = await proxyResp.json();
+            if (json.dataUrl) {
+              restored.push({ el: bgEl, orig });
+              bgEl.style.backgroundImage = `url(${json.dataUrl})`;
+            }
+          } catch {
+            // keep original if proxy fails
+          }
+        })
+      );
+
+      const canvas = await html2canvas(el, {
         scale: 2.5,
         useCORS: true,
         allowTaint: true,
         backgroundColor: "#f9fafb",
         logging: false,
+      } as any);
+
+      // Restore original background styles
+      restored.forEach(({ el: bgEl, orig }) => {
+        bgEl.style.backgroundImage = orig;
       });
+
       const link = document.createElement("a");
       link.download = `tickets-${order.reference}.png`;
       link.href = canvas.toDataURL("image/png", 1.0);
@@ -523,8 +558,16 @@ function TicketDownloadContent() {
   const color = order!.ticketTypeColor || "#10b981";
   const sharedCodes = order!.sharedCodes || [];
   const sharedCodeSet = new Set(sharedCodes.map((s) => s.code));
-  const availableCodes = order!.ticketCodes.filter((c) => !sharedCodeSet.has(c));
-  const allShared = availableCodes.length === 0;
+
+  // If a specific code was shared via link, show only that ticket (recipient view)
+  const isRecipientView = !!sharedCode;
+  const visibleCodes = isRecipientView
+    ? order!.ticketCodes.filter((c) => c === sharedCode)
+    : order!.ticketCodes;
+
+  const availableCodes = visibleCodes.filter((c) => !sharedCodeSet.has(c));
+  // In recipient view the ticket is always "available" — the shared flag only matters for the original buyer
+  const allShared = isRecipientView ? false : availableCodes.length === 0;
 
   return (
     <>
@@ -564,12 +607,16 @@ function TicketDownloadContent() {
         {/* Top bar */}
         <div className="no-print sticky top-0 z-20 bg-white border-b border-gray-200 shadow-sm">
           <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
-            <Link
-              href={`/ticket-success?ref=${reference}`}
-              className="flex items-center gap-1.5 text-gray-500 hover:text-gray-800 text-sm font-medium transition-colors"
-            >
-              <ChevronLeft className="w-4 h-4" /> Back
-            </Link>
+            {isRecipientView ? (
+              <div /> /* no back button for recipient view */
+            ) : (
+              <Link
+                href={`/ticket-success?ref=${reference}`}
+                className="flex items-center gap-1.5 text-gray-500 hover:text-gray-800 text-sm font-medium transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" /> Back
+              </Link>
+            )}
             <div className="flex items-center gap-2 font-bold text-gray-900 text-sm">
               <Ticket className="w-4 h-4 text-emerald-600" /> My Tickets
             </div>
@@ -603,18 +650,21 @@ function TicketDownloadContent() {
               style={{ background: `${color}18`, color }}
             >
               <CheckCircle className="w-3.5 h-3.5" />
-              {order!.quantity} Ticket{order!.quantity > 1 ? "s" : ""} Confirmed
+              {isRecipientView ? "Ticket Received" : `${order!.quantity} Ticket${order!.quantity > 1 ? "s" : ""} Confirmed`}
             </div>
             <h1 className="text-2xl font-extrabold text-gray-900 mb-1">{order!.eventTitle}</h1>
             <p className="text-gray-400 text-sm">
-              Hover a ticket to <span className="font-semibold text-gray-600">transfer it</span> to someone
+              {isRecipientView
+                ? "Download or print your ticket below"
+                : <>Hover a ticket to <span className="font-semibold text-gray-600">transfer it</span> to someone</>
+              }
             </p>
           </motion.div>
 
           {/* Printable ticket area */}
           <div id="printable-tickets" ref={printableRef} style={{ padding: 16, background: "#f9fafb", borderRadius: 24 }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-              {order!.ticketCodes.map((code, i) => {
+              {visibleCodes.map((code, i) => {
                 const isShared = sharedCodeSet.has(code);
                 const sharedInfo = sharedCodes.find((s) => s.code === code);
                 return (
@@ -628,9 +678,10 @@ function TicketDownloadContent() {
                       code={code}
                       index={i}
                       order={order!}
-                      isShared={isShared}
-                      sharedInfo={sharedInfo}
-                      onShareClick={setShareTarget}
+                      isShared={isRecipientView ? false : isShared}
+                      sharedInfo={isRecipientView ? undefined : sharedInfo}
+                      onShareClick={isRecipientView ? () => {} : setShareTarget}
+                      printable={isRecipientView}
                     />
                   </motion.div>
                 );

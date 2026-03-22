@@ -529,6 +529,20 @@ export default function EventsPage() {
   const [pagination, setPagination] = useState({ page: 1, total: 0, pages: 1 });
   const actionMenuRef = useRef<HTMLDivElement>(null);
 
+  /* ── Role & Assign Admins state (event-organizer only) ── */
+  const [userRole, setUserRole] = useState<string>("");
+  const [assignEvent, setAssignEvent] = useState<Event | null>(null);
+  const [assignedAdmins, setAssignedAdmins] = useState<{ _id: string; name: string; email: string }[]>([]);
+  const [adminSearch, setAdminSearch] = useState("");
+  const [adminResults, setAdminResults] = useState<{ _id: string; name: string; email: string }[]>([]);
+  const [adminSearching, setAdminSearching] = useState(false);
+  const [assignSaving, setAssignSaving] = useState(false);
+
+  useEffect(() => {
+    const userData = localStorage.getItem("user");
+    if (userData) setUserRole(JSON.parse(userData).role || "");
+  }, []);
+
   /* ── Stats derived ── */
   const stats = {
     total: pagination.total,
@@ -564,6 +578,70 @@ export default function EventsPage() {
   }, [search, filterStatus, filterCategory]);
 
   useEffect(() => { fetchEvents(); }, [fetchEvents]);
+
+  /* ── Assign Admins helpers ── */
+  const openAssignModal = async (event: Event) => {
+    setAssignEvent(event);
+    setAdminSearch("");
+    setAdminResults([]);
+    try {
+      const res = await authFetch(`/api/events/${event._id}/assign-admins`);
+      const data = await res.json();
+      setAssignedAdmins(data.success ? data.data : []);
+    } catch {
+      setAssignedAdmins([]);
+    }
+  };
+
+  const searchAdmins = async (q: string) => {
+    setAdminSearch(q);
+    if (q.trim().length < 2) { setAdminResults([]); return; }
+    setAdminSearching(true);
+    try {
+      const res = await authFetch(`/api/org-admins/search?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      setAdminResults(data.success ? data.data : []);
+    } catch {
+      setAdminResults([]);
+    } finally {
+      setAdminSearching(false);
+    }
+  };
+
+  const addAdminToList = (admin: { _id: string; name: string; email: string }) => {
+    if (!assignedAdmins.find((a) => a._id === admin._id)) {
+      setAssignedAdmins((prev) => [...prev, admin]);
+    }
+    setAdminSearch("");
+    setAdminResults([]);
+  };
+
+  const removeAdminFromList = (id: string) => {
+    setAssignedAdmins((prev) => prev.filter((a) => a._id !== id));
+  };
+
+  const saveAssignment = async () => {
+    if (!assignEvent) return;
+    setAssignSaving(true);
+    try {
+      const res = await authFetch(`/api/events/${assignEvent._id}/assign-admins`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ adminIds: assignedAdmins.map((a) => a._id) }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`${assignedAdmins.length} admin(s) assigned`);
+        setAssignEvent(null);
+      } else {
+        toast.error(data.error || "Failed to save");
+      }
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setAssignSaving(false);
+    }
+  };
 
   /* ── Close action menu on outside click ── */
   useEffect(() => {
@@ -881,20 +959,32 @@ export default function EventsPage() {
                             >
                               <Eye className="w-3.5 h-3.5" /> View Details
                             </button>
-                            <button
-                              onClick={() => openEdit(event)}
-                              className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" /> Edit
-                            </button>
-                            <button
-                              onClick={() => handleDelete(event._id)}
-                              disabled={deleting === event._id}
-                              className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-red-600 hover:bg-red-50"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              {deleting === event._id ? "Deleting…" : "Delete"}
-                            </button>
+                            {userRole !== "org-admin" && (
+                              <button
+                                onClick={() => openEdit(event)}
+                                className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" /> Edit
+                              </button>
+                            )}
+                            {userRole === "event-organizer" && (
+                              <button
+                                onClick={() => { setActionMenu(null); openAssignModal(event); }}
+                                className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-blue-600 hover:bg-blue-50"
+                              >
+                                <Users className="w-3.5 h-3.5" /> Assign Admins
+                              </button>
+                            )}
+                            {userRole !== "org-admin" && (
+                              <button
+                                onClick={() => handleDelete(event._id)}
+                                disabled={deleting === event._id}
+                                className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-red-600 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                {deleting === event._id ? "Deleting…" : "Delete"}
+                              </button>
+                            )}
                           </motion.div>
                         )}
                       </AnimatePresence>
@@ -1672,6 +1762,126 @@ export default function EventsPage() {
                     ))}
                   </div>
                 </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ════════════════ Assign Admins Modal (event-organizer only) ════════════════ */}
+      <AnimatePresence>
+        {assignEvent && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+            onClick={(e) => { if (e.target === e.currentTarget) setAssignEvent(null); }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <div>
+                  <h2 className="text-base font-bold text-gray-900">Assign Admins</h2>
+                  <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{assignEvent.title}</p>
+                </div>
+                <button onClick={() => setAssignEvent(null)} className="text-gray-400 hover:text-gray-600">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                {/* Search org-admins */}
+                <div className="relative">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Search org-admin by name or email</label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      value={adminSearch}
+                      onChange={(e) => searchAdmins(e.target.value)}
+                      placeholder="Type to search…"
+                      className="pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl w-full focus:outline-none focus:ring-2 focus:ring-green-400"
+                    />
+                  </div>
+                  {/* Dropdown results */}
+                  {adminResults.length > 0 && (
+                    <div className="absolute z-10 mt-1 w-full bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden">
+                      {adminResults.map((admin) => (
+                        <button
+                          key={admin._id}
+                          onClick={() => addAdminToList(admin)}
+                          className="flex items-center gap-3 w-full px-4 py-2.5 hover:bg-green-50 text-left text-sm"
+                        >
+                          <div className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center text-xs font-semibold text-green-700 shrink-0">
+                            {admin.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="overflow-hidden">
+                            <p className="font-medium text-gray-900 truncate">{admin.name}</p>
+                            <p className="text-xs text-gray-400 truncate">{admin.email}</p>
+                          </div>
+                          <Plus className="w-3.5 h-3.5 text-green-500 ml-auto shrink-0" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {adminSearching && (
+                    <p className="text-xs text-gray-400 mt-1">Searching…</p>
+                  )}
+                </div>
+
+                {/* Assigned list */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">
+                    Assigned admins ({assignedAdmins.length})
+                  </label>
+                  {assignedAdmins.length === 0 ? (
+                    <div className="text-center py-6 text-gray-400 text-sm bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
+                      No admins assigned yet.<br />Search above to add one.
+                    </div>
+                  ) : (
+                    <ul className="space-y-2 max-h-48 overflow-y-auto">
+                      {assignedAdmins.map((admin) => (
+                        <li key={admin._id} className="flex items-center gap-3 px-3 py-2.5 bg-gray-50 rounded-xl">
+                          <div className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center text-xs font-semibold text-green-700 shrink-0">
+                            {admin.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex-1 overflow-hidden">
+                            <p className="text-sm font-medium text-gray-900 truncate">{admin.name}</p>
+                            <p className="text-xs text-gray-400 truncate">{admin.email}</p>
+                          </div>
+                          <button
+                            onClick={() => removeAdminFromList(admin._id)}
+                            className="text-gray-400 hover:text-red-500 transition-colors shrink-0"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="flex gap-3 px-6 pb-6">
+                <button
+                  onClick={() => setAssignEvent(null)}
+                  className="flex-1 py-2.5 text-sm font-medium border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveAssignment}
+                  disabled={assignSaving}
+                  className="flex-1 py-2.5 text-sm font-medium bg-green-600 text-white rounded-xl hover:bg-green-700 disabled:opacity-60 transition-colors"
+                >
+                  {assignSaving ? "Saving…" : "Save Assignment"}
+                </button>
               </div>
             </motion.div>
           </motion.div>

@@ -10,11 +10,6 @@ import { Toaster } from 'react-hot-toast';
 import { AUTH_EXPIRED_EVENT, isTokenExpired } from '@/lib/authFetch';
 
 
-const metadata = {
-  title: "PawaVotes Awards Dashboard",
-  description: "Manage your awards, campaigns, and analytics with ease.",
-};
-
 export default function DashboardLayout({
   children,
 }: {
@@ -38,7 +33,8 @@ export default function DashboardLayout({
 
     try {
       const user = JSON.parse(userData);
-      if (user.role !== 'organization' && user.role !== 'org-admin') {
+      const allowedRoles = ['organization', 'org-admin', 'event-organizer'];
+      if (!allowedRoles.includes(user.role)) {
         if (user.role === 'superadmin') {
           router.push('/superadmin');
         } else {

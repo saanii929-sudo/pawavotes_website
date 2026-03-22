@@ -29,23 +29,13 @@ export async function GET(req: NextRequest) {
     }
 
     let serviceFeePercentage = 10;
-    let organizationId: string | null = null;
 
     if (decoded.role === 'organization') {
       const Award = (await import('@/models/Award')).default;
-      const award = await Award.findOne({
-        _id: awardId,
-        organizationId: decoded.id,
-      });
-
+      const award = await Award.findOne({ _id: awardId, organizationId: decoded.id });
       if (!award) {
-        return NextResponse.json(
-          { error: 'Award not found or access denied' },
-          { status: 404 }
-        );
+        return NextResponse.json({ error: 'Award not found or access denied' }, { status: 404 });
       }
-
-      organizationId = decoded.id;
       const Organization = (await import('@/models/Organization')).default;
       const organization = await Organization.findById(decoded.id);
       serviceFeePercentage = organization?.serviceFeePercentage || 10;
@@ -53,34 +43,20 @@ export async function GET(req: NextRequest) {
       const Award = (await import('@/models/Award')).default;
       const award = await Award.findById(awardId);
       if (award) {
-        organizationId = award.organizationId?.toString() || null;
         const Organization = (await import('@/models/Organization')).default;
         const organization = await Organization.findById(award.organizationId);
         serviceFeePercentage = organization?.serviceFeePercentage || 10;
       }
     }
 
-    // Calculate total revenue from all completed votes and nominations
+    // Revenue = votes (paid) + nomination payments only; ticket sales are handled separately via /api/event-transfers
     const votes = await Vote.find({ awardId, paymentStatus: 'completed' });
     const votingRevenue = votes.reduce((sum, v) => sum + (v.amount || 0), 0);
 
     const payments = await Payment.find({ awardId, status: 'completed' });
     const nominationRevenue = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
 
-    // Include ticket sales revenue for this organization
-    let ticketRevenue = 0;
-    if (organizationId) {
-      const Event = (await import('@/models/Event')).default;
-      const TicketOrder = (await import('@/models/TicketOrder')).default;
-      const eventIds = (await Event.find({ organizationId }).distinct('_id')).map((id: any) => id.toString());
-      const ticketAgg = await TicketOrder.aggregate([
-        { $match: { eventId: { $in: eventIds }, status: 'completed' } },
-        { $group: { _id: null, amount: { $sum: '$totalAmount' } } },
-      ]);
-      ticketRevenue = ticketAgg[0]?.amount || 0;
-    }
-
-    const totalRevenue = votingRevenue + nominationRevenue + ticketRevenue;
+    const totalRevenue = votingRevenue + nominationRevenue;
     const platformFee = totalRevenue * (serviceFeePercentage / 100);
     const organizerShare = totalRevenue - platformFee;
 

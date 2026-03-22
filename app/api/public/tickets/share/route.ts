@@ -68,24 +68,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'This ticket has already been transferred' }, { status: 409 });
     }
 
-    // Email share — send ticket to recipient
+    // Email share — send a link so the recipient can view/download just their ticket
     if (shareVia === 'email') {
-      const { sendSharedTicketEmail } = await import('@/lib/email');
-      sendSharedTicketEmail({
-        recipientEmail: recipient,
-        senderName: updated.buyerName,
-        ticketCode,
-        eventTitle: updated.eventTitle,
-        ticketTypeName: updated.ticketTypeName,
-        ticketTypeColor: updated.ticketTypeColor,
-        ticketBg: updated.ticketBg || '',
-        ticketTextColor: (updated.ticketTextColor as 'light' | 'dark') || 'light',
-        unitPrice: updated.unitPrice,
-        eventDate: updated.eventDate,
-        eventTime: updated.eventTime,
-        venueName: updated.venueName,
-        venueAddress: updated.venueAddress,
-        reference: updated.reference,
+      const appUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+      const ticketUrl = `${appUrl}/ticket-download?code=${encodeURIComponent(ticketCode)}&ref=${encodeURIComponent(reference)}`;
+      const { sendEmail } = await import('@/lib/email');
+      sendEmail({
+        to: recipient,
+        subject: `🎟️ ${updated.buyerName} sent you a ticket for ${updated.eventTitle}`,
+        html: `
+          <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:520px;margin:0 auto;padding:40px 16px;background:#f0f2f5;">
+            <div style="background:#fff;border-radius:16px;padding:32px;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
+              <p style="font-size:22px;font-weight:800;color:#111;margin:0 0 8px 0;">You've received a ticket! 🎉</p>
+              <p style="font-size:15px;color:#555;margin:0 0 24px 0;"><strong>${updated.buyerName}</strong> has transferred a ticket to you for <strong>${updated.eventTitle}</strong>.</p>
+              <a href="${ticketUrl}" style="display:inline-block;background:#16a34a;color:#fff;font-weight:700;font-size:15px;padding:14px 28px;border-radius:10px;text-decoration:none;">View &amp; Download Ticket</a>
+              <p style="font-size:12px;color:#aaa;margin:24px 0 0 0;">Or copy this link: <a href="${ticketUrl}" style="color:#16a34a;">${ticketUrl}</a></p>
+            </div>
+          </div>`,
+        text: `${updated.buyerName} sent you a ticket for ${updated.eventTitle}.\n\nView and download your ticket here:\n${ticketUrl}`,
       }).catch(() => {});
 
       return NextResponse.json({ success: true, shareVia: 'email', recipient });

@@ -86,16 +86,19 @@ export default function LoginPage() {
       if (!response.ok) {
         response = await fetch("/api/auth/login", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email: email.trim(),
-            password: password,
-            userType: "org-admin",
-          }),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email.trim(), password, userType: "org-admin" }),
         });
+        data = await response.json();
+      }
 
+      // If org-admin login fails, try event-organizer login
+      if (!response.ok) {
+        response = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email.trim(), password, userType: "event-organizer" }),
+        });
         data = await response.json();
       }
 
@@ -107,10 +110,11 @@ export default function LoginPage() {
         // Dismiss the loading toast
         toast.dismiss(loadingToast);
 
-        // Redirect based on eventType
-        const redirectPath = data.user.eventType === 'election' 
-          ? '/election-dashboard' 
-          : '/dashboard';
+        // Redirect based on role / eventType
+        const redirectPath =
+          data.user.eventType === 'election'
+            ? '/election-dashboard'
+            : '/dashboard';
 
         router.push(redirectPath);
       } else {

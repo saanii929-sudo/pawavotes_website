@@ -18,16 +18,34 @@ async function getEvents(req: NextRequest) {
     const status = searchParams.get('status') || '';
     const category = searchParams.get('category') || '';
 
-    // Determine which organizationId to query
-    const orgId = user.role === 'org-admin' ? String(user.organizationId) : String(user.id);
+    // Build base query per role
+    let query: any = {};
 
-    const query: any = { organizationId: orgId };
+    if (user.role === 'event-organizer') {
+      // Event-organizer sees only events they own
+      query.managedBy = String(user.id);
+    } else if (user.role === 'org-admin') {
+      // Org-admin sees their organization's own events AND events assigned by any event-organizer
+      query.$or = [
+        { organizationId: String(user.organizationId) },
+        { assignedAdmins: String(user.id) },
+      ];
+    } else {
+      // Organization owner sees all their events
+      query.organizationId = String(user.id);
+    }
 
     if (search) {
-      query.$or = [
+      const searchCondition = [
         { title: { $regex: search, $options: 'i' } },
         { 'venue.city': { $regex: search, $options: 'i' } },
       ];
+      // Merge search with the existing query
+      if (query.$or) {
+        query = { $and: [{ $or: query.$or }, { $or: searchCondition }] };
+      } else {
+        query.$or = searchCondition;
+      }
     }
     if (status) query.status = status;
     if (category) query.category = category;
@@ -91,7 +109,7 @@ async function createEvent(req: NextRequest) {
       return NextResponse.json({ error: 'End date must be after start date' }, { status: 400 });
     }
 
-    // Resolve organization name from DB if not in token
+    // Resolve owner identity — event-organizer owns their events directly
     const orgId = String(user.id);
     let orgName: string = user.organizationName || user.name || '';
     if (!orgName) {
@@ -102,7 +120,6 @@ async function createEvent(req: NextRequest) {
         orgName = 'My Organization';
       }
     }
-
     // For virtual events, default the venue name
     const venueData = {
       ...venue,
@@ -135,6 +152,7 @@ async function createEvent(req: NextRequest) {
       ticketTypes: sanitizedTickets,
       organizationId: orgId,
       organizationName: orgName,
+      ...(user.role === 'event-organizer' && { managedBy: orgId }),
       createdBy: orgId,
       settings: {
         requireApproval: settings?.requireApproval ?? false,

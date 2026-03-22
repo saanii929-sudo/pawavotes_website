@@ -3,6 +3,7 @@ import connectDB from '@/lib/mongodb';
 import Admin from '@/models/Admin';
 import Organization from '@/models/Organization';
 import OrganizationAdmin from '@/models/OrganizationAdmin';
+import EventOrganizer from '@/models/EventOrganizer';
 import { verifyPassword, generateToken } from '@/lib/auth';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
@@ -42,6 +43,9 @@ export async function POST(req: NextRequest) {
     } else if (userType === 'org-admin') {
       user = await OrganizationAdmin.findOne({ email, status: 'active' });
       role = 'org-admin';
+    } else if (userType === 'event-organizer') {
+      user = await EventOrganizer.findOne({ email: email.toLowerCase().trim(), status: 'active' });
+      role = 'event-organizer';
     } else {
       return NextResponse.json(
         { error: 'Invalid user type' },
@@ -88,6 +92,7 @@ export async function POST(req: NextRequest) {
       id: user._id,
       email: user.email,
       role: role,
+      name: role === 'event-organizer' ? (user as any).name : undefined,
       eventType: role === 'organization' ? (user as any).eventType : undefined,
       organizationId: role === 'org-admin' ? primaryOrgId : undefined,
       assignedAwards: role === 'org-admin' ? primaryAssignedAwards : undefined,

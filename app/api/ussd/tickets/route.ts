@@ -800,7 +800,8 @@ async function checkAndCompleteTicketOrder(clientReference: string) {
         }
       );
 
-      sendTicketConfirmationEmail({
+      // Skip generated USSD placeholder addresses
+      if (!order.buyerEmail.endsWith('@ussd.pawavotes.com')) sendTicketConfirmationEmail({
         buyerName: order.buyerName,
         buyerEmail: order.buyerEmail,
         eventTitle: order.eventTitle,

@@ -16,14 +16,11 @@ import {
   BarChart3,
   ArrowRightLeft,
   CreditCard,
-  CalendarDays,
-  Clock,
   CheckSquare,
   UserCircle,
   UserCog,
   Settings,
   Target,
-  MessageCircle,
 } from "lucide-react";
 
 import { useState, useEffect } from "react";
@@ -32,7 +29,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUI } from "@/context/ui-context";
-import { hr } from "framer-motion/client";
 
 const menu = [
   {
@@ -89,7 +85,10 @@ const menu = [
   {
     name: "Events",
     icon: Calendar,
-    href: "/dashboard/events",
+    children: [
+      { name: "All Events", href: "/dashboard/events", icon: Calendar },
+      { name: "Transfers", href: "/dashboard/events/transfers", icon: ArrowRightLeft },
+    ],
   },
   {
     name: "Organization",
@@ -124,18 +123,27 @@ export default function Sidebar() {
     }
   }, []);
 
-  const filteredMenu = menu.map(item => {
-    // For org-admin, show Organization section but only relevant children
-    if (userRole === 'org-admin' && item.name === 'Organization' && item.children) {
-      return {
-        ...item,
-        children: item.children.filter(c =>
-          c.name === 'My Organization' || c.name === 'Join Organization' || c.name === 'Admins'
-        ),
-      };
+  const filteredMenu = (() => {
+    // Event-organizer: events management only, no awards/campaigns/organization
+    if (userRole === 'event-organizer') {
+      return menu.filter(item => ['Overview', 'Analytics', 'Events'].includes(item.name));
     }
-    return item;
-  });
+    // Org-admin: show Organization section but only relevant children
+    if (userRole === 'org-admin') {
+      return menu.map(item => {
+        if (item.name === 'Organization' && item.children) {
+          return {
+            ...item,
+            children: item.children.filter(c =>
+              c.name === 'My Organization' || c.name === 'Join Organization' || c.name === 'Admins'
+            ),
+          };
+        }
+        return item;
+      });
+    }
+    return menu;
+  })();
 
   const hasActiveChild = (children: any[]) =>
     children.some((child) => pathname === child.href);

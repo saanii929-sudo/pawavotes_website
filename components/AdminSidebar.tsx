@@ -1,6 +1,6 @@
 "use client";
 
-import { LayoutGrid, Building2, X, CreditCard, DollarSign, Percent, BarChart3 } from "lucide-react";
+import { LayoutGrid, Building2, X, CreditCard, DollarSign, Percent, BarChart3, CalendarDays } from "lucide-react";
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
@@ -20,12 +20,12 @@ const menu = [
     icon: DollarSign,
   },
   { name: "Site Analytics", href: "/superadmin/analytics", icon: BarChart3 },
+  { name: "Event Organizers", href: "/superadmin/event-organizers", icon: CalendarDays },
 ];
 
 export default function AdminSidebar() {
   const pathname = usePathname();
   const { sidebarOpen, setSidebarOpen } = useUI();
-  const [openDropdowns, setOpenDropdowns] = useState<string[]>([]);
   const [userRole, setUserRole] = useState<string>("organization");
 
   useEffect(() => {

@@ -57,7 +57,7 @@ export async function POST(
     }
 
     // Check if voter belongs to assigned elections
-    if (!decoded.assignedElections.includes(voter.electionId._id.toString())) {
+    if (!decoded.assignedElections.includes(voter.electionId.toString())) {
       return NextResponse.json({ error: 'Access denied to this voter' }, { status: 403 });
     }
 

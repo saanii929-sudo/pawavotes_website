@@ -17,6 +17,10 @@ export interface IEvent extends Document {
   code: string;
   organizationId: string;
   organizationName: string;
+  /** Set when the event is created/owned by an EventOrganizer (not an Organization) */
+  managedBy?: string;
+  /** Org-admin IDs explicitly assigned by the event-organizer to manage this event */
+  assignedAdmins?: string[];
   category: 'conference' | 'concert' | 'sports' | 'workshop' | 'gala' | 'festival' | 'networking' | 'other';
   status: 'draft' | 'published' | 'ongoing' | 'completed' | 'cancelled';
   banner?: string;
@@ -99,6 +103,8 @@ const EventSchema = new Schema<IEvent>(
     totalCapacity: { type: Number, default: 0 },
     totalSold: { type: Number, default: 0 },
     totalRevenue: { type: Number, default: 0 },
+    managedBy: { type: String, index: true },
+    assignedAdmins: [{ type: String }],
     createdBy: { type: String, required: true },
     settings: {
       requireApproval: { type: Boolean, default: false },

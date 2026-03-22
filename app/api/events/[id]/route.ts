@@ -11,8 +11,15 @@ async function getEvent(req: NextRequest, { params }: { params: Promise<{ id: st
     const user = (req as any).user;
     const { id } = await params;
 
-    const orgId = String(user.role === 'org-admin' ? user.organizationId : user.id);
-    const event = await Event.findOne({ _id: id, organizationId: orgId }).lean();
+    let eventFilter: any;
+    if (user.role === 'event-organizer') {
+      eventFilter = { _id: id, managedBy: String(user.id) };
+    } else if (user.role === 'org-admin') {
+      eventFilter = { _id: id, $or: [{ organizationId: String(user.organizationId) }, { assignedAdmins: String(user.id) }] };
+    } else {
+      eventFilter = { _id: id, organizationId: String(user.id) };
+    }
+    const event = await Event.findOne(eventFilter).lean();
     if (!event) {
       return NextResponse.json({ error: 'Event not found' }, { status: 404 });
     }
@@ -31,7 +38,11 @@ async function updateEvent(req: NextRequest, { params }: { params: Promise<{ id:
     const { id } = await params;
     const body = await req.json();
 
-    const orgId = String(user.role === 'org-admin' ? user.organizationId : user.id);
+    // Only the true owner (organization or event-organizer) may write; org-admins are read-only
+    if (user.role === 'org-admin') {
+      return NextResponse.json({ error: 'Org-admins cannot edit events' }, { status: 403 });
+    }
+    const orgId = user.role === 'event-organizer' ? String(user.id) : String(user.id);
 
     const allowedFields = [
       'title', 'description', 'category', 'banner', 'ticketBg', 'ticketTextColor', 'venue',
@@ -44,8 +55,11 @@ async function updateEvent(req: NextRequest, { params }: { params: Promise<{ id:
       if (body[field] !== undefined) $set[field] = body[field];
     });
 
+    const ownerFilter = user.role === 'event-organizer'
+      ? { _id: id, managedBy: orgId }
+      : { _id: id, organizationId: orgId };
     const updated = await Event.findOneAndUpdate(
-      { _id: id, organizationId: orgId },
+      ownerFilter,
       { $set },
       { new: true, runValidators: false, strict: false }
     );
@@ -67,8 +81,14 @@ async function deleteEvent(req: NextRequest, { params }: { params: Promise<{ id:
     const user = (req as any).user;
     const { id } = await params;
 
-    const orgId = String(user.role === 'org-admin' ? user.organizationId : user.id);
-    const event = await Event.findOneAndDelete({ _id: id, organizationId: orgId });
+    if (user.role === 'org-admin') {
+      return NextResponse.json({ error: 'Org-admins cannot delete events' }, { status: 403 });
+    }
+    const orgId = String(user.id);
+    const deleteFilter = user.role === 'event-organizer'
+      ? { _id: id, managedBy: orgId }
+      : { _id: id, organizationId: orgId };
+    const event = await Event.findOneAndDelete(deleteFilter);
     if (!event) {
       return NextResponse.json({ error: 'Event not found' }, { status: 404 });
     }

@@ -24,12 +24,12 @@ export class LeaderboardService {
     await connectDB();
 
     const matchStage: any = {
-      stageId: new mongoose.Types.ObjectId(stageId),
+      stageId: new (mongoose.Types.ObjectId as any)(stageId),
       paymentStatus: 'completed',
     };
 
     if (categoryId) {
-      matchStage.categoryId = new mongoose.Types.ObjectId(categoryId);
+      matchStage.categoryId = new (mongoose.Types.ObjectId as any)(categoryId);
     }
 
     const results = await Vote.aggregate([
@@ -161,12 +161,12 @@ export class LeaderboardService {
       return this.getStageLeaderboard(stageId, categoryId);
     }
     const matchStage: any = {
-      awardId: new mongoose.Types.ObjectId(awardId),
+      awardId: new (mongoose.Types.ObjectId as any)(awardId),
       paymentStatus: 'completed',
     };
 
     if (categoryId) {
-      matchStage.categoryId = new mongoose.Types.ObjectId(categoryId);
+      matchStage.categoryId = new (mongoose.Types.ObjectId as any)(categoryId);
     }
 
     const results = await Vote.aggregate([

@@ -1726,23 +1726,7 @@ async function processFreeTicket(session: any, phoneNumber: string) {
       reference,
     ).catch(() => {});
 
-    // Email confirmation (non-blocking)
-    sendTicketConfirmationEmail({
-      buyerName: session.data.tkt_buyerName,
-      buyerEmail: `${phoneNumber.replace(/[^0-9]/g, "")}@ussd.pawavotes.com`,
-      eventTitle: session.data.tkt_eventTitle,
-      ticketTypeName: session.data.tkt_typeName,
-      ticketTypeColor: session.data.tkt_typeColor || "#10b981",
-      quantity: session.data.tkt_qty,
-      unitPrice: 0,
-      totalAmount: 0,
-      ticketCodes,
-      eventDate: session.data.tkt_eventDate || "",
-      eventTime: session.data.tkt_eventTime || "",
-      venueName: session.data.tkt_venueName || "",
-      venueAddress: session.data.tkt_venueAddress || "",
-      reference,
-    }).catch(() => {});
+    // No email confirmation for USSD purchases — the buyer email is a generated placeholder
 
     return {
       message: compressMessage(
@@ -1883,8 +1867,8 @@ async function checkAndCompleteTicketOrder(clientReference: string) {
         ).catch(() => {});
       }
 
-      // Email confirmation (non-blocking)
-      sendTicketConfirmationEmail({
+      // Email confirmation (non-blocking) — skip generated USSD placeholder addresses
+      if (!order.buyerEmail.endsWith('@ussd.pawavotes.com')) sendTicketConfirmationEmail({
         buyerName: order.buyerName,
         buyerEmail: order.buyerEmail,
         eventTitle: order.eventTitle,
