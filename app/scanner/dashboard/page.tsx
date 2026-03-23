@@ -64,6 +64,50 @@ export default function ScannerDashboard() {
     if (userData) setUser(JSON.parse(userData));
   }, []);
 
+  const playSound = useCallback((type: "success" | "fail") => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const now = ctx.currentTime;
+
+      if (type === "success") {
+        // Two ascending tones — clean & bright
+        const freqs = [880, 1100];
+        freqs.forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(freq, now + i * 0.12);
+          gain.gain.setValueAtTime(0, now + i * 0.12);
+          gain.gain.linearRampToValueAtTime(0.35, now + i * 0.12 + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.18);
+          osc.start(now + i * 0.12);
+          osc.stop(now + i * 0.12 + 0.2);
+        });
+      } else {
+        // One low descending tone — firm & clear
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = "square";
+        osc.frequency.setValueAtTime(320, now);
+        osc.frequency.linearRampToValueAtTime(180, now + 0.3);
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(0.25, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+        osc.start(now);
+        osc.stop(now + 0.4);
+      }
+
+      // Clean up context after sounds finish
+      setTimeout(() => ctx.close(), 1000);
+    } catch {
+      // Web Audio not supported — fail silently
+    }
+  }, []);
+
   const handleLogout = () => {
     stopCamera();
     ["scannerToken", "scannerUser", "scannerTokenTimestamp"].forEach((k) =>
@@ -95,6 +139,7 @@ export default function ScannerDashboard() {
         setResult(data);
         setResultFlash(true);
         setTimeout(() => setResultFlash(false), 600);
+        playSound(data.valid ? "success" : "fail");
 
         const log: ScanLog = {
           id: Date.now().toString(),
@@ -120,7 +165,7 @@ export default function ScannerDashboard() {
         setTimeout(() => inputRef.current?.focus(), 100);
       }
     },
-    [action]
+    [action, playSound]
   );
 
   // jsQR scan loop
