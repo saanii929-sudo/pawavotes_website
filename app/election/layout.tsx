@@ -26,8 +26,15 @@ export default function ElectionLayout({ children }: { children: React.ReactNode
       if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); return; }
     };
 
-    // ── Detect DevTools via window size threshold ──
+    // ── Detect DevTools via window size threshold (desktop only) ──
+    const isMobile = /Mobi|Android|iPhone|iPad|iPod|Opera Mini|IEMobile/i.test(
+      navigator.userAgent
+    ) || 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
     const detectDevTools = () => {
+      // Skip on mobile — browser chrome causes false positives
+      if (isMobile) return;
+
       const threshold = 160;
       const widthDiff = window.outerWidth - window.innerWidth;
       const heightDiff = window.outerHeight - window.innerHeight;

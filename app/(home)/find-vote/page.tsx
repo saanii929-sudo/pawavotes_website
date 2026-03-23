@@ -903,45 +903,50 @@ const PublicVotingPlatform = () => {
               {nomineeSearchQuery ? "No nominees found matching your search" : "No nominees found"}
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-4 gap-4 mt-16">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mt-16">
               {filteredNominees.map((nominee) => (
                 <div
                   key={nominee._id}
                   onClick={() => handleNomineeClick(nominee)}
                   className="bg-white rounded-2xl overflow-hidden border border-gray-100 hover:shadow-md transition-shadow cursor-pointer group"
                 >
-                  {/* Image */}
-                  {nominee.image ? (
-                    <div className="h-48 relative">
-                      {nominee.image.startsWith("data:") ? (
-                        <img src={nominee.image} alt={nominee.name} className="w-full h-full object-cover" />
+                  {/* Image — portrait ratio, face-optimized */}
+                  <div className="relative aspect-square overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200">
+                    {nominee.image ? (
+                      nominee.image.startsWith("data:") ? (
+                        <img
+                          src={nominee.image}
+                          alt={nominee.name}
+                          className="w-full h-full object-cover object-top"
+                        />
                       ) : (
-                        <Image src={nominee.image} alt={nominee.name} fill className="object-cover" />
-                      )}
-                      {votingOpen && (
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center">
-                          <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-green-600 text-white px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5">
-                            <Heart size={14} />
-                            Vote Now
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="h-48 bg-linear-to-br from-gray-100 to-gray-200 flex items-center justify-center relative">
-                      <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm">
-                        <Users className="text-gray-400" size={30} />
+                        <Image
+                          src={nominee.image}
+                          alt={nominee.name}
+                          fill
+                          className="object-cover object-top"
+                        />
+                      )
+                    ) : (
+                      <div className="absolute inset-0 flex flex-col items-end justify-end pb-3">
+                        <svg viewBox="0 0 100 120" className="w-full h-full absolute inset-0 text-gray-300" fill="currentColor">
+                          <circle cx="50" cy="38" r="22" />
+                          <path d="M10 110 Q10 75 50 75 Q90 75 90 110Z" />
+                        </svg>
                       </div>
-                      {votingOpen && (
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center">
-                          <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5">
-                            <Heart size={14} />
-                            Vote Now
-                          </div>
+                    )}
+                    {/* Gradient fade at bottom for text legibility */}
+                    <div className="absolute bottom-0 inset-x-0 h-16 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
+                    {/* Hover vote overlay */}
+                    {votingOpen && (
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-all flex items-center justify-center">
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-green-600 text-white px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 shadow-lg">
+                          <Heart size={14} />
+                          Vote Now
                         </div>
-                      )}
-                    </div>
-                  )}
+                      </div>
+                    )}
+                  </div>
 
                   {/* Card Body */}
                   <div className="p-3 space-y-2">
