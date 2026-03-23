@@ -55,20 +55,23 @@ function CountdownDisplay({
   pad: (n: number) => string;
 }) {
   return (
-    <div className="inline-flex items-center gap-3 bg-white/10 px-5 py-3 rounded-xl mb-6">
-      <Clock size={16} className="text-green-200" />
-      <span className="text-xs text-green-200 mr-1">{label}</span>
-      {[
-        { l: 'D', v: countdown.days },
-        { l: 'H', v: countdown.hours },
-        { l: 'M', v: countdown.minutes },
-        { l: 'S', v: countdown.seconds },
-      ].map(({ l, v }) => (
-        <div key={l} className="bg-white/15 rounded-lg px-2.5 py-1.5 text-center min-w-11">
-          <p className="text-base font-bold font-mono leading-none">{pad(v)}</p>
-          <p className="text-xs text-green-200 mt-0.5">{l}</p>
-        </div>
-      ))}
+    <div className="bg-white border border-gray-100 rounded-xl px-5 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <p className="text-sm font-semibold text-gray-900">{label}</p>
+      <div className="flex items-start gap-3 sm:gap-4">
+        {[
+          { l: 'Days', v: countdown.days },
+          { l: 'Hours', v: countdown.hours },
+          { l: 'Minutes', v: countdown.minutes },
+          { l: 'Seconds', v: countdown.seconds },
+        ].map(({ l, v }) => (
+          <div key={l} className="flex flex-col items-center gap-1.5">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl border-2 border-green-400 bg-green-100 flex items-center justify-center">
+              <span className="text-xl sm:text-2xl font-bold text-green-500 tabular-nums">{pad(v)}</span>
+            </div>
+            <span className="text-xs text-gray-500 font-medium">{l}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -79,7 +82,6 @@ function ElectionHomeContent() {
   const urlToken = searchParams.get('token');
 
   const [voterData, setVoterData] = useState<any>(null);
-  const [publicElection, setPublicElection] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -103,19 +105,11 @@ function ElectionHomeContent() {
     if (storedToken && storedData) {
       try {
         setVoterData(JSON.parse(storedData));
-        setLoading(false);
-        return;
       } catch {
         localStorage.removeItem('voterData');
       }
     }
-
-    // Not logged in — fetch public election for landing page
-    fetch('/api/elections/public')
-      .then(r => r.json())
-      .then(d => { if (d.success) setPublicElection(d.data); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    setLoading(false);
   }, [urlToken]);
 
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -128,23 +122,7 @@ function ElectionHomeContent() {
   const vIsActive = election ? (now >= vStart! && now <= vEnd!) : false;
   const vHasEnded = election ? (election.status === 'ended' || now > vEnd!) : false;
   const vIsUpcoming = election ? (!vIsActive && !vHasEnded) : false;
-  const voterCountdownTarget = election
-    ? vIsUpcoming ? election.startDate
-    : vIsActive ? election.endDate
-    : null
-    : null;
-
-  // ── Public landing state ──
-  const pStart = publicElection ? new Date(publicElection.startDate) : null;
-  const pEnd = publicElection ? new Date(publicElection.endDate) : null;
-  const pIsActive = publicElection ? (now >= pStart! && now <= pEnd!) : false;
-  const pHasEnded = publicElection ? (publicElection.status === 'ended' || now > pEnd!) : false;
-  const pIsUpcoming = publicElection ? (!pIsActive && !pHasEnded) : false;
-  const publicCountdownTarget = !voterData && publicElection
-    ? pIsUpcoming ? publicElection.startDate
-    : pIsActive ? publicElection.endDate
-    : null
-    : null;
+  const voterCountdownTarget = election ? election.endDate : null;
 
   // ── Countdown hooks (always called) ──
   const voterCountdown = useCountdown(
@@ -152,14 +130,6 @@ function ElectionHomeContent() {
     () => {
       const storedToken = urlToken || localStorage.getItem('voterToken');
       if (storedToken) refreshVoterData(storedToken);
-    }
-  );
-
-  const publicCountdown = useCountdown(
-    !voterData ? publicCountdownTarget : null,
-    () => {
-      // When upcoming countdown ends, redirect to login automatically
-      if (pIsUpcoming) router.push('/election/login');
     }
   );
 
@@ -175,160 +145,16 @@ function ElectionHomeContent() {
   }
 
   // ══════════════════════════════════════════════
-  //  PUBLIC LANDING — voter not logged in
+  //  NOT AUTHENTICATED — layout will redirect to login
   // ══════════════════════════════════════════════
   if (!voterData) {
     return (
-      <>
-        <Toaster position="top-center" toastOptions={{ style: { fontSize: '14px' } }} />
-        <div className="min-h-screen bg-gray-50">
-          {/* Navbar */}
-          <header className="bg-white border-b border-gray-100 sticky top-0 z-10">
-            <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <Image src="/images/logo.png" alt="Pawavotes" width={36} height={36} />
-                <span className="font-semibold text-green-700 text-sm hidden sm:block">Pawavotes</span>
-              </div>
-              {pIsActive && (
-                <button
-                  onClick={() => router.push('/election/login')}
-                  className="inline-flex items-center gap-1.5 text-sm text-white bg-green-700 hover:bg-green-800 px-4 py-2 rounded-lg transition font-medium"
-                >
-                  Login to Vote
-                  <ArrowRight size={14} />
-                </button>
-              )}
-            </div>
-          </header>
-
-          {/* Hero */}
-          <div className="bg-green-700 text-white">
-            <div className="max-w-5xl mx-auto px-4 sm:px-6 py-12 text-center">
-              {publicElection ? (
-                <>
-                  {/* Status pill */}
-                  <div className="mb-5 flex justify-center">
-                    {pIsActive ? (
-                      <span className="inline-flex items-center gap-2 bg-white/15 px-4 py-1.5 rounded-full text-sm font-medium">
-                        <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                        Voting is Live
-                      </span>
-                    ) : pIsUpcoming ? (
-                      <span className="inline-flex items-center gap-2 bg-white/15 px-4 py-1.5 rounded-full text-sm font-medium">
-                        <Clock size={15} /> Voting Starts Soon
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-2 bg-white/15 px-4 py-1.5 rounded-full text-sm font-medium">
-                        Voting Closed
-                      </span>
-                    )}
-                  </div>
-
-                  <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 leading-tight">
-                    {publicElection.title}
-                  </h1>
-
-                  {publicElection.description && (
-                    <p className="text-green-200 text-sm sm:text-base max-w-xl mx-auto mb-6">
-                      {publicElection.description}
-                    </p>
-                  )}
-
-                  {/* Countdown */}
-                  {publicCountdown && !pHasEnded && (
-                    <div className="flex justify-center">
-                      <CountdownDisplay
-                        countdown={publicCountdown}
-                        label={pIsUpcoming ? 'Voting opens in' : 'Voting closes in'}
-                        pad={pad}
-                      />
-                    </div>
-                  )}
-
-                  {/* CTA when active */}
-                  {pIsActive && (
-                    <div className="flex justify-center mt-2">
-                      <button
-                        onClick={() => router.push('/election/login')}
-                        className="inline-flex items-center gap-2.5 bg-white text-green-700 px-7 py-3 rounded-xl font-bold text-sm hover:bg-green-50 transition shadow-lg"
-                      >
-                        <Vote size={18} />
-                        Login to Cast Your Vote
-                        <ArrowRight size={16} />
-                      </button>
-                    </div>
-                  )}
-
-                  {pIsUpcoming && (
-                    <p className="text-green-200 text-sm mt-1">
-                      The voting portal will open automatically when the countdown reaches zero.
-                    </p>
-                  )}
-                </>
-              ) : (
-                <>
-                  <h1 className="text-2xl sm:text-3xl font-bold mb-3">Welcome to Pawavotes</h1>
-                  <p className="text-green-200 text-sm">No active election at this time.</p>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Info cards */}
-          {publicElection && (
-            <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
-                  <div className="flex items-center gap-2.5 mb-4">
-                    <div className="w-9 h-9 bg-green-50 rounded-lg flex items-center justify-center">
-                      <Calendar className="text-green-700" size={18} />
-                    </div>
-                    <h3 className="font-semibold text-gray-900 text-sm">Voting Period</h3>
-                  </div>
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Opens</p>
-                      <p className="text-sm font-medium text-gray-800">{new Date(publicElection.startDate).toLocaleString()}</p>
-                    </div>
-                    <div className="border-t border-gray-50 pt-3">
-                      <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Closes</p>
-                      <p className="text-sm font-medium text-gray-800">{new Date(publicElection.endDate).toLocaleString()}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
-                  <div className="flex items-center gap-2.5 mb-4">
-                    <div className="w-9 h-9 bg-green-50 rounded-lg flex items-center justify-center">
-                      <ShieldCheck className="text-green-700" size={18} />
-                    </div>
-                    <h3 className="font-semibold text-gray-900 text-sm">How to Vote</h3>
-                  </div>
-                  <ul className="space-y-2">
-                    {[
-                      'Wait for voting to open',
-                      'Login with your voter token & password',
-                      'Select your preferred candidates',
-                      'Confirm and submit your vote securely',
-                    ].map((item, i) => (
-                      <li key={i} className="flex items-start gap-2 text-sm text-gray-600">
-                        <span className="w-1.5 h-1.5 bg-green-700 rounded-full mt-1.5 shrink-0" />
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <footer className="border-t border-gray-100 py-5 text-center">
-            <p className="text-xs text-gray-400">
-              Powered by <span className="font-medium text-green-700">Pawavotes</span> · Secure, transparent elections
-            </p>
-          </footer>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="w-10 h-10 border-2 border-gray-200 border-t-green-700 rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-sm text-gray-400">Redirecting to login…</p>
         </div>
-      </>
+      </div>
     );
   }
 
@@ -415,17 +241,6 @@ function ElectionHomeContent() {
               </p>
             )}
 
-            {/* Countdown */}
-            {voterCountdown && !vHasEnded && !voterData.hasVoted && (
-              <div className="flex justify-center">
-                <CountdownDisplay
-                  countdown={voterCountdown}
-                  label={vIsUpcoming ? 'Voting opens in' : 'Voting closes in'}
-                  pad={pad}
-                />
-              </div>
-            )}
-
             {/* Refreshing indicator */}
             {refreshing && (
               <div className="flex justify-center mb-4">
@@ -457,6 +272,17 @@ function ElectionHomeContent() {
             )}
           </div>
         </div>
+
+        {/* Countdown */}
+        {voterCountdown && !vHasEnded && !voterData.hasVoted && (
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-6">
+            <CountdownDisplay
+              countdown={voterCountdown}
+              label="Voting closes in"
+              pad={pad}
+            />
+          </div>
+        )}
 
         {/* Info cards */}
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">

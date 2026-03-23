@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect } from 'react';
+import { useElectionAuth } from '@/hooks/useElectionAuth';
 
 export default function ElectionLayout({ children }: { children: React.ReactNode }) {
+  useElectionAuth();
+
   useEffect(() => {
     // ── Disable right-click context menu ──
     const handleContextMenu = (e: MouseEvent) => e.preventDefault();

@@ -664,7 +664,7 @@ const PublicVotingPlatform = () => {
                   <Image src={selectedAward.banner} alt={selectedAward.name} fill className="object-cover" />
                 </div>
               ) : (
-                <div className="bg-gradient-to-r from-green-900 to-green-700 rounded-xl h-52 flex items-center justify-center">
+                <div className="bg-linear-to-r from-green-900 to-green-700 rounded-xl h-52 flex items-center justify-center">
                   <div className="text-white text-center font-bold text-xl p-4">{selectedAward?.name}</div>
                 </div>
               )}
@@ -725,7 +725,7 @@ const PublicVotingPlatform = () => {
                         className="object-cover"
                       />
                     ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-green-900 to-green-700" />
+                      <div className="w-full h-full bg-linear-to-br from-green-900 to-green-700" />
                     )}
                     {/* Dark overlay for readability */}
                     <div className="absolute inset-0 bg-black/20" />
@@ -845,7 +845,7 @@ const PublicVotingPlatform = () => {
                   <Image src={selectedAward.banner} alt={selectedAward.name} fill className="object-cover" />
                 </div>
               ) : (
-                <div className="bg-gradient-to-r from-green-900 to-green-700 rounded-xl h-52 flex items-center justify-center">
+                <div className="bg-linear-to-r from-green-900 to-green-700 rounded-xl h-52 flex items-center justify-center">
                   <div className="text-white text-center font-bold text-xl p-4">{selectedAward?.name}</div>
                 </div>
               )}
@@ -879,7 +879,7 @@ const PublicVotingPlatform = () => {
           {/* Countdown when voting is active */}
           {votingOpen && (
             <div className="mb-6">
-              <p className="text-sm font-bold mb-6 text-gray-600 mb-3">Voting ends in</p>
+              <p className="text-sm font-bold mb-6 text-gray-600">Voting ends in</p>
               <AwardCountdown
                 votingStartDate={selectedAward?.votingStartDate}
                 votingEndDate={selectedAward?.votingEndDate}
@@ -928,7 +928,7 @@ const PublicVotingPlatform = () => {
                       )}
                     </div>
                   ) : (
-                    <div className="h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center relative">
+                    <div className="h-48 bg-linear-to-br from-gray-100 to-gray-200 flex items-center justify-center relative">
                       <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm">
                         <Users className="text-gray-400" size={30} />
                       </div>
