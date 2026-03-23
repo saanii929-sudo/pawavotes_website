@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Calendar, Users, Heart, ChevronLeft, X } from "lucide-react";
+import { Search, Calendar, Users, Heart, ChevronLeft, X, Clipboard, Share2 } from "lucide-react";
 import toast from "react-hot-toast";
 import Image from "next/image";
 import AwardCountdown from "@/components/AwardCountdown";
@@ -593,390 +593,433 @@ const PublicVotingPlatform = () => {
     </div>
   );
 
+  // Helper: determine award status badge
+  const getAwardStatusBadge = () => {
+    if (isAwardClosed()) {
+      return { text: "Voting Has Ended", className: "bg-red-500 text-white" };
+    }
+    if (isVotingOpen()) {
+      return { text: "Active", className: "bg-green-500 text-white" };
+    }
+    return { text: "Voting Has Not Started", className: "bg-orange-400 text-white" };
+  };
+
   // View 3: Event Detail
-  const EventDetailView = () => (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        {/* Back Button */}
-        <button
-          onClick={() => {
-            setCurrentScreen("events");
-            setCategorySearchQuery("");
-          }}
-          className="flex items-center gap-2 text-green-600 hover:text-green-700 mb-4 sm:mb-6 text-sm sm:text-base"
-        >
-          <ChevronLeft size={20} />
-          <span>Back</span>
-        </button>
+  const EventDetailView = () => {
+    const badge = getAwardStatusBadge();
+    const votingOpen = isVotingOpen();
+    const awardClosed = isAwardClosed();
+    const dateLabel = selectedAward?.votingStartDate
+      ? new Date(selectedAward.votingStartDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+      : "TBA";
 
-        {/* Countdown Component */}
-        <div className="mb-6 sm:mb-8">
-          <AwardCountdown
-            startDate={selectedAward?.startDate}
-            endDate={selectedAward?.endDate}
-            votingStartDate={selectedAward?.votingStartDate}
-            votingEndDate={selectedAward?.votingEndDate}
-            votingStartTime={selectedAward?.votingStartTime}
-            votingEndTime={selectedAward?.votingEndTime}
-            status={selectedAward?.status}
-            stageStartDate={activeStage?.startDate}
-            stageEndDate={activeStage?.endDate}
-            stageStartTime={activeStage?.startTime}
-            stageEndTime={activeStage?.endTime}
-          />
-        </div>
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          {/* Back Button */}
+          <button
+            onClick={() => { setCurrentScreen("events"); setCategorySearchQuery(""); }}
+            className="flex items-center gap-1 text-gray-500 hover:text-gray-700 mb-5 text-sm"
+          >
+            <ChevronLeft size={16} />
+            <span>Back</span>
+          </button>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
-          {/* Left Column */}
-          <div className="lg:col-span-2">
-            <p className="text-xs sm:text-sm text-green-600 font-medium mb-2">
-              {selectedAward?.organizationName}
-            </p>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3 sm:mb-4">
-              {selectedAward?.name}
-            </h1>
-            <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs sm:text-sm text-gray-600 mb-6 sm:mb-8">
-              <div className="flex items-center gap-1">
-                <Calendar size={14} className="sm:w-4 sm:h-4" />
-                <span>{selectedAward?.votingStartDate ? new Date(selectedAward.votingStartDate).toLocaleDateString() : 'TBA'}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <Users size={14} className="sm:w-4 sm:h-4" />
-                <span>{selectedAward?.totalVotes || 0}+ Votes</span>
-              </div>
-            </div>
-
-            {/* View Results Button */}
-            {selectedAward?.settings?.showResults && (
-              <div className="mb-6">
-                <button
-                  onClick={() => router.push(`/leaderboard?awardId=${selectedAward._id}`)}
-                  className="bg-green-600 hover:bg-green-700 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-sm sm:text-base transition-colors flex items-center gap-2 font-medium"
-                >
-                  <ChevronLeft size={18} className="rotate-180" />
-                  View Results
-                </button>
-              </div>
-            )}
-
-            {/* Search Categories */}
-            <SearchInput
-              value={categorySearchQuery}
-              onChange={setCategorySearchQuery}
-              onClear={handleClearCategorySearch}
-              placeholder="Search by category..."
-            />
-
-            {/* Categories Grid */}
-            {loading ? (
-              <div className="text-center py-12">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
-              </div>
-            ) : filteredCategories.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                {categorySearchQuery ? 'No categories found matching your search' : 'No categories found'}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {filteredCategories.map((category) => (
-                  <div
-                    key={category._id}
-                    onClick={() => {
-                      setSelectedCategory(category);
-                      setCurrentScreen("categoryNominees");
-                      setNomineeSearchQuery("");
-                      fetchNominees(category._id);
-                    }}
-                    className="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow cursor-pointer"
-                  >
-                    <div className="h-40 bg-linear-to-r from-green-900 to-green-700 flex items-center justify-center relative">
-                      <div className="text-white text-center p-4">
-                        <div className="text-xl font-bold">{category.name}</div>
-                      </div>
-                      {category.price && (
-                        <div className="absolute top-4 right-4 bg-white rounded-lg px-3 py-2">
-                          <div className="text-xl font-bold text-gray-900">{category.price}</div>
-                          <div className="text-xs text-gray-600">GHC</div>
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-4">
-                      <h3 className="text-sm font-medium text-gray-900 mb-2">
-                        {category.name}
-                      </h3>
-                      <div className="flex items-center gap-1 text-sm text-green-600">
-                        <Users size={14} />
-                        <span>{category.nomineeCount || 0} Nominees</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Right Column - Event Image */}
-          <div className="lg:col-span-1">
-            {selectedAward?.banner ? (
-              <div className="rounded-lg overflow-hidden h-64 sticky top-8">
-                <Image
-                  src={selectedAward.banner}
-                  alt={selectedAward.name}
-                  fill
-                  className="object-cover"
-                />
-              </div>
-            ) : (
-              <div className="bg-linear-to-r from-green-900 to-green-700 rounded-lg p-8 h-64 flex items-center justify-center sticky top-8">
-                <div className="text-white text-center">
-                  <div className="text-3xl font-bold mb-2">{selectedAward?.name}</div>
+          {/* Award Header: Info left + Banner right */}
+          <div className="flex flex-col lg:flex-row gap-6 mb-8">
+            <div className="flex-1">
+              <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-sm font-medium mb-4 ${badge.className}`}>
+                {badge.text}
+              </span>
+              <p className="text-xs text-green-600 font-semibold uppercase tracking-wide mb-1">
+                {selectedAward?.organizationName}
+              </p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3">
+                {selectedAward?.name}
+              </h1>
+              <div className="flex items-center gap-4 text-sm text-gray-500 mb-4">
+                <div className="flex items-center gap-1.5">
+                  <Calendar size={14} />
+                  <span>{dateLabel}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Users size={14} />
+                  <span>{selectedAward?.totalVotes || 0}+ Votes</span>
                 </div>
               </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const CategoryNomineesView = () => (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        {/* Back Button */}
-        <button
-          onClick={() => {
-            setCurrentScreen("eventDetail");
-            setNomineeSearchQuery("");
-          }}
-          className="flex items-center gap-2 text-green-600 hover:text-green-700 mb-4 sm:mb-6 text-sm sm:text-base"
-        >
-          <ChevronLeft size={20} />
-          <span>Back</span>
-        </button>
-
-        {/* Countdown Component */}
-        <div className="mb-6 sm:mb-8">
-          <AwardCountdown
-            startDate={selectedAward?.startDate}
-            endDate={selectedAward?.endDate}
-            votingStartDate={selectedAward?.votingStartDate}
-            votingEndDate={selectedAward?.votingEndDate}
-            votingStartTime={selectedAward?.votingStartTime}
-            votingEndTime={selectedAward?.votingEndTime}
-            status={selectedAward?.status}
-            stageStartDate={activeStage?.startDate}
-            stageEndDate={activeStage?.endDate}
-            stageStartTime={activeStage?.startTime}
-            stageEndTime={activeStage?.endTime}
-          />
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
-          <div className="lg:col-span-2">
-
-            <p className="text-xs text-green-600 font-medium mb-2">
-              {selectedAward?.organizationName} • {selectedAward?.name}
-            </p>
-            <h1 className="text-2xl font-bold text-gray-900 mb-4">
-              {selectedAward?.name}
-            </h1>
-            <div className="flex items-center gap-4 text-sm text-gray-600 mb-6">
-              <div className="flex items-center gap-1">
-                <Calendar size={14} />
-                <span>{selectedAward?.votingStartDate ? new Date(selectedAward.votingStartDate).toLocaleDateString() : 'TBA'}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <Users size={14} />
-                <span>{selectedAward?.totalVotes || 0}+ Votes</span>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex flex-wrap gap-3 mb-6">
-              {selectedAward?.settings?.showResults && (
+              {(awardClosed || votingOpen) && selectedAward?.settings?.showResults && (
                 <button
                   onClick={() => router.push(`/leaderboard?awardId=${selectedAward._id}`)}
-                  className="bg-green-600 hover:bg-green-700 text-white px-4 sm:px-6 py-2 rounded-lg text-sm transition-colors flex items-center gap-2"
+                  className="border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm flex items-center gap-2 font-medium transition-colors"
                 >
-                  <ChevronLeft size={16} className="rotate-180" />
-                  View Results
-                </button>
-              )}
-              
-              {isNominationOpen() && (
-                <button
-                  onClick={() => setNominationModalOpen(true)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 sm:px-6 py-2 rounded-lg text-sm transition-colors flex items-center gap-2"
-                >
-                  <Users size={16} />
-                  Nominate Yourself
+                  View Result
                 </button>
               )}
             </div>
 
-            <h2 className="text-lg font-bold text-green-600 mb-6">
-              {selectedCategory?.name}
-            </h2>
+            {/* Banner Image */}
+            <div className="w-full lg:w-64 xl:w-72 shrink-0">
+              {selectedAward?.banner ? (
+                <div className="rounded-xl overflow-hidden h-52 relative">
+                  <Image src={selectedAward.banner} alt={selectedAward.name} fill className="object-cover" />
+                </div>
+              ) : (
+                <div className="bg-gradient-to-r from-green-900 to-green-700 rounded-xl h-52 flex items-center justify-center">
+                  <div className="text-white text-center font-bold text-xl p-4">{selectedAward?.name}</div>
+                </div>
+              )}
+            </div>
+          </div>
 
-            {/* Search */}
-            <NomineeSearchInput
-              value={nomineeSearchQuery}
-              onChange={setNomineeSearchQuery}
-              onClear={handleClearNomineeSearch}
-            />
+          {/* Category heading + Search bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+            <h2 className="text-base font-bold text-green-600 uppercase tracking-wide">Categories</h2>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search by category..."
+                value={categorySearchQuery}
+                onChange={(e) => setCategorySearchQuery(e.target.value)}
+                className="w-full sm:w-60 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm pr-8 bg-white"
+                suppressHydrationWarning
+              />
+              {categorySearchQuery ? (
+                <button onClick={handleClearCategorySearch} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <X size={14} />
+                </button>
+              ) : (
+                <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+              )}
+            </div>
+          </div>
 
-            {/* Nominees Grid */}
-            {loading ? (
-              <div className="text-center py-12">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
-              </div>
-            ) : filteredNominees.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                {nomineeSearchQuery ? 'No nominees found matching your search' : 'No nominees found'}
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {filteredNominees.map((nominee) => (
-                  <div
-                    key={nominee._id}
-                    onClick={() => handleNomineeClick(nominee)}
-                    className="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow cursor-pointer group"
-                  >
-                    {nominee.image ? (
-                      <div className="h-40 relative">
-                        {nominee.image.startsWith('data:') ? (
-                          <img
-                            src={nominee.image}
-                            alt={nominee.name}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <Image
-                            src={nominee.image}
-                            alt={nominee.name}
-                            fill
-                            className="object-cover"
-                          />
-                        )}
-                        {isVotingOpen() && (
-                          <div className="absolute inset-0 bg-black/20 bg-opacity-0 group-hover:bg-opacity-40 transition-all flex items-center justify-center">
-                            <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-green-600 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2">
-                              <Heart size={16} />
-                              Vote Now
-                            </div>
-                          </div>
-                        )}
-                      </div>
+          {/* Categories Grid */}
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+            </div>
+          ) : filteredCategories.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">
+              {categorySearchQuery ? "No categories found matching your search" : "No categories found"}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {filteredCategories.map((category) => (
+                <div
+                  key={category._id}
+                  onClick={() => {
+                    setSelectedCategory(category);
+                    setCurrentScreen("categoryNominees");
+                    setNomineeSearchQuery("");
+                    fetchNominees(category._id);
+                  }}
+                  className="bg-white rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-all hover:-translate-y-0.5 cursor-pointer"
+                >
+                  {/* Card image — use award banner or gradient fallback */}
+                  <div className="h-44 relative overflow-hidden">
+                    {selectedAward?.banner ? (
+                      <Image
+                        src={selectedAward.banner}
+                        alt={category.name}
+                        fill
+                        className="object-cover"
+                      />
                     ) : (
-                      <div className="h-40 bg-linear-to-br from-gray-200 to-gray-300 flex items-center justify-center relative">
-                        <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center">
-                          <Users className="text-gray-400" size={32} />
-                        </div>
-                        {isVotingOpen() && (
-                          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all flex items-center justify-center">
-                            <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-green-600 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2">
-                              <Heart size={16} />
-                              Vote Now
-                            </div>
-                          </div>
-                        )}
+                      <div className="w-full h-full bg-gradient-to-br from-green-900 to-green-700" />
+                    )}
+                    {/* Dark overlay for readability */}
+                    <div className="absolute inset-0 bg-black/20" />
+                    {/* Price badge */}
+                    {category.price && (
+                      <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm rounded-lg px-2 py-1 text-center">
+                        <div className="text-sm font-bold text-gray-900 leading-none">{category.price}</div>
+                        <div className="text-[10px] text-gray-500">GHC</div>
+                     
                       </div>
                     )}
-                    <div className="p-3">
-                      <p className="text-xs text-gray-500 mb-1">
-                        {nominee.categoryName}
-                      </p>
-                      <h3 className="font-medium text-sm text-gray-900 mb-1 truncate">
-                        {nominee.name}
+                  </div>
+
+                  {/* Card footer */}
+                  <div className="py-6 px-4">
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <h3 className="text-xs font-semibold text-gray-800 leading-tight uppercase line-clamp-2 flex-1">
+                        {category.name}
                       </h3>
-                      {nominee.nomineeCode && (
-                        <p className="text-xs text-green-600 font-medium mb-2">
-                          {nominee.nomineeCode}
-                        </p>
-                      )}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1 text-xs text-gray-600">
-                          <Users size={12} />
-                          <span>{(nominee.voteCount || 0).toLocaleString()} Votes</span>
-                        </div>
-                        {isVotingOpen() && (
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleNomineeClick(nominee);
-                            }}
-                            className="text-green-600 hover:text-green-700"
-                          >
-                            <Heart size={16} />
-                          </button>
-                        )}
+                      <div className="shrink-0 w-7 h-7 rounded-full bg-green-50 border border-green-200 flex items-center justify-center">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-600">
+                          <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+                        </svg>
                       </div>
                     </div>
+                    <div className="flex items-center gap-1 text-xs text-gray-500">
+                      <Users size={11} />
+                      <span>{category.nomineeCount || 0} Nominees</span>
+                    </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Right Column - Event Image */}
-          <div className="lg:col-span-1">
-            {selectedAward?.banner ? (
-              <div className="rounded-lg overflow-hidden h-48 sticky top-8">
-                <Image
-                  src={selectedAward.banner}
-                  alt={selectedAward.name}
-                  fill
-                  className="object-cover"
-                />
-              </div>
-            ) : (
-              <div className="bg-linear-to-r from-green-900 to-green-700 rounded-lg p-6 h-48 flex items-center justify-center sticky top-8">
-                <div className="text-white text-center">
-                  <div className="text-2xl font-bold">{selectedAward?.name}</div>
                 </div>
-              </div>
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
+    );
+  };
 
-      {/* Nomination Modal */}
-      {selectedAward && selectedCategory && (
-        <NominationModal
-          isOpen={nominationModalOpen}
-          onClose={() => setNominationModalOpen(false)}
-          awardId={selectedAward._id}
-          categoryId={selectedCategory._id}
-          categoryName={selectedCategory.name}
-          awardName={selectedAward.name}
-          nominationType={selectedAward.nomination?.type || 'free'}
-          nominationFixedPrice={selectedAward.nomination?.fixedPrice}
-          categoryPrice={selectedCategory.price}
-        />
-      )}
+  const CategoryNomineesView = () => {
+    const badge = getAwardStatusBadge();
+    const votingOpen = isVotingOpen();
+    const awardClosed = isAwardClosed();
+    const dateLabel = selectedAward?.votingStartDate
+      ? new Date(selectedAward.votingStartDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+      : "TBA";
 
-      {/* Voting Modal */}
-      {selectedAward && selectedCategory && selectedNominee && (
-        <VotingModal
-          isOpen={votingModalOpen}
-          onClose={() => {
-            setVotingModalOpen(false);
-            setSelectedNominee(null);
-          }}
-          nominee={{
-            _id: selectedNominee._id,
-            name: selectedNominee.name,
-            image: selectedNominee.image,
-            categoryName: selectedCategory.name,
-          }}
-          awardId={selectedAward._id}
-          categoryId={selectedCategory._id}
-          votingCost={selectedAward.pricing?.votingCost || 0.5}
-          allowBulkVoting={selectedAward.pricing?.socialOptions?.bulkVoting || false}
-        />
-      )}
-    </div>
-  );
+    const handleShare = (e: React.MouseEvent, nominee: Nominee) => {
+      e.stopPropagation();
+      if (navigator.share) {
+        navigator.share({ title: nominee.name, text: `Vote for ${nominee.name} - Code: ${nominee.nomineeCode || ""}` });
+      } else {
+        navigator.clipboard?.writeText(nominee.nomineeCode || nominee.name);
+        toast.success("Copied to clipboard!");
+      }
+    };
+
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          {/* Back Button */}
+          <button
+            onClick={() => { setCurrentScreen("eventDetail"); setNomineeSearchQuery(""); }}
+            className="flex items-center gap-1 text-gray-500 hover:text-gray-700 mb-5 text-sm"
+          >
+            <ChevronLeft size={16} />
+            <span>Back</span>
+          </button>
+
+          {/* Award Header: Info left + Banner right */}
+          <div className="flex flex-col lg:flex-row gap-6 mb-8">
+            <div className="flex-1">
+              <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-sm font-medium mb-4 ${badge.className}`}>
+                {badge.text}
+              </span>
+              <p className="text-xs text-green-600 font-semibold uppercase tracking-wide mb-1">
+                {selectedAward?.organizationName}
+              </p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3">
+                {selectedAward?.name}
+              </h1>
+              <div className="flex items-center gap-4 text-sm text-gray-500 mb-4">
+                <div className="flex items-center gap-1.5">
+                  <Calendar size={14} />
+                  <span>{dateLabel}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Users size={14} />
+                  <span>{selectedAward?.totalVotes || 0}+ Votes</span>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(awardClosed || votingOpen) && selectedAward?.settings?.showResults && (
+                  <button
+                    onClick={() => router.push(`/leaderboard?awardId=${selectedAward._id}`)}
+                    className="border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm flex items-center gap-2 font-medium transition-colors"
+                  >
+                    View Result
+                  </button>
+                )}
+                {isNominationOpen() && (
+                  <button
+                    onClick={() => setNominationModalOpen(true)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2 font-medium transition-colors"
+                  >
+                    <Users size={14} />
+                    Nominate Yourself
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Banner Image */}
+            <div className="w-full lg:w-64 xl:w-72 shrink-0">
+              {selectedAward?.banner ? (
+                <div className="rounded-xl overflow-hidden h-52 relative">
+                  <Image src={selectedAward.banner} alt={selectedAward.name} fill className="object-cover" />
+                </div>
+              ) : (
+                <div className="bg-gradient-to-r from-green-900 to-green-700 rounded-xl h-52 flex items-center justify-center">
+                  <div className="text-white text-center font-bold text-xl p-4">{selectedAward?.name}</div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Category heading + Search bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+            <h2 className="text-lg font-medium text-green-600 uppercase tracking-wide">
+              {selectedCategory?.name}
+            </h2>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search by nominees...."
+                value={nomineeSearchQuery}
+                onChange={(e) => setNomineeSearchQuery(e.target.value)}
+                className="w-full sm:w-60 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm pr-8 bg-white"
+                suppressHydrationWarning
+              />
+              {nomineeSearchQuery ? (
+                <button onClick={handleClearNomineeSearch} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <X size={14} />
+                </button>
+              ) : (
+                <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+              )}
+            </div>
+          </div>
+
+          {/* Countdown when voting is active */}
+          {votingOpen && (
+            <div className="mb-6">
+              <p className="text-sm font-bold mb-6 text-gray-600 mb-3">Voting ends in</p>
+              <AwardCountdown
+                votingStartDate={selectedAward?.votingStartDate}
+                votingEndDate={selectedAward?.votingEndDate}
+                votingStartTime={selectedAward?.votingStartTime}
+                votingEndTime={selectedAward?.votingEndTime}
+                stageStartDate={activeStage?.startDate}
+                stageEndDate={activeStage?.endDate}
+                stageStartTime={activeStage?.startTime}
+                stageEndTime={activeStage?.endTime}
+              />
+            </div>
+          )}
+
+          {/* Nominees Grid */}
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+            </div>
+          ) : filteredNominees.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">
+              {nomineeSearchQuery ? "No nominees found matching your search" : "No nominees found"}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-4 gap-4 mt-16">
+              {filteredNominees.map((nominee) => (
+                <div
+                  key={nominee._id}
+                  onClick={() => handleNomineeClick(nominee)}
+                  className="bg-white rounded-2xl overflow-hidden border border-gray-100 hover:shadow-md transition-shadow cursor-pointer group"
+                >
+                  {/* Image */}
+                  {nominee.image ? (
+                    <div className="h-48 relative">
+                      {nominee.image.startsWith("data:") ? (
+                        <img src={nominee.image} alt={nominee.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <Image src={nominee.image} alt={nominee.name} fill className="object-cover" />
+                      )}
+                      {votingOpen && (
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center">
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-green-600 text-white px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5">
+                            <Heart size={14} />
+                            Vote Now
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center relative">
+                      <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm">
+                        <Users className="text-gray-400" size={30} />
+                      </div>
+                      {votingOpen && (
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center">
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5">
+                            <Heart size={14} />
+                            Vote Now
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Card Body */}
+                  <div className="p-3 space-y-2">
+                    {/* Category name + Trophy icon on same row */}
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-[10px] text-gray-400 uppercase font-medium leading-tight flex-1">
+                        {nominee.categoryName || selectedCategory?.name}
+                      </p>
+                      <div className="shrink-0 w-7 h-7 rounded-full bg-green-50 border border-green-200 flex items-center justify-center">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-500">
+                          <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+                        </svg>
+                      </div>
+                    </div>
+
+                    {/* Nominee name */}
+                    <h3 className="font-bold text-sm text-gray-900 leading-snug">
+                      {nominee.name}
+                    </h3>
+
+                    {/* Code Button + Share */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleNomineeClick(nominee); }}
+                        className="flex-1 flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white px-2.5 py-3 rounded-lg text-xs font-semibold transition-colors min-w-0"
+                      >
+                        <Clipboard size={12} className="shrink-0" />
+                        <span className="truncate">Nominee Code: {nominee.nomineeCode || "N/A"}</span>
+                      </button>
+                      <button
+                        onClick={(e) => handleShare(e, nominee)}
+                        className="shrink-0 w-9 h-9 flex items-center justify-center border border-gray-200 rounded-lg text-gray-500 hover:text-green-600 hover:border-green-300 transition-colors bg-white"
+                      >
+                        <Share2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Nomination Modal */}
+        {selectedAward && selectedCategory && (
+          <NominationModal
+            isOpen={nominationModalOpen}
+            onClose={() => setNominationModalOpen(false)}
+            awardId={selectedAward._id}
+            categoryId={selectedCategory._id}
+            categoryName={selectedCategory.name}
+            awardName={selectedAward.name}
+            nominationType={selectedAward.nomination?.type || "free"}
+            nominationFixedPrice={selectedAward.nomination?.fixedPrice}
+            categoryPrice={selectedCategory.price}
+          />
+        )}
+
+        {/* Voting Modal */}
+        {selectedAward && selectedCategory && selectedNominee && (
+          <VotingModal
+            isOpen={votingModalOpen}
+            onClose={() => { setVotingModalOpen(false); setSelectedNominee(null); }}
+            nominee={{
+              _id: selectedNominee._id,
+              name: selectedNominee.name,
+              image: selectedNominee.image,
+              categoryName: selectedCategory.name,
+            }}
+            awardId={selectedAward._id}
+            categoryId={selectedCategory._id}
+            votingCost={selectedAward.pricing?.votingCost || 0.5}
+            allowBulkVoting={selectedAward.pricing?.socialOptions?.bulkVoting || false}
+          />
+        )}
+      </div>
+    );
+  };
 
   const ResultsView = () => (
     <div className="min-h-screen bg-gray-50  overflow-y-scroll [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">

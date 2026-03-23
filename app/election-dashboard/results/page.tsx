@@ -159,9 +159,7 @@ export default function ResultsPage() {
     ? currentElection.status === 'draft' || new Date(currentElection.startDate) > now
     : false;
 
-  const countdownTarget = currentElection
-    ? electionUpcoming ? currentElection.startDate : currentElection.endDate
-    : null;
+  const countdownTarget = currentElection ? currentElection.endDate : null;
   const countdown = useCountdown(countdownTarget);
   const pad = (n: number) => String(n).padStart(2, '0');
 
@@ -348,32 +346,29 @@ export default function ResultsPage() {
         <>
           {/* Countdown Banner */}
           {countdown && !electionEnded && (
-            <div className="bg-slate-600 text-white rounded-xl p-5 mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center">
-                  <Clock size={20} />
-                </div>
-                <div>
-                  <p className="font-semibold text-sm">
-                    {electionActive ? 'Voting closes in' : 'Voting opens in'}
-                  </p>
-                  <p className="text-xs text-green-200 mt-0.5">
-                    {electionActive
-                      ? `Ends ${new Date(currentElection.endDate).toLocaleString()}`
-                      : `Starts ${new Date(currentElection.startDate).toLocaleString()}`}
-                  </p>
-                </div>
+            <div className="bg-white border border-gray-100 rounded-xl p-5 mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div>
+                <p className="font-semibold text-sm text-gray-900">
+                  {electionActive ? 'Voting closes in' : 'Voting opens in'}
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {electionActive
+                    ? `Ends ${new Date(currentElection.endDate).toLocaleString()}`
+                    : `Starts ${new Date(currentElection.startDate).toLocaleString()}`}
+                </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-start gap-3 sm:gap-4">
                 {[
                   { label: 'Days', value: countdown.days },
-                  { label: 'Hrs', value: countdown.hours },
-                  { label: 'Min', value: countdown.minutes },
-                  { label: 'Sec', value: countdown.seconds },
+                  { label: 'Hours', value: countdown.hours },
+                  { label: 'Minutes', value: countdown.minutes },
+                  { label: 'Seconds', value: countdown.seconds },
                 ].map(({ label, value }) => (
-                  <div key={label} className="bg-white/15 rounded-lg px-3 py-2 text-center min-w-14">
-                    <p className="text-xl font-bold font-mono leading-none">{pad(value)}</p>
-                    <p className="text-xs text-green-200 mt-1">{label}</p>
+                  <div key={label} className="flex flex-col items-center gap-1.5">
+                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl border-2 border-green-400 bg-green-100 flex items-center justify-center">
+                      <span className="text-xl sm:text-2xl font-bold text-green-500 tabular-nums">{pad(value)}</span>
+                    </div>
+                    <span className="text-xs text-gray-500 font-medium">{label}</span>
                   </div>
                 ))}
               </div>
