@@ -42,7 +42,7 @@ export default function ScannerDashboard() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
-  const lastCodeRef = useRef("");
+  const lastKeyRef = useRef("");   // stores "action:code"
   const lastTimeRef = useRef(0);
   const processingRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -77,8 +77,9 @@ export default function ScannerDashboard() {
       const trimmed = code.trim();
       if (!trimmed) return;
       const now = Date.now();
-      if (trimmed === lastCodeRef.current && now - lastTimeRef.current < 3000) return;
-      lastCodeRef.current = trimmed;
+      const key = `${action}:${trimmed}`;
+      if (key === lastKeyRef.current && now - lastTimeRef.current < 3000) return;
+      lastKeyRef.current = key;
       lastTimeRef.current = now;
 
       setScanning(true);
@@ -103,9 +104,9 @@ export default function ScannerDashboard() {
           success: !!data.valid,
           time: new Date(),
         };
-        setLogs((p) => [log, ...p].slice(0, 100));
+        setLogs((p: ScanLog[]) => [log, ...p].slice(0, 100));
         if (data.valid) {
-          setStats((s) => ({
+          setStats((s: typeof stats) => ({
             ...s,
             checkins: action === "check-in" ? s.checkins + 1 : s.checkins,
             checkouts: action === "check-out" ? s.checkouts + 1 : s.checkouts,
@@ -191,14 +192,14 @@ export default function ScannerDashboard() {
 
   const stopCamera = useCallback(() => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    if (streamRef.current) streamRef.current.getTracks().forEach((t) => t.stop());
+    if (streamRef.current) streamRef.current.getTracks().forEach((t: MediaStreamTrack) => t.stop());
     streamRef.current = null;
     setCamState("idle");
   }, []);
 
   useEffect(() => () => stopCamera(), [stopCamera]);
 
-  const handleManualSubmit = (e: React.FormEvent) => {
+  const handleManualSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (manualCode.trim()) processCode(manualCode);
   };
@@ -414,7 +415,7 @@ export default function ScannerDashboard() {
             {/* Manual input toggle */}
             <button
               onClick={() => {
-                setShowManual((v) => !v);
+                setShowManual((v: boolean) => !v);
                 setTimeout(() => inputRef.current?.focus(), 100);
               }}
               className="flex w-full items-center justify-center gap-2 text-xs text-slate-500 hover:text-slate-300 transition py-1"
@@ -552,7 +553,7 @@ export default function ScannerDashboard() {
               </div>
             ) : (
               <div className="space-y-2">
-                {logs.map((log) => (
+                {logs.map((log: ScanLog) => (
                   <div
                     key={log.id}
                     className="flex items-center gap-3 rounded-xl border border-white/5 bg-white/3 px-4 py-3"
@@ -606,7 +607,7 @@ export default function ScannerDashboard() {
 
       <canvas ref={canvasRef} className="hidden" />
 
-      <style jsx global>{`
+      <style>{`
         @keyframes scan {
           0%, 100% { top: 4px; opacity: 0.8; }
           50% { top: calc(100% - 4px); opacity: 1; }
