@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import OrganizationAdmin from '@/models/OrganizationAdmin';
 import Award from '@/models/Award';
+import Event from '@/models/Event';
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET!;
@@ -46,16 +47,19 @@ export async function GET(
       );
     }
 
-    // Normalize: populate assignedAwards for this org's membership entry
+    // Normalize: populate assignedAwards + assignedEvents for this org's membership entry
     const membership = (admin as any).organizations?.find(
       (o: any) => o.organizationId?.toString() === decoded.id
     );
     const awardIds = membership?.assignedAwards || [];
-    const awardDocs = awardIds.length > 0
-      ? await Award.find({ _id: { $in: awardIds } }).select('_id name').lean()
-      : [];
+    const eventIds = membership?.assignedEvents || [];
+    const [awardDocs, eventDocs] = await Promise.all([
+      awardIds.length > 0 ? Award.find({ _id: { $in: awardIds } }).select('_id name').lean() : [],
+      eventIds.length > 0 ? Event.find({ _id: { $in: eventIds } }).select('_id title').lean() : [],
+    ]);
     const plain = (admin as any).toObject();
     plain.assignedAwards = awardDocs;
+    plain.assignedEvents = eventDocs;
     plain.status = membership?.status || plain.status;
 
     return NextResponse.json({
@@ -99,7 +103,7 @@ export async function PUT(
     await connectDB();
 
     const body = await req.json();
-    const { name, assignedAwards, status } = body;
+    const { name, assignedAwards, assignedEvents, status } = body;
 
     // Verify admin belongs to this organization
     const admin = await OrganizationAdmin.findOne({
@@ -143,6 +147,9 @@ export async function PUT(
     if (assignedAwards !== undefined && orgIdx >= 0) {
       updateData[`organizations.${orgIdx}.assignedAwards`] = assignedAwards;
     }
+    if (assignedEvents !== undefined && orgIdx >= 0) {
+      updateData[`organizations.${orgIdx}.assignedEvents`] = assignedEvents;
+    }
 
     const updatedAdmin = await OrganizationAdmin.findByIdAndUpdate(
       id,
@@ -151,16 +158,19 @@ export async function PUT(
     )
       .select('-password');
 
-    // Normalize: return assignedAwards as flat populated array for this org
+    // Normalize: return assignedAwards + assignedEvents populated for this org
     const membership = (updatedAdmin as any)?.organizations?.find(
       (o: any) => o.organizationId?.toString() === decoded.id
     );
     const awardIds = membership?.assignedAwards || [];
-    const awardDocs = awardIds.length > 0
-      ? await Award.find({ _id: { $in: awardIds } }).select('_id name').lean()
-      : [];
+    const eventIds = membership?.assignedEvents || [];
+    const [awardDocs, eventDocs] = await Promise.all([
+      awardIds.length > 0 ? Award.find({ _id: { $in: awardIds } }).select('_id name').lean() : [],
+      eventIds.length > 0 ? Event.find({ _id: { $in: eventIds } }).select('_id title').lean() : [],
+    ]);
     const plain = (updatedAdmin as any).toObject();
     plain.assignedAwards = awardDocs;
+    plain.assignedEvents = eventDocs;
 
     return NextResponse.json({
       success: true,

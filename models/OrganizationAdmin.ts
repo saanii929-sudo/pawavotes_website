@@ -4,6 +4,7 @@ export interface IOrgMembership {
   organizationId: mongoose.Types.ObjectId;
   organizationName: string;
   assignedAwards: mongoose.Types.ObjectId[];
+  assignedEvents: mongoose.Types.ObjectId[];
   invitedBy: mongoose.Types.ObjectId;
   status: 'pending' | 'active' | 'inactive';
   invitationToken?: string;
@@ -33,6 +34,7 @@ const OrgMembershipSchema = new Schema<IOrgMembership>(
     organizationId: { type: Schema.Types.ObjectId, ref: 'Organization', required: true },
     organizationName: { type: String, required: true },
     assignedAwards: [{ type: Schema.Types.ObjectId, ref: 'Award' }],
+    assignedEvents: [{ type: Schema.Types.ObjectId, ref: 'Event' }],
     invitedBy: { type: Schema.Types.ObjectId, ref: 'Organization', required: true },
     status: { type: String, enum: ['pending', 'active', 'inactive'], default: 'pending' },
     invitationToken: { type: String },

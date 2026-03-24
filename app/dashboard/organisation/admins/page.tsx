@@ -18,12 +18,18 @@ interface Award {
   name: string;
 }
 
+interface Event {
+  _id: string;
+  title: string;
+}
+
 interface Admin {
   _id: string;
   name: string;
   email: string;
   status: 'pending' | 'active' | 'inactive';
   assignedAwards: Award[];
+  assignedEvents: Event[];
   createdAt: string;
   invitationExpiry?: string;
   type?: 'owner' | 'admin';
@@ -33,6 +39,7 @@ const AdminsManagement = () => {
   const router = useRouter();
   const [admins, setAdmins] = useState<Admin[]>([]);
   const [awards, setAwards] = useState<Award[]>([]);
+  const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [isOrgAdmin, setIsOrgAdmin] = useState(false);
   const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
@@ -50,6 +57,7 @@ const AdminsManagement = () => {
     name: '',
     email: '',
     assignedAwards: [] as string[],
+    assignedEvents: [] as string[],
   });
   
   // Modal state
@@ -69,6 +77,7 @@ const AdminsManagement = () => {
     }
     fetchAdmins();
     fetchAwards();
+    fetchEvents();
     if (user.role !== 'org-admin') fetchJoinRequests();
   }, []);
 
@@ -132,19 +141,27 @@ const AdminsManagement = () => {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch('/api/awards', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Authorization': `Bearer ${token}` },
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch awards');
-      }
-
+      if (!response.ok) throw new Error('Failed to fetch awards');
       const data = await response.json();
       setAwards(data.data);
     } catch (error: any) {
       console.error('Failed to load awards:', error);
+    }
+  };
+
+  const fetchEvents = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/events?limit=100', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error('Failed to fetch events');
+      const data = await response.json();
+      setEvents(data.data || []);
+    } catch (error: any) {
+      console.error('Failed to load events:', error);
     }
   };
 
@@ -182,17 +199,14 @@ const AdminsManagement = () => {
         setShowPassword(false);
         if (pendingAdminAction === 'new') {
           setEditingAdmin(null);
-          setFormData({
-            name: '',
-            email: '',
-            assignedAwards: [],
-          });
+          setFormData({ name: '', email: '', assignedAwards: [], assignedEvents: [] });
         } else if (pendingAdminAction) {
           setEditingAdmin(pendingAdminAction);
           setFormData({
             name: pendingAdminAction.name,
             email: pendingAdminAction.email,
             assignedAwards: pendingAdminAction.assignedAwards.map(a => a._id),
+            assignedEvents: (pendingAdminAction.assignedEvents || []).map(e => e._id),
           });
         }
         
@@ -211,11 +225,7 @@ const AdminsManagement = () => {
   const handleCloseModal = () => {
     setShowModal(false);
     setEditingAdmin(null);
-    setFormData({
-      name: '',
-      email: '',
-      assignedAwards: [],
-    });
+    setFormData({ name: '', email: '', assignedAwards: [], assignedEvents: [] });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -307,6 +317,15 @@ const AdminsManagement = () => {
       assignedAwards: prev.assignedAwards.includes(awardId)
         ? prev.assignedAwards.filter(id => id !== awardId)
         : [...prev.assignedAwards, awardId],
+    }));
+  };
+
+  const handleEventToggle = (eventId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      assignedEvents: prev.assignedEvents.includes(eventId)
+        ? prev.assignedEvents.filter(id => id !== eventId)
+        : [...prev.assignedEvents, eventId],
     }));
   };
 
@@ -445,6 +464,9 @@ const AdminsManagement = () => {
                   Assigned Awards
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Assigned Events
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Invited On
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -455,7 +477,7 @@ const AdminsManagement = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredAdmins.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
                     <Mail className="mx-auto mb-2 text-gray-400" size={48} />
                     <p>No admins found</p>
                     <p className="text-sm mt-1">Invite your first admin to get started</p>
@@ -490,20 +512,37 @@ const AdminsManagement = () => {
                       {admin.type === 'owner' ? (
                         <span className="text-xs text-gray-400 italic">Full access</span>
                       ) : admin.assignedAwards.length === 0 ? (
-                        <span className="text-sm text-gray-500">No awards assigned</span>
+                        <span className="text-sm text-gray-400">None</span>
                       ) : (
                         <div className="flex flex-wrap gap-1">
                           {admin.assignedAwards.slice(0, 2).map((award) => (
-                            <span
-                              key={award._id}
-                              className="inline-block px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded"
-                            >
+                            <span key={award._id} className="inline-block px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
                               {award.name}
                             </span>
                           ))}
                           {admin.assignedAwards.length > 2 && (
                             <span className="inline-block px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">
                               +{admin.assignedAwards.length - 2} more
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      {admin.type === 'owner' ? (
+                        <span className="text-xs text-gray-400 italic">Full access</span>
+                      ) : !admin.assignedEvents || admin.assignedEvents.length === 0 ? (
+                        <span className="text-sm text-gray-400">None</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {admin.assignedEvents.slice(0, 2).map((event) => (
+                            <span key={event._id} className="inline-block px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded">
+                              {event.title}
+                            </span>
+                          ))}
+                          {admin.assignedEvents.length > 2 && (
+                            <span className="inline-block px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">
+                              +{admin.assignedEvents.length - 2} more
                             </span>
                           )}
                         </div>
@@ -640,7 +679,7 @@ const AdminsManagement = () => {
                 {editingAdmin ? 'Edit Admin' : 'Invite New Admin'}
               </h2>
               <p className="text-sm text-green-100">
-                {editingAdmin ? 'Update admin details and award access' : 'Send an invitation to a new administrator'}
+                {editingAdmin ? 'Update admin details, awards and event access' : 'Send an invitation to a new administrator'}
               </p>
             </div>
 
@@ -705,6 +744,35 @@ const AdminsManagement = () => {
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
                   Admin will only have access to selected awards
+                </p>
+              </div>
+
+              {/* Assigned Events */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Assign Events
+                </label>
+                <div className="border border-gray-300 rounded-lg p-4 max-h-48 overflow-y-auto">
+                  {events.length === 0 ? (
+                    <p className="text-sm text-gray-500">No events available</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {events.map((event) => (
+                        <label key={event._id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                          <input
+                            type="checkbox"
+                            checked={formData.assignedEvents.includes(event._id)}
+                            onChange={() => handleEventToggle(event._id)}
+                            className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                          />
+                          <span className="text-sm text-gray-700">{event.title}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Admin will only see the Events section if at least one event is assigned
                 </p>
               </div>
 

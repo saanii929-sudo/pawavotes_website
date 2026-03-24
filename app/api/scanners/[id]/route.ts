@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Scanner from '@/models/Scanner';
 import { verifyToken, hashPassword } from '@/lib/auth';
+import { getOrgAdminEventIds } from '@/lib/org-admin-events';
 
 function getUser(req: NextRequest) {
   const auth = req.headers.get('authorization');
@@ -38,12 +39,20 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!scanner) return NextResponse.json({ error: 'Scanner not found' }, { status: 404 });
 
   const body = await req.json();
-  const { name, phone, status, assignedEvents, resetPassword } = body;
+  const { name, phone, status, resetPassword } = body;
+  let { assignedEvents } = body;
 
   if (name) scanner.name = name.trim();
   if (phone !== undefined) scanner.phone = phone?.trim();
   if (status && ['active', 'inactive', 'suspended'].includes(status)) scanner.status = status;
-  if (assignedEvents !== undefined) scanner.assignedEvents = assignedEvents;
+  if (assignedEvents !== undefined) {
+    // Org-admins can only assign scanners to their permitted events
+    if (user.role === 'org-admin') {
+      const permitted = await getOrgAdminEventIds(String(user.id), String((user as any).organizationId));
+      assignedEvents = (assignedEvents as string[]).filter((id: string) => permitted.includes(id));
+    }
+    scanner.assignedEvents = assignedEvents;
+  }
 
   let plainPassword: string | undefined;
   if (resetPassword) {

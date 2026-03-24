@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Event from '@/models/Event';
+import { getOrgAdminEventIds } from '@/lib/org-admin-events';
 import { withAuth } from '@/middleware/auth';
 
 connectDB().catch(() => {});
@@ -15,7 +16,12 @@ async function getEvent(req: NextRequest, { params }: { params: Promise<{ id: st
     if (user.role === 'event-organizer') {
       eventFilter = { _id: id, managedBy: String(user.id) };
     } else if (user.role === 'org-admin') {
-      eventFilter = { _id: id, $or: [{ organizationId: String(user.organizationId) }, { assignedAdmins: String(user.id) }] };
+      // Verify this specific event is in the admin's assigned list
+      const assignedEventIds = await getOrgAdminEventIds(String(user.id), String(user.organizationId));
+      if (!assignedEventIds.includes(id)) {
+        return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+      }
+      eventFilter = { _id: id };
     } else {
       eventFilter = { _id: id, organizationId: String(user.id) };
     }

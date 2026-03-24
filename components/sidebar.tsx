@@ -116,12 +116,29 @@ export default function Sidebar() {
   const { sidebarOpen, setSidebarOpen } = useUI();
   const [openDropdowns, setOpenDropdowns] = useState<string[]>([]);
   const [userRole, setUserRole] = useState<string>('organization');
+  const [hasAssignedEvents, setHasAssignedEvents] = useState(true); // default show until checked
 
   useEffect(() => {
     const userData = localStorage.getItem('user');
     if (userData) {
       const user = JSON.parse(userData);
-      setUserRole(user.role || 'organization');
+      const role = user.role || 'organization';
+      setUserRole(role);
+
+      // For org-admins, check if they have any assigned events
+      if (role === 'org-admin') {
+        const token = localStorage.getItem('token');
+        fetch('/api/organization/my-assignments', {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+          .then((r) => r.json())
+          .then((data) => {
+            if (data.success) {
+              setHasAssignedEvents(data.data.fullAccess || data.data.assignedEvents.length > 0);
+            }
+          })
+          .catch(() => { /* non-critical */ });
+      }
     }
   }, []);
 
@@ -130,19 +147,21 @@ export default function Sidebar() {
     if (userRole === 'event-organizer') {
       return menu.filter(item => ['Overview', 'Analytics', 'Events'].includes(item.name));
     }
-    // Org-admin: show Organization section but only relevant children
+    // Org-admin: filter based on assignments
     if (userRole === 'org-admin') {
-      return menu.map(item => {
-        if (item.name === 'Organization' && item.children) {
-          return {
-            ...item,
-            children: item.children.filter(c =>
-              c.name === 'My Organization' || c.name === 'Join Organization' || c.name === 'Admins'
-            ),
-          };
-        }
-        return item;
-      });
+      return menu
+        .filter(item => hasAssignedEvents || item.name !== 'Events')
+        .map(item => {
+          if (item.name === 'Organization' && item.children) {
+            return {
+              ...item,
+              children: item.children.filter(c =>
+                c.name === 'My Organization' || c.name === 'Join Organization' || c.name === 'Admins'
+              ),
+            };
+          }
+          return item;
+        });
     }
     return menu;
   })();

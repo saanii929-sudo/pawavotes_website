@@ -3,6 +3,7 @@ import connectDB from '@/lib/mongodb';
 import OrganizationAdmin from '@/models/OrganizationAdmin';
 import Organization from '@/models/Organization';
 import Award from '@/models/Award';
+import Event from '@/models/Event';
 import jwt from 'jsonwebtoken';
 import { hashPassword } from '@/lib/auth';
 import { sendInvitationEmail, generateRandomPassword, generateInvitationToken } from '@/lib/email';
@@ -46,21 +47,27 @@ export async function GET(req: NextRequest) {
         .sort({ createdAt: -1 }),
     ]);
 
-    // Normalize: populate assignedAwards for each org-admin from their membership entry
+    // Collect all award + event IDs across all admins for batch lookup
     const awardIds = new Set<string>();
+    const eventIds = new Set<string>();
     for (const admin of admins) {
       const membership = (admin as any).organizations?.find(
         (o: any) => o.organizationId?.toString() === orgId
       );
-      for (const id of membership?.assignedAwards || []) {
-        awardIds.add(id.toString());
-      }
+      for (const id of membership?.assignedAwards || []) awardIds.add(id.toString());
+      for (const id of membership?.assignedEvents || []) eventIds.add(id.toString());
     }
 
-    const awardDocs = awardIds.size > 0
-      ? await Award.find({ _id: { $in: Array.from(awardIds) } }).select('_id name').lean()
-      : [];
+    const [awardDocs, eventDocs] = await Promise.all([
+      awardIds.size > 0
+        ? Award.find({ _id: { $in: Array.from(awardIds) } }).select('_id name').lean()
+        : [],
+      eventIds.size > 0
+        ? Event.find({ _id: { $in: Array.from(eventIds) } }).select('_id title').lean()
+        : [],
+    ]);
     const awardMap = new Map(awardDocs.map((a: any) => [a._id.toString(), a]));
+    const eventMap = new Map(eventDocs.map((e: any) => [e._id.toString(), e]));
 
     const normalizedAdmins = admins.map((admin) => {
       const plain = (admin as any).toObject ? (admin as any).toObject() : { ...admin };
@@ -69,6 +76,9 @@ export async function GET(req: NextRequest) {
       );
       plain.assignedAwards = (membership?.assignedAwards || []).map(
         (id: any) => awardMap.get(id.toString()) || { _id: id, name: '' }
+      );
+      plain.assignedEvents = (membership?.assignedEvents || []).map(
+        (id: any) => eventMap.get(id.toString()) || { _id: id, title: '' }
       );
       plain.status = membership?.status || plain.status;
       plain.type = 'admin';
@@ -128,7 +138,7 @@ export async function POST(req: NextRequest) {
     await connectDB();
 
     const body = await req.json();
-    const { name, assignedAwards } = body;
+    const { name, assignedAwards, assignedEvents } = body;
     const email = (body.email || '').toLowerCase().trim();
 
     // Validation
@@ -188,6 +198,7 @@ export async function POST(req: NextRequest) {
               organizationId: decoded.id,
               organizationName,
               assignedAwards: assignedAwards || [],
+              assignedEvents: assignedEvents || [],
               invitedBy: decoded.id,
               status: 'pending',
               invitationToken,
@@ -242,6 +253,7 @@ export async function POST(req: NextRequest) {
         organizationId: decoded.id,
         organizationName,
         assignedAwards: assignedAwards || [],
+        assignedEvents: assignedEvents || [],
         invitedBy: decoded.id,
         status: 'pending',
         invitationToken,

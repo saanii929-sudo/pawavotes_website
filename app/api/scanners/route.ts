@@ -3,6 +3,7 @@ import connectDB from '@/lib/mongodb';
 import Scanner from '@/models/Scanner';
 import Event from '@/models/Event';
 import { verifyToken, hashPassword } from '@/lib/auth';
+import { getOrgAdminEventIds } from '@/lib/org-admin-events';
 
 function getUser(req: NextRequest) {
   const auth = req.headers.get('authorization');
@@ -60,10 +61,17 @@ export async function POST(req: NextRequest) {
   await connectDB();
 
   const body = await req.json();
-  const { name, email, phone, assignedEvents } = body;
+  const { name, email, phone } = body;
+  let { assignedEvents } = body;
 
   if (!name || !email) {
     return NextResponse.json({ error: 'Name and email are required' }, { status: 400 });
+  }
+
+  // Org-admins can only assign scanners to their permitted events
+  if (user.role === 'org-admin' && assignedEvents?.length) {
+    const permitted = await getOrgAdminEventIds(String(user.id), String((user as any).organizationId));
+    assignedEvents = (assignedEvents as string[]).filter((id) => permitted.includes(id));
   }
 
   const exists = await Scanner.findOne({ email: email.toLowerCase().trim() });

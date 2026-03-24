@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Event from '@/models/Event';
 import Organization from '@/models/Organization';
+import { getOrgAdminEventIds } from '@/lib/org-admin-events';
 import { withAuth } from '@/middleware/auth';
 
 connectDB().catch(() => {});
@@ -25,11 +26,17 @@ async function getEvents(req: NextRequest) {
       // Event-organizer sees only events they own
       query.managedBy = String(user.id);
     } else if (user.role === 'org-admin') {
-      // Org-admin sees their organization's own events AND events assigned by any event-organizer
-      query.$or = [
-        { organizationId: String(user.organizationId) },
-        { assignedAdmins: String(user.id) },
-      ];
+      // Org-admin sees ONLY the specific events assigned to them by the org owner
+      const assignedEventIds = await getOrgAdminEventIds(String(user.id), String(user.organizationId));
+
+      if (assignedEventIds.length === 0) {
+        return NextResponse.json({
+          success: true,
+          data: [],
+          pagination: { page, limit, total: 0, pages: 0 },
+        });
+      }
+      query._id = { $in: assignedEventIds };
     } else {
       // Organization owner sees all their events
       query.organizationId = String(user.id);
