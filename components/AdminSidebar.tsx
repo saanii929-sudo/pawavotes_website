@@ -19,6 +19,7 @@ const menu = [
     href: "/superadmin/platform-revenue",
     icon: DollarSign,
   },
+  { name: "Award Fees", href: "/superadmin/award-fees", icon: Percent },
   { name: "Site Analytics", href: "/superadmin/analytics", icon: BarChart3 },
   { name: "Event Organizers", href: "/superadmin/event-organizers", icon: CalendarDays },
 ];

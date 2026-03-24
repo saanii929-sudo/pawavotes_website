@@ -9,6 +9,7 @@ import {
   DollarSign,
   CreditCard,
   CalendarDays,
+  Percent,
 } from "lucide-react";
 import AdminSidebar from "@/components/AdminSidebar";
 import { UIProvider } from "@/context/ui-context";
@@ -101,6 +102,7 @@ export default function SuperAdminLayout({
     },
     { name: "Withdrawals", href: "/superadmin/withdrawals", icon: CreditCard },
     { name: "Platform Revenue", href: "/superadmin/platform-revenue", icon: DollarSign },
+    { name: "Award Fees", href: "/superadmin/award-fees", icon: Percent },
     { name: "Event Organizers", href: "/superadmin/event-organizers", icon: CalendarDays },
   ];
 

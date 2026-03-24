@@ -1,515 +1,469 @@
 "use client";
-import React, { useState, useEffect } from "react";
-import { CheckCircle, XCircle, Clock, Search, DollarSign, TrendingUp, CreditCard, Smartphone, Calendar, User, Building2, FileText } from "lucide-react";
+
+import { useEffect, useState, type ElementType } from "react";
+import {
+  Search, X, CheckCircle, XCircle, Clock,
+  Banknote, Smartphone, CreditCard,
+} from "lucide-react";
 import toast from "react-hot-toast";
+
+/* ─── types ───────────────────────────────────────────────── */
 
 interface Transfer {
   _id: string;
   referenceId: string;
-  awardId: string;
-  organizationId: string;
   amount: number;
-  platformFee: number;
-  totalRevenue: number;
   currency: string;
   recipientName: string;
   recipientBank?: string;
   recipientAccountNumber?: string;
   recipientPhoneNumber?: string;
-  transferType: 'bank' | 'mobile_money';
-  status: 'successful' | 'pending' | 'failed';
+  transferType: "bank" | "mobile_money";
+  status: "successful" | "pending" | "failed";
   initiatedBy: string;
   notes?: string;
   createdAt: string;
-  updatedAt: string;
 }
 
-const WithdrawalsPage = () => {
-  const [transfers, setTransfers] = useState<Transfer[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'pending' | 'successful' | 'failed'>('all');
-  const [searchQuery, setSearchQuery] = useState('');
+type Filter = "all" | "pending" | "successful" | "failed";
 
-  useEffect(() => {
-    fetchTransfers();
-  }, []);
+/* ─── helpers ─────────────────────────────────────────────── */
+
+function fmtDate(d: string) {
+  return new Date(d).toLocaleDateString("en-US", {
+    month: "short", day: "numeric", year: "numeric",
+  });
+}
+
+function fmtAmt(currency: string, amount: number) {
+  return `${currency} ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+const STATUS = {
+  successful: { dot: "bg-green-500", text: "text-green-700",  label: "Successful" },
+  pending:    { dot: "bg-amber-400", text: "text-amber-700",  label: "Pending"    },
+  failed:     { dot: "bg-red-400",   text: "text-red-600",    label: "Failed"     },
+};
+
+const TYPE = {
+  bank:         { label: "Bank",  cls: "bg-blue-50 text-blue-700"     },
+  mobile_money: { label: "MoMo",  cls: "bg-violet-50 text-violet-700" },
+};
+
+/* ─── skeleton ────────────────────────────────────────────── */
+
+function PageSkeleton() {
+  return (
+    <div className="space-y-5 animate-pulse">
+      <div className="space-y-1.5">
+        <div className="h-7 w-36 bg-gray-100 rounded-lg" />
+        <div className="h-4 w-24 bg-gray-100 rounded" />
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="h-32 bg-gray-100 rounded-2xl" />
+        ))}
+      </div>
+      <div className="h-12 bg-gray-100 rounded-xl" />
+      <div className="h-11 bg-gray-100 rounded-xl" />
+      <div className="bg-white rounded-2xl ring-1 ring-gray-100 overflow-hidden">
+        <div className="h-10 bg-gray-50 border-b border-gray-50" />
+        {[...Array(6)].map((_, i) => (
+          <div key={i} className="flex items-center gap-4 px-5 py-4 border-b border-gray-50">
+            <div className="flex-1 space-y-1.5">
+              <div className="h-3.5 w-32 bg-gray-100 rounded" />
+              <div className="h-3 w-44 bg-gray-100 rounded" />
+            </div>
+            <div className="h-4 w-20 bg-gray-100 rounded" />
+            <div className="h-5 w-14 bg-gray-100 rounded-lg" />
+            <div className="h-4 w-12 bg-gray-100 rounded" />
+            <div className="h-4 w-20 bg-gray-100 rounded" />
+            <div className="h-7 w-20 bg-gray-100 rounded-lg" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── stat card ───────────────────────────────────────────── */
+
+function StatCard({
+  label, value, sub, icon: Icon, numColor, iconCls,
+}: {
+  label: string; value: string | number; sub: string;
+  icon: ElementType; numColor: string; iconCls: string;
+}) {
+  return (
+    <div className="bg-white rounded-2xl p-5 ring-1 ring-gray-100 hover:ring-gray-200 transition-all">
+      <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-4 ${iconCls}`}>
+        <Icon size={16} strokeWidth={2} />
+      </div>
+      <p className={`text-3xl sm:text-4xl font-bold leading-none tabular-nums ${numColor}`}>
+        {value}
+      </p>
+      <p className="text-xs font-semibold text-gray-700 mt-2">{label}</p>
+      <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
+    </div>
+  );
+}
+
+/* ─── page ────────────────────────────────────────────────── */
+
+const FILTERS: { id: Filter; label: string }[] = [
+  { id: "all",        label: "All"        },
+  { id: "pending",    label: "Pending"    },
+  { id: "successful", label: "Successful" },
+  { id: "failed",     label: "Failed"     },
+];
+
+export default function WithdrawalsPage() {
+  const [transfers, setTransfers] = useState<Transfer[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [filter, setFilter]       = useState<Filter>("all");
+  const [search, setSearch]       = useState("");
+  const [acting, setActing]       = useState<Record<string, boolean>>({});
+
+  useEffect(() => { fetchTransfers(); }, []);
 
   const fetchTransfers = async () => {
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch("/api/superadmin/withdrawals", {
+      const res = await fetch("/api/superadmin/withdrawals", {
         headers: { Authorization: `Bearer ${token}` },
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        setTransfers(data.data || []);
-      } else {
-        toast.error("Failed to fetch withdrawals");
-      }
-    } catch (error) {
-      console.error("Failed to fetch withdrawals:", error);
+      if (res.ok) setTransfers((await res.json()).data || []);
+      else toast.error("Failed to fetch withdrawals");
+    } catch {
       toast.error("Failed to fetch withdrawals");
     } finally {
       setLoading(false);
     }
   };
 
-  const updateTransferStatus = async (transferId: string, action: 'approve' | 'reject') => {
-    const loadingToast = toast.loading(`${action === 'approve' ? 'Approving' : 'Rejecting'} transfer...`);
-    
+  const act = async (id: string, action: "approve" | "reject") => {
+    setActing((p) => ({ ...p, [id]: true }));
+    const t = toast.loading(action === "approve" ? "Approving…" : "Rejecting…");
     try {
       const token = localStorage.getItem("token");
-      if (!token) {
-        toast.error("Please login to continue", { id: loadingToast });
-        return;
-      }
-
-      const endpoint = action === 'approve' 
-        ? `/api/admin/transfers/${transferId}/approve`
-        : `/api/admin/transfers/${transferId}/reject`;
-        
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        ...(action === 'reject' && {
-          body: JSON.stringify({ reason: 'Rejected by superadmin' })
-        })
+      const endpoint =
+        action === "approve"
+          ? `/api/admin/transfers/${id}/approve`
+          : `/api/admin/transfers/${id}/reject`;
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        ...(action === "reject" && { body: JSON.stringify({ reason: "Rejected by superadmin" }) }),
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        toast.success(data.message || `Transfer ${action}d successfully!`, { id: loadingToast });
+      const d = await res.json();
+      if (res.ok) {
+        toast.success(d.message || `Transfer ${action}d`, { id: t });
         fetchTransfers();
       } else {
-        const data = await response.json();
-        toast.error(data.error || `Failed to ${action} transfer`, { id: loadingToast });
+        toast.error(d.error || `Failed to ${action}`, { id: t });
       }
-    } catch (error) {
-      toast.error(`Failed to ${action} transfer`, { id: loadingToast });
+    } catch {
+      toast.error(`Failed to ${action}`, { id: t });
+    } finally {
+      setActing((p) => ({ ...p, [id]: false }));
     }
   };
 
-  const filteredTransfers = transfers.filter(t => {
-    const matchesFilter = filter === 'all' || t.status === filter;
-    const matchesSearch = searchQuery === '' || 
-      t.referenceId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.recipientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.initiatedBy.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesFilter && matchesSearch;
-  });
+  if (loading) return <PageSkeleton />;
 
   const stats = {
-    total: transfers.length,
-    pending: transfers.filter(t => t.status === 'pending').length,
-    successful: transfers.filter(t => t.status === 'successful').length,
-    failed: transfers.filter(t => t.status === 'failed').length,
-    totalAmount: transfers.filter(t => t.status === 'successful').reduce((sum, t) => sum + t.amount, 0),
+    all:        transfers.length,
+    pending:    transfers.filter((t) => t.status === "pending").length,
+    successful: transfers.filter((t) => t.status === "successful").length,
+    failed:     transfers.filter((t) => t.status === "failed").length,
+    paidOut:    transfers.filter((t) => t.status === "successful").reduce((s, t) => s + t.amount, 0),
+    currency:   transfers[0]?.currency ?? "GHS",
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-12 h-12 border-4 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-gray-600 font-medium">Loading withdrawals...</p>
-        </div>
-      </div>
-    );
-  }
+  const filtered = transfers.filter((t) => {
+    const matchFilter = filter === "all" || t.status === filter;
+    const q = search.toLowerCase();
+    const matchSearch =
+      !q ||
+      t.referenceId.toLowerCase().includes(q) ||
+      t.recipientName.toLowerCase().includes(q) ||
+      t.initiatedBy.toLowerCase().includes(q);
+    return matchFilter && matchSearch;
+  });
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="rounded-xl sm:rounded-2xl p-6 sm:p-8 text-black">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="space-y-5">
+
+      {/* ── Header ── */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 leading-tight">Withdrawals</h1>
+        <p className="text-sm text-gray-400 mt-0.5">
+          {transfers.length} request{transfers.length !== 1 ? "s" : ""} total
+        </p>
+      </div>
+
+      {/* ── Stat cards ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <StatCard
+          label="Total"
+          value={stats.all}
+          sub="All requests"
+          icon={Banknote}
+          numColor="text-gray-900"
+          iconCls="bg-gray-50 text-gray-500"
+        />
+        <StatCard
+          label="Pending"
+          value={stats.pending}
+          sub="Awaiting action"
+          icon={Clock}
+          numColor="text-amber-700"
+          iconCls="bg-amber-50 text-amber-500"
+        />
+        <StatCard
+          label="Successful"
+          value={stats.successful}
+          sub="Completed"
+          icon={CheckCircle}
+          numColor="text-green-700"
+          iconCls="bg-green-50 text-green-600"
+        />
+        <StatCard
+          label="Failed"
+          value={stats.failed}
+          sub="Rejected / error"
+          icon={XCircle}
+          numColor="text-red-600"
+          iconCls="bg-red-50 text-red-500"
+        />
+      </div>
+
+      {/* ── Total paid out strip ── */}
+      <div className="bg-white rounded-xl ring-1 ring-gray-100 px-5 py-3.5 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center shrink-0">
+            <CreditCard size={14} className="text-green-600" />
+          </div>
           <div>
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-2 flex items-center gap-3">
-              <DollarSign className="w-8 h-8" />
-              Withdrawal Requests
-            </h1>
-            <p className="text-black text-sm sm:text-base">
-              Manage organizer withdrawal requests and payouts
-            </p>
+            <p className="text-xs font-semibold text-gray-800 leading-tight">Total Paid Out</p>
+            <p className="text-[11px] text-gray-400">Successful withdrawals</p>
           </div>
-          <div className="flex items-center gap-2 bg-green-600 text-white backdrop-blur-sm rounded-lg px-4 py-2 w-fit">
-            <TrendingUp className="w-5 h-5" />
-            <span className="text-sm font-medium">Live Updates</span>
-          </div>
+        </div>
+        <p className="text-sm font-bold text-green-700 tabular-nums">
+          {stats.currency}{" "}
+          {stats.paidOut.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </p>
+      </div>
+
+      {/* ── Search + filter row ── */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
+          <input
+            type="text"
+            placeholder="Search reference, recipient or initiator…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-10 pr-9 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 bg-white ring-1 ring-gray-200 rounded-xl px-2 py-1.5">
+          {FILTERS.map(({ id, label }) => (
+            <button
+              key={id}
+              onClick={() => setFilter(id)}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                filter === id
+                  ? "bg-gray-900 text-white"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {label}
+              <span className={`ml-1 ${filter === id ? "text-gray-300" : "text-gray-400"}`}>
+                {stats[id]}
+              </span>
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 p-4 sm:p-6 border-l-4 border-blue-500 group hover:scale-105">
-          <div className="flex items-center justify-between mb-2">
-            <div className="w-10 h-10 bg-linear-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-              <FileText className="text-white w-5 h-5" />
-            </div>
-          </div>
-          <p className="text-xs text-gray-600 mb-1 font-medium">Total Requests</p>
-          <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.total}</p>
+      {/* ── Empty state ── */}
+      {filtered.length === 0 ? (
+        <div className="bg-white rounded-2xl ring-1 ring-gray-100 py-20 text-center text-sm text-gray-400">
+          {search || filter !== "all" ? "No withdrawals match your filters" : "No withdrawal requests yet"}
         </div>
-
-        <div className="bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 p-4 sm:p-6 border-l-4 border-orange-500 group hover:scale-105">
-          <div className="flex items-center justify-between mb-2">
-            <div className="w-10 h-10 bg-linear-to-br from-orange-500 to-orange-600 rounded-lg flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-              <Clock className="text-white w-5 h-5" />
-            </div>
-          </div>
-          <p className="text-xs text-orange-600 mb-1 font-medium">Pending</p>
-          <p className="text-2xl sm:text-3xl font-bold text-orange-600">{stats.pending}</p>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 p-4 sm:p-6 border-l-4 border-green-500 group hover:scale-105">
-          <div className="flex items-center justify-between mb-2">
-            <div className="w-10 h-10 bg-linear-to-br from-green-500 to-green-600 rounded-lg flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-              <CheckCircle className="text-white w-5 h-5" />
-            </div>
-          </div>
-          <p className="text-xs text-green-600 mb-1 font-medium">Successful</p>
-          <p className="text-2xl sm:text-3xl font-bold text-green-600">{stats.successful}</p>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 p-4 sm:p-6 border-l-4 border-red-500 group hover:scale-105">
-          <div className="flex items-center justify-between mb-2">
-            <div className="w-10 h-10 bg-linear-to-br from-red-500 to-red-600 rounded-lg flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-              <XCircle className="text-white w-5 h-5" />
-            </div>
-          </div>
-          <p className="text-xs text-red-600 mb-1 font-medium">Failed</p>
-          <p className="text-2xl sm:text-3xl font-bold text-red-600">{stats.failed}</p>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 p-4 sm:p-6 border-l-4 border-purple-500 group hover:scale-105 col-span-2 lg:col-span-1">
-          <div className="flex items-center justify-between mb-2">
-            <div className="w-10 h-10 bg-linear-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-              <DollarSign className="text-white w-5 h-5" />
-            </div>
-          </div>
-          <p className="text-xs text-gray-600 mb-1 font-medium">Total Paid Out</p>
-          <p className="text-xl sm:text-2xl font-bold text-gray-900">GHS {stats.totalAmount.toFixed(2)}</p>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="bg-white rounded-xl shadow-md p-4">
-        <div className="flex flex-col lg:flex-row gap-4">
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-              <input
-                type="text"
-                placeholder="Search by reference, recipient, or initiator..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all"
-              />
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setFilter('all')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                filter === 'all' 
-                  ? 'bg-green-600 text-white shadow-lg' 
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              All ({stats.total})
-            </button>
-            <button
-              onClick={() => setFilter('pending')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                filter === 'pending' 
-                  ? 'bg-green-600 text-white shadow-lg' 
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Pending ({stats.pending})
-            </button>
-            <button
-              onClick={() => setFilter('successful')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                filter === 'successful' 
-                  ? 'bg-green-600 text-white shadow-lg' 
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Successful ({stats.successful})
-            </button>
-            <button
-              onClick={() => setFilter('failed')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                filter === 'failed' 
-                  ? 'bg-green-600 text-white shadow-lg' 
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Failed ({stats.failed})
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Desktop Table View */}
-      <div className="hidden lg:block bg-white rounded-xl shadow-md overflow-hidden">
-        {filteredTransfers.length === 0 ? (
-          <div className="p-12 text-center">
-            <DollarSign className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-            <p className="text-gray-500 font-medium">No withdrawal requests found</p>
-            <p className="text-sm text-gray-400 mt-1">Try adjusting your filters</p>
-          </div>
-        ) : (
-          <div className="overflow-x-scroll">
-            <table className="w-full">
+      ) : (
+        <>
+          {/* ── Desktop table ── */}
+          <div className="hidden sm:block bg-white rounded-2xl ring-1 ring-gray-100 overflow-hidden">
+            <table className="w-full text-sm">
               <thead>
-                <tr className=" text-black">
-                  <th className="px-6 py-4 text-left text-sm font-semibold">Recipient</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">Amount</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">Type</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">Initiated By</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">Date</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">Status</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">Actions</th>
+                <tr className="border-b border-gray-50">
+                  {["Recipient", "Amount", "Type", "Initiated by", "Date", "Status", ""].map((h) => (
+                    <th
+                      key={h}
+                      className="text-left py-3 px-5 text-[11px] font-semibold uppercase tracking-wider text-gray-400"
+                    >
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
-              <tbody>
-                {filteredTransfers.map((transfer, index) => (
-                  <tr 
-                    key={transfer._id} 
-                    className={`border-b hover:bg-orange-50 transition-colors ${
-                      index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                    }`}
-                  >
-                    <td className="px-6 py-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <User className="w-4 h-4 text-gray-400" />
-                          <p className="font-semibold text-gray-900 text-xs">{transfer.recipientName}</p>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-gray-600">
-                          {transfer.transferType === 'bank' ? (
-                            <>
-                              <Building2 className="w-3 h-3 text-gray-400" />
-                              <span>{transfer.recipientBank} • {transfer.recipientAccountNumber}</span>
-                            </>
-                          ) : (
-                            <>
-                              <Smartphone className="w-3 h-3 text-gray-400" />
-                              <span>Mobile Money • {transfer.recipientPhoneNumber}</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <DollarSign className="w-4 h-4 text-green-600" />
-                        <span className="font-bold text-gray-900 text-xs">{transfer.currency} {transfer.amount.toFixed(2)}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${
-                        transfer.transferType === 'bank' 
-                          ? 'bg-blue-100 text-blue-700' 
-                          : 'bg-purple-100 text-purple-700'
-                      }`}>
-                        {transfer.transferType === 'bank' ? (
-                          <> Bank Transfer</>
+              <tbody className="divide-y divide-gray-50">
+                {filtered.map((t) => {
+                  const st = STATUS[t.status] ?? STATUS.failed;
+                  const ty = TYPE[t.transferType] ?? TYPE.bank;
+                  const busy = acting[t._id];
+                  return (
+                    <tr key={t._id} className="hover:bg-gray-50/70 transition-colors">
+
+                      {/* Recipient */}
+                      <td className="py-3.5 px-5">
+                        <p className="font-semibold text-gray-900 leading-tight">{t.recipientName}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {t.transferType === "bank"
+                            ? `${t.recipientBank ?? ""} · ${t.recipientAccountNumber ?? ""}`
+                            : `MoMo · ${t.recipientPhoneNumber ?? ""}`}
+                        </p>
+                      </td>
+
+                      {/* Amount */}
+                      <td className="py-3.5 px-5 font-semibold text-gray-900 tabular-nums">
+                        {fmtAmt(t.currency, t.amount)}
+                      </td>
+
+                      {/* Type */}
+                      <td className="py-3.5 px-5">
+                        <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg ${ty.cls}`}>
+                          {t.transferType === "bank"
+                            ? <CreditCard size={11} />
+                            : <Smartphone size={11} />}
+                          {ty.label}
+                        </span>
+                      </td>
+
+                      {/* Initiated by */}
+                      <td className="py-3.5 px-5 text-sm text-gray-600 max-w-35 truncate">
+                        {t.initiatedBy}
+                      </td>
+
+                      {/* Date */}
+                      <td className="py-3.5 px-5 text-xs text-gray-500 tabular-nums whitespace-nowrap">
+                        {fmtDate(t.createdAt)}
+                      </td>
+
+                      {/* Status */}
+                      <td className="py-3.5 px-5">
+                        <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${st.text}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />
+                          {st.label}
+                        </span>
+                      </td>
+
+                      {/* Actions */}
+                      <td className="py-3.5 px-5">
+                        {t.status === "pending" ? (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => act(t._id, "approve")}
+                              disabled={busy}
+                              className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
+                            >
+                              {busy ? "…" : "Approve"}
+                            </button>
+                            <button
+                              onClick={() => act(t._id, "reject")}
+                              disabled={busy}
+                              className="px-3 py-1.5 border border-red-200 text-red-600 hover:bg-red-50 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
+                            >
+                              {busy ? "…" : "Reject"}
+                            </button>
+                          </div>
                         ) : (
-                          <p className="text-xs"> MoMo</p>
+                          <span className="text-xs text-gray-300">—</span>
                         )}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-sm text-gray-900 font-medium">{transfer.initiatedBy}</span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Calendar className="w-4 h-4 text-gray-400" />
-                        {new Date(transfer.createdAt).toLocaleDateString('en-US', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric',
-                        })}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${
-                          transfer.status === 'successful'
-                            ? 'bg-green-100 text-green-700'
-                            : transfer.status === 'pending'
-                            ? 'bg-orange-100 text-orange-700'
-                            : 'bg-red-100 text-red-700'
-                        }`}
-                      >
-                        {transfer.status === 'successful' && <CheckCircle className="w-3 h-3" />}
-                        {transfer.status === 'pending' && <Clock className="w-3 h-3" />}
-                        {transfer.status === 'failed' && <XCircle className="w-3 h-3" />}
-                        {transfer.status.charAt(0).toUpperCase() + transfer.status.slice(1)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      {transfer.status === 'pending' ? (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => updateTransferStatus(transfer._id, 'approve')}
-                            className="px-4 py-2 cursor-pointer bg-green-600 text-white rounded-lg text-xs font-semibold hover:bg-green-700 transition-colors shadow-md hover:shadow-lg"
-                          >
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => updateTransferStatus(transfer._id, 'reject')}
-                            className="px-4 py-2 cursor-pointer bg-red-600 text-white rounded-lg text-xs font-semibold hover:bg-red-700 transition-colors shadow-md hover:shadow-lg"
-                          >
-                            Reject
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-gray-400">No actions</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
-        )}
-      </div>
 
-      {/* Mobile/Tablet Card View */}
-      <div className="lg:hidden space-y-4">
-        {filteredTransfers.length === 0 ? (
-          <div className="bg-white rounded-xl shadow-md p-12 text-center">
-            <DollarSign className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-            <p className="text-gray-500 font-medium">No withdrawal requests found</p>
-            <p className="text-sm text-gray-400 mt-1">Try adjusting your filters</p>
-          </div>
-        ) : (
-          filteredTransfers.map((transfer) => (
-            <div 
-              key={transfer._id} 
-              className="bg-white rounded-xl shadow-md p-4 border border-gray-200 hover:border-orange-300 hover:shadow-lg transition-all"
-            >
-              {/* Header */}
-              <div className="flex items-start justify-between mb-4 pb-3 border-b border-gray-200">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-2">
-                    <FileText className="w-4 h-4 text-gray-400 shrink-0" />
-                    <span className="font-mono text-sm text-gray-900 font-semibold truncate">{transfer.referenceId}</span>
+          {/* ── Mobile list ── */}
+          <div className="sm:hidden bg-white rounded-2xl ring-1 ring-gray-100 overflow-hidden divide-y divide-gray-50">
+            {filtered.map((t) => {
+              const st = STATUS[t.status] ?? STATUS.failed;
+              const ty = TYPE[t.transferType] ?? TYPE.bank;
+              const busy = acting[t._id];
+              return (
+                <div key={t._id} className="px-4 py-4 space-y-3">
+                  {/* Row 1: recipient + status */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-gray-900 text-sm truncate">{t.recipientName}</p>
+                      <p className="text-xs text-gray-400 mt-0.5 truncate">
+                        {t.transferType === "bank"
+                          ? `${t.recipientBank ?? ""} · ${t.recipientAccountNumber ?? ""}`
+                          : `MoMo · ${t.recipientPhoneNumber ?? ""}`}
+                      </p>
+                    </div>
+                    <span className={`inline-flex items-center gap-1 text-xs font-semibold shrink-0 ${st.text}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />
+                      {st.label}
+                    </span>
                   </div>
-                  <span
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${
-                      transfer.status === 'successful'
-                        ? 'bg-green-100 text-green-700'
-                        : transfer.status === 'pending'
-                        ? 'bg-orange-100 text-orange-700'
-                        : 'bg-red-100 text-red-700'
-                    }`}
-                  >
-                    {transfer.status === 'successful' && <CheckCircle className="w-3 h-3" />}
-                    {transfer.status === 'pending' && <Clock className="w-3 h-3" />}
-                    {transfer.status === 'failed' && <XCircle className="w-3 h-3" />}
-                    {transfer.status.charAt(0).toUpperCase() + transfer.status.slice(1)}
-                  </span>
-                </div>
-              </div>
 
-              {/* Amount */}
-              <div className="bg-linear-to-r from-orange-50 to-amber-50 rounded-lg p-3 mb-4">
-                <p className="text-xs text-gray-600 mb-1">Amount</p>
-                <div className="flex items-center gap-2">
-                  <DollarSign className="w-5 h-5 text-orange-600" />
-                  <p className="text-2xl font-bold text-gray-900">{transfer.currency} {transfer.amount.toFixed(2)}</p>
-                </div>
-              </div>
-
-              {/* Details */}
-              <div className="space-y-3 mb-4">
-                <div className="flex items-start gap-2">
-                  <User className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-gray-500">Recipient</p>
-                    <p className="font-semibold text-gray-900 text-sm">{transfer.recipientName}</p>
+                  {/* Row 2: amount + type + date */}
+                  <div className="flex items-center gap-3 text-xs text-gray-500">
+                    <span className="font-bold text-gray-900 tabular-nums text-sm">
+                      {fmtAmt(t.currency, t.amount)}
+                    </span>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold ${ty.cls}`}>
+                      {t.transferType === "bank" ? <CreditCard size={10} /> : <Smartphone size={10} />}
+                      {ty.label}
+                    </span>
+                    <span className="ml-auto tabular-nums">{fmtDate(t.createdAt)}</span>
                   </div>
-                </div>
 
-                <div className="flex items-start gap-2">
-                  {transfer.transferType === 'bank' ? (
-                    <>
-                      <Building2 className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs text-gray-500">Bank Transfer</p>
-                        <p className="text-sm text-gray-900">{transfer.recipientBank}</p>
-                        <p className="text-xs text-gray-600">{transfer.recipientAccountNumber}</p>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <Smartphone className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs text-gray-500">Mobile Money</p>
-                        <p className="text-sm text-gray-900">{transfer.recipientPhoneNumber}</p>
-                      </div>
-                    </>
+                  {/* Row 3: initiator */}
+                  <p className="text-xs text-gray-400 truncate">
+                    Initiated by <span className="text-gray-600 font-medium">{t.initiatedBy}</span>
+                  </p>
+
+                  {/* Row 4: actions (pending only) */}
+                  {t.status === "pending" && (
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        onClick={() => act(t._id, "approve")}
+                        disabled={busy}
+                        className="flex-1 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold transition-colors disabled:opacity-50"
+                      >
+                        {busy ? "…" : "Approve"}
+                      </button>
+                      <button
+                        onClick={() => act(t._id, "reject")}
+                        disabled={busy}
+                        className="flex-1 py-2 border border-red-200 text-red-600 hover:bg-red-50 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50"
+                      >
+                        {busy ? "…" : "Reject"}
+                      </button>
+                    </div>
                   )}
                 </div>
-
-                <div className="flex items-center gap-2 text-sm">
-                  <User className="w-4 h-4 text-gray-400" />
-                  <span className="text-xs text-gray-500">Initiated by:</span>
-                  <span className="text-gray-900 font-medium">{transfer.initiatedBy}</span>
-                </div>
-
-                <div className="flex items-center gap-2 text-sm">
-                  <Calendar className="w-4 h-4 text-gray-400" />
-                  <span className="text-xs text-gray-600">
-                    {new Date(transfer.createdAt).toLocaleDateString('en-US', {
-                      day: '2-digit',
-                      month: 'short',
-                      year: 'numeric',
-                    })}
-                  </span>
-                </div>
-
-                {transfer.notes && (
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-xs text-gray-500 mb-1">Notes</p>
-                    <p className="text-sm text-gray-700 italic">{transfer.notes}</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Actions */}
-              {transfer.status === 'pending' && (
-                <div className="flex gap-2 pt-3 border-t border-gray-200">
-                  <button
-                    onClick={() => updateTransferStatus(transfer._id, 'approve')}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors shadow-md hover:shadow-lg"
-                  >
-                    <CheckCircle size={16} />
-                    Approve
-                  </button>
-                  <button
-                    onClick={() => updateTransferStatus(transfer._id, 'reject')}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors shadow-md hover:shadow-lg"
-                  >
-                    <XCircle size={16} />
-                    Reject
-                  </button>
-                </div>
-              )}
-            </div>
-          ))
-        )}
-      </div>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
-};
-
-export default WithdrawalsPage;
+}

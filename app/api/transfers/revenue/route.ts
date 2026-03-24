@@ -36,16 +36,24 @@ export async function GET(req: NextRequest) {
       if (!award) {
         return NextResponse.json({ error: 'Award not found or access denied' }, { status: 404 });
       }
-      const Organization = (await import('@/models/Organization')).default;
-      const organization = await Organization.findById(decoded.id);
-      serviceFeePercentage = organization?.serviceFeePercentage || 10;
+      if (award.awardServiceFeePercentage != null) {
+        serviceFeePercentage = award.awardServiceFeePercentage;
+      } else {
+        const Organization = (await import('@/models/Organization')).default;
+        const organization = await Organization.findById(decoded.id);
+        serviceFeePercentage = organization?.serviceFeePercentage || 10;
+      }
     } else {
       const Award = (await import('@/models/Award')).default;
       const award = await Award.findById(awardId);
       if (award) {
-        const Organization = (await import('@/models/Organization')).default;
-        const organization = await Organization.findById(award.organizationId);
-        serviceFeePercentage = organization?.serviceFeePercentage || 10;
+        if (award.awardServiceFeePercentage != null) {
+          serviceFeePercentage = award.awardServiceFeePercentage;
+        } else {
+          const Organization = (await import('@/models/Organization')).default;
+          const organization = await Organization.findById(award.organizationId);
+          serviceFeePercentage = organization?.serviceFeePercentage || 10;
+        }
       }
     }
 

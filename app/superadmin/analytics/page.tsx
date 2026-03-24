@@ -1,7 +1,12 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { Eye, Users, Monitor, Smartphone, Tablet, Globe, Clock, TrendingUp } from 'lucide-react';
+import { useEffect, useState, type ElementType } from "react";
+import {
+  Eye, Users, TrendingUp, Clock,
+  Monitor, Smartphone, Tablet, Globe, ArrowUpRight,
+} from "lucide-react";
+
+/* ─── types ───────────────────────────────────────────────── */
 
 interface Analytics {
   overview: {
@@ -10,180 +15,247 @@ interface Analytics {
     todayViews: number;
     todaySessions: number;
   };
-  topPages: Array<{ _id: string; views: number; uniqueVisitors: number }>;
+  topPages:        Array<{ _id: string; views: number; uniqueVisitors: number }>;
   deviceBreakdown: Array<{ _id: string; count: number }>;
-  browserBreakdown: Array<{ _id: string; count: number }>;
-  viewsByDay: Array<{ _id: string; views: number; uniqueVisitors: number }>;
-  topReferrers: Array<{ _id: string; count: number }>;
-  recentViews: Array<{ path: string; device: string; browser: string; createdAt: string }>;
+  browserBreakdown:Array<{ _id: string; count: number }>;
+  viewsByDay:      Array<{ _id: string; views: number; uniqueVisitors: number }>;
+  topReferrers:    Array<{ _id: string; count: number }>;
+  recentViews:     Array<{ path: string; device: string; browser: string; createdAt: string }>;
 }
 
-export default function SiteAnalyticsPage() {
-  const [data, setData] = useState<Analytics | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [range, setRange] = useState('7d');
+/* ─── helpers ─────────────────────────────────────────────── */
 
-  useEffect(() => {
-    fetchAnalytics();
-  }, [range]);
+function fmtDay(iso: string) {
+  return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+}
+
+function fmtTime(iso: string) {
+  return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+}
+
+function deviceIcon(d: string) {
+  if (d === "mobile")  return <Smartphone size={14} className="text-blue-500 shrink-0" />;
+  if (d === "tablet")  return <Tablet     size={14} className="text-violet-500 shrink-0" />;
+  return                      <Monitor    size={14} className="text-gray-400 shrink-0" />;
+}
+
+const RANGES: { id: string; label: string }[] = [
+  { id: "24h", label: "24h"     },
+  { id: "7d",  label: "7 days"  },
+  { id: "30d", label: "30 days" },
+  { id: "90d", label: "90 days" },
+];
+
+/* ─── skeleton ────────────────────────────────────────────── */
+
+function PageSkeleton() {
+  return (
+    <div className="space-y-5 animate-pulse">
+      <div className="flex items-center justify-between">
+        <div className="space-y-1.5">
+          <div className="h-7 w-32 bg-gray-100 rounded-lg" />
+          <div className="h-4 w-48 bg-gray-100 rounded" />
+        </div>
+        <div className="h-9 w-64 bg-gray-100 rounded-xl" />
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {[...Array(4)].map((_, i) => <div key={i} className="h-32 bg-gray-100 rounded-2xl" />)}
+      </div>
+      <div className="h-52 bg-gray-100 rounded-2xl" />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="h-64 bg-gray-100 rounded-2xl" />
+        <div className="space-y-5">
+          <div className="h-28 bg-gray-100 rounded-2xl" />
+          <div className="h-28 bg-gray-100 rounded-2xl" />
+        </div>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="h-52 bg-gray-100 rounded-2xl" />
+        <div className="h-52 bg-gray-100 rounded-2xl" />
+      </div>
+    </div>
+  );
+}
+
+/* ─── stat card ───────────────────────────────────────────── */
+
+function StatCard({
+  label, value, sub, icon: Icon, numColor, iconCls,
+}: {
+  label: string; value: string | number; sub: string;
+  icon: ElementType; numColor: string; iconCls: string;
+}) {
+  return (
+    <div className="bg-white rounded-2xl p-5 ring-1 ring-gray-100 hover:ring-gray-200 transition-all">
+      <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-4 ${iconCls}`}>
+        <Icon size={16} strokeWidth={2} />
+      </div>
+      <p className={`text-3xl sm:text-4xl font-bold leading-none tabular-nums ${numColor}`}>
+        {typeof value === "number" ? value.toLocaleString() : value}
+      </p>
+      <p className="text-xs font-semibold text-gray-700 mt-2">{label}</p>
+      <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
+    </div>
+  );
+}
+
+/* ─── section header ──────────────────────────────────────── */
+
+function SectionHead({ title, sub }: { title: string; sub: string }) {
+  return (
+    <div className="px-5 py-4 border-b border-gray-50">
+      <p className="text-sm font-bold text-gray-900">{title}</p>
+      <p className="text-[11px] text-gray-400 mt-0.5">{sub}</p>
+    </div>
+  );
+}
+
+/* ─── page ────────────────────────────────────────────────── */
+
+export default function SiteAnalyticsPage() {
+  const [data, setData]     = useState<Analytics | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [range, setRange]   = useState("7d");
+
+  useEffect(() => { fetchAnalytics(); }, [range]);
 
   const fetchAnalytics = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem("token");
       const res = await fetch(`/api/superadmin/analytics?range=${range}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) {
-        const json = await res.json();
-        setData(json.data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch analytics:', error);
+      if (res.ok) setData((await res.json()).data);
+    } catch {
+      /* non-critical */
     } finally {
       setLoading(false);
     }
   };
 
-  const deviceIcon = (device: string) => {
-    if (device === 'mobile') return <Smartphone size={16} className="text-blue-500" />;
-    if (device === 'tablet') return <Tablet size={16} className="text-purple-500" />;
-    return <Monitor size={16} className="text-gray-500" />;
-  };
-
-  const maxDayViews = data?.viewsByDay?.length
-    ? Math.max(...data.viewsByDay.map(d => d.views), 1)
-    : 1;
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-12 h-12 border-4 border-green-600 border-t-transparent rounded-full animate-spin" />
-          <p className="text-gray-600 font-medium">Loading analytics...</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <PageSkeleton />;
 
   if (!data) {
     return (
-      <div className="text-center py-20 text-gray-500">
-        No analytics data available yet. Data will appear as visitors browse the site.
+      <div className="bg-white rounded-2xl ring-1 ring-gray-100 py-20 text-center text-sm text-gray-400">
+        No analytics data yet — appears as visitors browse the platform.
       </div>
     );
   }
 
+  const maxDayViews = data.viewsByDay.length
+    ? Math.max(...data.viewsByDay.map((d) => d.views), 1)
+    : 1;
+
+  const deviceTotal  = data.deviceBreakdown.reduce((s, d) => s + d.count, 0);
+  const browserTotal = data.browserBreakdown.reduce((s, b) => s + b.count, 0);
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="space-y-5">
+
+      {/* ── Header + range tabs ── */}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Site Analytics</h1>
-          <p className="text-gray-500 text-sm mt-1">Track visitor activity across the platform</p>
+          <h1 className="text-2xl font-bold text-gray-900 leading-tight">Analytics</h1>
+          <p className="text-sm text-gray-400 mt-0.5">Visitor activity across the platform</p>
         </div>
-        <div className="flex gap-2">
-          {['24h', '7d', '30d', '90d'].map((r) => (
+        <div className="flex items-center gap-1 bg-white ring-1 ring-gray-200 rounded-xl px-1.5 py-1.5 self-start">
+          {RANGES.map(({ id, label }) => (
             <button
-              key={r}
-              onClick={() => setRange(r)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                range === r
-                  ? 'bg-green-600 text-white'
-                  : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+              key={id}
+              onClick={() => setRange(id)}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                range === id ? "bg-gray-900 text-white" : "text-gray-500 hover:text-gray-700"
               }`}
             >
-              {r === '24h' ? '24h' : r === '7d' ? '7 days' : r === '30d' ? '30 days' : '90 days'}
+              {label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Overview Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-blue-500">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-              <Eye className="text-blue-600" size={20} />
-            </div>
-          </div>
-          <p className="text-xs text-gray-500 mb-1">Total Page Views</p>
-          <p className="text-2xl font-bold text-gray-900">{data.overview.totalViews.toLocaleString()}</p>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-green-500">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-              <Users className="text-green-600" size={20} />
-            </div>
-          </div>
-          <p className="text-xs text-gray-500 mb-1">Unique Visitors</p>
-          <p className="text-2xl font-bold text-gray-900">{data.overview.uniqueSessions.toLocaleString()}</p>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-purple-500">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-              <TrendingUp className="text-purple-600" size={20} />
-            </div>
-          </div>
-          <p className="text-xs text-gray-500 mb-1">Views Today</p>
-          <p className="text-2xl font-bold text-gray-900">{data.overview.todayViews.toLocaleString()}</p>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-orange-500">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-              <Users className="text-orange-600" size={20} />
-            </div>
-          </div>
-          <p className="text-xs text-gray-500 mb-1">Visitors Today</p>
-          <p className="text-2xl font-bold text-gray-900">{data.overview.todaySessions.toLocaleString()}</p>
-        </div>
+      {/* ── Stat cards ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <StatCard
+          label="Page Views"
+          value={data.overview.totalViews}
+          sub="In selected range"
+          icon={Eye}
+          numColor="text-gray-900"
+          iconCls="bg-gray-50 text-gray-500"
+        />
+        <StatCard
+          label="Unique Visitors"
+          value={data.overview.uniqueSessions}
+          sub="Distinct sessions"
+          icon={Users}
+          numColor="text-blue-700"
+          iconCls="bg-blue-50 text-blue-500"
+        />
+        <StatCard
+          label="Views Today"
+          value={data.overview.todayViews}
+          sub="Since midnight"
+          icon={TrendingUp}
+          numColor="text-green-700"
+          iconCls="bg-green-50 text-green-600"
+        />
+        <StatCard
+          label="Visitors Today"
+          value={data.overview.todaySessions}
+          sub="Unique today"
+          icon={Users}
+          numColor="text-gray-900"
+          iconCls="bg-violet-50 text-violet-500"
+        />
       </div>
 
-      {/* Views Chart */}
+      {/* ── Daily views bar chart ── */}
       {data.viewsByDay.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm p-5">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Daily Views</h2>
-          <div className="space-y-2">
-            {data.viewsByDay.map((day) => (
-              <div key={day._id} className="flex items-center gap-3">
-                <span className="text-xs text-gray-500 w-20 shrink-0">
-                  {new Date(day._id).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
-                </span>
-                <div className="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden">
-                  <div
-                    className="bg-green-500 h-full rounded-full flex items-center justify-end pr-2 transition-all"
-                    style={{ width: `${Math.max((day.views / maxDayViews) * 100, 8)}%` }}
-                  >
-                    <span className="text-[10px] text-white font-medium">{day.views}</span>
+        <div className="bg-white rounded-2xl ring-1 ring-gray-100 overflow-hidden">
+          <SectionHead title="Daily views" sub="Views and unique visitors per day" />
+          <div className="px-5 py-4 space-y-2.5">
+            {data.viewsByDay.map((day) => {
+              const pct = Math.max((day.views / maxDayViews) * 100, 3);
+              return (
+                <div key={day._id} className="flex items-center gap-3">
+                  <span className="text-xs text-gray-400 w-14 shrink-0 tabular-nums">{fmtDay(day._id)}</span>
+                  <div className="flex-1 h-5 bg-gray-100 rounded overflow-hidden">
+                    <div
+                      className="h-full bg-green-500 rounded transition-all duration-300"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0 w-24 justify-end tabular-nums">
+                    <span className="text-xs font-semibold text-gray-900">{day.views}</span>
+                    <span className="text-[11px] text-gray-400">/ {day.uniqueVisitors}</span>
                   </div>
                 </div>
-                <span className="text-xs text-gray-400 w-16 text-right">{day.uniqueVisitors} visitors</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
+          <p className="px-5 pb-4 text-[11px] text-gray-400">views · unique visitors</p>
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Top Pages */}
-        <div className="bg-white rounded-xl shadow-sm p-5">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Top Pages</h2>
+      {/* ── Top pages + devices/browsers ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+        {/* Top pages */}
+        <div className="bg-white rounded-2xl ring-1 ring-gray-100 overflow-hidden">
+          <SectionHead title="Top pages" sub="Most visited routes in range" />
           {data.topPages.length === 0 ? (
-            <p className="text-sm text-gray-400 py-4 text-center">No data yet</p>
+            <p className="py-10 text-center text-sm text-gray-400">No data yet</p>
           ) : (
-            <div className="space-y-3">
+            <div className="divide-y divide-gray-50">
               {data.topPages.map((page, i) => (
-                <div key={page._id} className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <span className="text-xs font-bold text-gray-400 w-5">{i + 1}</span>
-                    <span className="text-sm text-gray-700 truncate">{page._id}</span>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span className="text-xs text-gray-500">{page.uniqueVisitors} visitors</span>
-                    <span className="text-sm font-semibold text-gray-900">{page.views}</span>
+                <div key={page._id} className="flex items-center gap-3 px-5 py-3">
+                  <span className="text-xs font-bold text-gray-300 w-5 shrink-0 tabular-nums">{i + 1}</span>
+                  <span className="text-sm text-gray-700 truncate flex-1 font-medium">{page._id}</span>
+                  <div className="flex items-center gap-2 shrink-0 tabular-nums">
+                    <span className="text-[11px] text-gray-400">{page.uniqueVisitors} visitors</span>
+                    <span className="text-sm font-bold text-gray-900">{page.views}</span>
                   </div>
                 </div>
               ))}
@@ -191,26 +263,35 @@ export default function SiteAnalyticsPage() {
           )}
         </div>
 
-        {/* Devices & Browsers */}
-        <div className="space-y-6">
-          <div className="bg-white rounded-xl shadow-sm p-5">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Devices</h2>
+        {/* Devices + browsers stacked */}
+        <div className="space-y-5">
+
+          {/* Devices */}
+          <div className="bg-white rounded-2xl ring-1 ring-gray-100 overflow-hidden">
+            <SectionHead title="Devices" sub="Breakdown by device type" />
             {data.deviceBreakdown.length === 0 ? (
-              <p className="text-sm text-gray-400 py-4 text-center">No data yet</p>
+              <p className="py-8 text-center text-sm text-gray-400">No data yet</p>
             ) : (
-              <div className="space-y-3">
+              <div className="px-5 py-4 space-y-3">
                 {data.deviceBreakdown.map((d) => {
-                  const total = data.deviceBreakdown.reduce((s, x) => s + x.count, 0);
-                  const pct = total > 0 ? ((d.count / total) * 100).toFixed(1) : '0';
+                  const pct = deviceTotal > 0 ? (d.count / deviceTotal) * 100 : 0;
                   return (
-                    <div key={d._id} className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        {deviceIcon(d._id)}
-                        <span className="text-sm text-gray-700 capitalize">{d._id}</span>
+                    <div key={d._id} className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {deviceIcon(d._id)}
+                          <span className="text-sm text-gray-700 capitalize">{d._id}</span>
+                        </div>
+                        <span className="text-xs tabular-nums text-gray-500">
+                          {d.count.toLocaleString()}
+                          <span className="text-gray-400 ml-1">({pct.toFixed(1)}%)</span>
+                        </span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-gray-900">{d.count}</span>
-                        <span className="text-xs text-gray-400">({pct}%)</span>
+                      <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-green-500 rounded-full transition-all duration-300"
+                          style={{ width: `${pct}%` }}
+                        />
                       </div>
                     </div>
                   );
@@ -219,24 +300,32 @@ export default function SiteAnalyticsPage() {
             )}
           </div>
 
-          <div className="bg-white rounded-xl shadow-sm p-5">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Browsers</h2>
+          {/* Browsers */}
+          <div className="bg-white rounded-2xl ring-1 ring-gray-100 overflow-hidden">
+            <SectionHead title="Browsers" sub="Breakdown by browser" />
             {data.browserBreakdown.length === 0 ? (
-              <p className="text-sm text-gray-400 py-4 text-center">No data yet</p>
+              <p className="py-8 text-center text-sm text-gray-400">No data yet</p>
             ) : (
-              <div className="space-y-3">
+              <div className="px-5 py-4 space-y-3">
                 {data.browserBreakdown.map((b) => {
-                  const total = data.browserBreakdown.reduce((s, x) => s + x.count, 0);
-                  const pct = total > 0 ? ((b.count / total) * 100).toFixed(1) : '0';
+                  const pct = browserTotal > 0 ? (b.count / browserTotal) * 100 : 0;
                   return (
-                    <div key={b._id} className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Globe size={16} className="text-gray-400" />
-                        <span className="text-sm text-gray-700">{b._id}</span>
+                    <div key={b._id} className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Globe size={14} className="text-gray-400 shrink-0" />
+                          <span className="text-sm text-gray-700">{b._id}</span>
+                        </div>
+                        <span className="text-xs tabular-nums text-gray-500">
+                          {b.count.toLocaleString()}
+                          <span className="text-gray-400 ml-1">({pct.toFixed(1)}%)</span>
+                        </span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-gray-900">{b.count}</span>
-                        <span className="text-xs text-gray-400">({pct}%)</span>
+                      <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-blue-400 rounded-full transition-all duration-300"
+                          style={{ width: `${pct}%` }}
+                        />
                       </div>
                     </div>
                   );
@@ -247,49 +336,47 @@ export default function SiteAnalyticsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Top Referrers */}
-        <div className="bg-white rounded-xl shadow-sm p-5">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Top Referrers</h2>
+      {/* ── Referrers + recent activity ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+        {/* Top referrers */}
+        <div className="bg-white rounded-2xl ring-1 ring-gray-100 overflow-hidden">
+          <SectionHead title="Top referrers" sub="Where visitors came from" />
           {data.topReferrers.length === 0 ? (
-            <p className="text-sm text-gray-400 py-4 text-center">No referrer data yet</p>
+            <p className="py-10 text-center text-sm text-gray-400">No referrer data yet</p>
           ) : (
-            <div className="space-y-3">
+            <div className="divide-y divide-gray-50">
               {data.topReferrers.map((ref, i) => (
-                <div key={ref._id} className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <span className="text-xs font-bold text-gray-400 w-5">{i + 1}</span>
+                <div key={ref._id} className="flex items-center gap-3 px-5 py-3">
+                  <span className="text-xs font-bold text-gray-300 w-5 shrink-0 tabular-nums">{i + 1}</span>
+                  <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                    <ArrowUpRight size={12} className="text-gray-300 shrink-0" />
                     <span className="text-sm text-gray-700 truncate">{ref._id}</span>
                   </div>
-                  <span className="text-sm font-semibold text-gray-900 shrink-0">{ref.count}</span>
+                  <span className="text-sm font-bold text-gray-900 shrink-0 tabular-nums">{ref.count}</span>
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        {/* Recent Activity */}
-        <div className="bg-white rounded-xl shadow-sm p-5">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h2>
+        {/* Recent activity */}
+        <div className="bg-white rounded-2xl ring-1 ring-gray-100 overflow-hidden">
+          <SectionHead title="Recent activity" sub="Latest page visits" />
           {data.recentViews.length === 0 ? (
-            <p className="text-sm text-gray-400 py-4 text-center">No activity yet</p>
+            <p className="py-10 text-center text-sm text-gray-400">No activity yet</p>
           ) : (
-            <div className="space-y-2 max-h-80 overflow-y-auto">
+            <div className="divide-y divide-gray-50 max-h-80 overflow-y-auto">
               {data.recentViews.map((view, i) => (
-                <div key={i} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
+                <div key={i} className="flex items-center gap-3 px-5 py-3">
                   {deviceIcon(view.device)}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-700 truncate">{view.path}</p>
-                    <p className="text-xs text-gray-400">{view.browser}</p>
+                    <p className="text-sm text-gray-700 truncate leading-tight">{view.path}</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">{view.browser}</p>
                   </div>
-                  <div className="flex items-center gap-1 text-xs text-gray-400 shrink-0">
-                    <Clock size={12} />
-                    <span>
-                      {new Date(view.createdAt).toLocaleTimeString('en-GB', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </span>
+                  <div className="flex items-center gap-1 text-[11px] text-gray-400 shrink-0 tabular-nums">
+                    <Clock size={11} />
+                    {fmtTime(view.createdAt)}
                   </div>
                 </div>
               ))}

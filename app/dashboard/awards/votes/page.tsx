@@ -21,6 +21,7 @@ interface Award {
   name: string;
   code: string;
   organizationName: string;
+  awardServiceFeePercentage: number;
   status: string;
   categories: number;
   settings?: { showResults: boolean };
@@ -461,7 +462,7 @@ const ManageVotesEnhanced = () => {
                     </div>
                     <p className="text-green-600 text-[10px] sm:text-xs mt-3 flex items-start sm:items-center gap-1">
                       <Info size={12} className="shrink-0 mt-0.5 sm:mt-0" />
-                      <span>{serviceFeePercentage}% service fee later applied for all awards.</span>
+                      <span>{award.awardServiceFeePercentage != null ? award.awardServiceFeePercentage : serviceFeePercentage}% service fee later applied for this award.</span>
                     </p>
                   </div>
                 </div>

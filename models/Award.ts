@@ -54,6 +54,7 @@ export interface IAward extends Document {
     showResults: boolean;
     nominationLinkGenerated?: boolean;
   };
+  awardServiceFeePercentage?: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -203,6 +204,12 @@ const AwardSchema: Schema = new Schema(
           default: false,
         },
       },
+    },
+    awardServiceFeePercentage: {
+      type: Number,
+      default: null,
+      min: 0,
+      max: 100,
     },
     settings: {
       allowPublicVoting: {

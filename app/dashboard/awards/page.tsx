@@ -557,8 +557,8 @@ const AwardPage = () => {
                             </div>
                             <p className="text-green-600 text-xs mt-3 flex items-center gap-1 mb-2">
                               <Info size={14} />
-                              {serviceFeePercentage}% service fee later applied
-                              for all awards.
+                              {award.awardServiceFeePercentage != null ? award.awardServiceFeePercentage : serviceFeePercentage}% service fee later applied
+                              for this award.
                             </p>
                           </div>
                         </div>

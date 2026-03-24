@@ -1,308 +1,339 @@
 "use client";
-import React, { useState, useEffect } from "react";
-import { DollarSign, TrendingUp, Award, CheckCircle, Building2, PieChart, ArrowUpRight, Wallet, Activity } from "lucide-react";
+
+import { useEffect, useState, type ElementType } from "react";
+import {
+  TrendingUp, Wallet, ArrowDownToLine, CheckCircle, Clock, Building2,
+} from "lucide-react";
 import toast from "react-hot-toast";
+
+/* ─── types ───────────────────────────────────────────────── */
+
+interface OrgRevenue {
+  organizationId: string;
+  organizationName: string;
+  totalRevenue: number;
+  platformFee: number;
+  transferredToOrganizer: number;
+  serviceFeePercentage: number;
+}
 
 interface PlatformRevenue {
   totalRevenue: number;
   totalPlatformFees: number;
   totalTransferred: number;
-  transferCount: number;
   successfulTransfers: number;
   pendingTransfers: number;
-  revenueByOrganization: Array<{
-    organizationId: string;
-    organizationName: string;
-    totalRevenue: number;
-    platformFee: number;
-    transferredToOrganizer: number;
-    serviceFeePercentage: number;
-  }>;
+  revenueByOrganization: OrgRevenue[];
 }
 
-const PlatformRevenuePage = () => {
+/* ─── helpers ─────────────────────────────────────────────── */
+
+const PALETTE = [
+  { bg: "bg-violet-50", text: "text-violet-700" },
+  { bg: "bg-blue-50",   text: "text-blue-700"   },
+  { bg: "bg-emerald-50",text: "text-emerald-700" },
+  { bg: "bg-amber-50",  text: "text-amber-700"   },
+  { bg: "bg-rose-50",   text: "text-rose-700"    },
+  { bg: "bg-cyan-50",   text: "text-cyan-700"    },
+  { bg: "bg-indigo-50", text: "text-indigo-700"  },
+  { bg: "bg-orange-50", text: "text-orange-700"  },
+];
+function orgPal(name: string) {
+  return PALETTE[name.charCodeAt(0) % PALETTE.length];
+}
+
+function fmtAmt(n: number) {
+  return `GHS ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/* ─── skeleton ────────────────────────────────────────────── */
+
+function PageSkeleton() {
+  return (
+    <div className="space-y-5 animate-pulse">
+      <div className="space-y-1.5">
+        <div className="h-7 w-44 bg-gray-100 rounded-lg" />
+        <div className="h-4 w-56 bg-gray-100 rounded" />
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="h-32 bg-gray-100 rounded-2xl" />
+        ))}
+      </div>
+      <div className="h-12 bg-gray-100 rounded-xl" />
+      <div className="bg-white rounded-2xl ring-1 ring-gray-100 overflow-hidden">
+        <div className="h-14 bg-gray-50 border-b border-gray-50" />
+        {[...Array(5)].map((_, i) => (
+          <div key={i} className="flex items-center gap-4 px-5 py-4 border-b border-gray-50">
+            <div className="w-9 h-9 bg-gray-100 rounded-xl shrink-0" />
+            <div className="flex-1 h-4 bg-gray-100 rounded" />
+            <div className="h-4 w-28 bg-gray-100 rounded" />
+            <div className="h-4 w-24 bg-gray-100 rounded" />
+            <div className="h-4 w-28 bg-gray-100 rounded" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── stat card ───────────────────────────────────────────── */
+
+function StatCard({
+  label, value, sub, icon: Icon, numColor, iconCls,
+}: {
+  label: string; value: string; sub: string;
+  icon: ElementType; numColor: string; iconCls: string;
+}) {
+  return (
+    <div className="bg-white rounded-2xl p-5 ring-1 ring-gray-100 hover:ring-gray-200 transition-all">
+      <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-4 ${iconCls}`}>
+        <Icon size={16} strokeWidth={2} />
+      </div>
+      <p className={`text-2xl sm:text-3xl font-bold leading-none tabular-nums ${numColor}`}>
+        {value}
+      </p>
+      <p className="text-xs font-semibold text-gray-700 mt-2">{label}</p>
+      <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
+    </div>
+  );
+}
+
+/* ─── page ────────────────────────────────────────────────── */
+
+export default function PlatformRevenuePage() {
   const [revenue, setRevenue] = useState<PlatformRevenue | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchPlatformRevenue();
-  }, []);
+  useEffect(() => { fetchRevenue(); }, []);
 
-  const fetchPlatformRevenue = async () => {
+  const fetchRevenue = async () => {
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch("/api/superadmin/platform-revenue", {
+      const res = await fetch("/api/superadmin/platform-revenue", {
         headers: { Authorization: `Bearer ${token}` },
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        setRevenue(data.data);
-      } else {
-        toast.error("Failed to fetch platform revenue");
-      }
-    } catch (error) {
-      console.error("Failed to fetch platform revenue:", error);
+      if (res.ok) setRevenue((await res.json()).data);
+      else toast.error("Failed to fetch platform revenue");
+    } catch {
       toast.error("Failed to fetch platform revenue");
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-gray-600 font-medium">Loading platform revenue...</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <PageSkeleton />;
+
+  const orgs = revenue?.revenueByOrganization ?? [];
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className=" rounded-xl sm:rounded-2xl p-6 sm:p-8 text-black">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="space-y-5">
+
+      {/* ── Header ── */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 leading-tight">Platform Revenue</h1>
+        <p className="text-sm text-gray-400 mt-0.5">
+          Fees collected from all awards across {orgs.length} organization{orgs.length !== 1 ? "s" : ""}
+        </p>
+      </div>
+
+      {/* ── Stat cards ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <StatCard
+          label="Total Revenue"
+          value={fmtAmt(revenue?.totalRevenue ?? 0)}
+          sub="All awards combined"
+          icon={TrendingUp}
+          numColor="text-gray-900"
+          iconCls="bg-gray-50 text-gray-500"
+        />
+        <StatCard
+          label="Platform Fees"
+          value={fmtAmt(revenue?.totalPlatformFees ?? 0)}
+          sub="Platform earnings"
+          icon={Wallet}
+          numColor="text-green-700"
+          iconCls="bg-green-50 text-green-600"
+        />
+        <StatCard
+          label="Paid to Organizers"
+          value={fmtAmt(revenue?.totalTransferred ?? 0)}
+          sub="Transferred out"
+          icon={ArrowDownToLine}
+          numColor="text-gray-900"
+          iconCls="bg-violet-50 text-violet-600"
+        />
+        <StatCard
+          label="Successful Payouts"
+          value={String(revenue?.successfulTransfers ?? 0)}
+          sub="Completed transfers"
+          icon={CheckCircle}
+          numColor="text-gray-900"
+          iconCls="bg-blue-50 text-blue-500"
+        />
+      </div>
+
+      {/* ── Pending strip ── */}
+      {(revenue?.pendingTransfers ?? 0) > 0 && (
+        <div className="bg-white rounded-xl ring-1 ring-amber-100 px-5 py-3.5 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
+              <Clock size={14} className="text-amber-500" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-gray-800 leading-tight">Pending transfers</p>
+              <p className="text-[11px] text-gray-400">Awaiting approval or processing</p>
+            </div>
+          </div>
+          <span className="text-sm font-bold text-amber-700 tabular-nums">
+            {revenue?.pendingTransfers}
+          </span>
+        </div>
+      )}
+
+      {/* ── Revenue by Organization ── */}
+      <div className="bg-white rounded-2xl ring-1 ring-gray-100 overflow-hidden">
+
+        {/* Section header */}
+        <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center shrink-0">
+            <Building2 size={14} className="text-gray-500" />
+          </div>
           <div>
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-2 flex items-center gap-3">
-              <PieChart className="w-8 h-8" />
-              Platform Revenue
-            </h1>
-            <p className="text-black text-sm sm:text-base">
-              Overview of platform fees collected from all awards
-            </p>
-          </div>
-          <div className="flex items-center gap-2 bg-green-600 text-white backdrop-blur-sm rounded-lg px-4 py-2 w-fit">
-            <Activity className="w-5 h-5" />
-            <span className="text-sm font-medium">Financial Overview</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        {/* Total Revenue */}
-        <div className="bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 p-6 border-l-4 border-blue-500 group hover:scale-105">
-          <div className="flex items-start justify-between mb-4">
-            <div className="w-12 h-12 bg-linear-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-              <DollarSign className="text-white w-6 h-6" />
-            </div>
-            <div className="bg-blue-50 rounded-lg px-3 py-1">
-              <span className="text-xs font-semibold text-blue-600">Total</span>
-            </div>
-          </div>
-          <p className="text-sm text-gray-600 mb-2 font-medium">Total Revenue (All Awards)</p>
-          <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">
-            GHS {(revenue?.totalRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </p>
-          <div className="flex items-center gap-1 text-xs text-gray-500">
-            <TrendingUp className="w-3 h-3" />
-            <span>All transactions</span>
+            <h2 className="text-sm font-bold text-gray-900">By Organization</h2>
+            <p className="text-[11px] text-gray-400">Revenue breakdown per account</p>
           </div>
         </div>
 
-        {/* Platform Fees */}
-        <div className="bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 p-6 border-l-4 border-green-500 group hover:scale-105">
-          <div className="flex items-start justify-between mb-4">
-            <div className="w-12 h-12 bg-linear-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-              <Wallet className="text-white w-6 h-6" />
-            </div>
-            <div className="bg-green-50 rounded-lg px-3 py-1">
-              <span className="text-xs font-semibold text-green-600">Fee</span>
-            </div>
-          </div>
-          <p className="text-sm text-gray-600 mb-2 font-medium">Platform Fees</p>
-          <p className="text-2xl sm:text-3xl font-bold text-green-600 mb-1">
-            GHS {(revenue?.totalPlatformFees || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </p>
-          <div className="flex items-center gap-1 text-xs text-gray-500">
-            <ArrowUpRight className="w-3 h-3" />
-            <span>Platform earnings</span>
-          </div>
-        </div>
-
-        {/* Transferred to Organizers */}
-        <div className="bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 p-6 border-l-4 border-purple-500 group hover:scale-105">
-          <div className="flex items-start justify-between mb-4">
-            <div className="w-12 h-12 bg-linear-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-              <Award className="text-white w-6 h-6" />
-            </div>
-            <div className="bg-purple-50 rounded-lg px-3 py-1">
-              <span className="text-xs font-semibold text-purple-600">Paid</span>
-            </div>
-          </div>
-          <p className="text-sm text-gray-600 mb-2 font-medium">Transferred to Organizers</p>
-          <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">
-            GHS {(revenue?.totalTransferred || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </p>
-          <div className="flex items-center gap-1 text-xs text-gray-500">
-            <Building2 className="w-3 h-3" />
-            <span>Paid to organizers</span>
-          </div>
-        </div>
-
-        {/* Successful Transfers */}
-        <div className="bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 p-6 border-l-4 border-orange-500 group hover:scale-105">
-          <div className="flex items-start justify-between mb-4">
-            <div className="w-12 h-12 bg-linear-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-              <CheckCircle className="text-white w-6 h-6" />
-            </div>
-            <div className="bg-orange-50 rounded-lg px-3 py-1">
-              <span className="text-xs font-semibold text-orange-600">Count</span>
-            </div>
-          </div>
-          <p className="text-sm text-gray-600 mb-2 font-medium">Successful Transfers</p>
-          <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">
-            {revenue?.successfulTransfers || 0}
-          </p>
-          <div className="flex items-center gap-1 text-xs text-gray-500">
-            <CheckCircle className="w-3 h-3" />
-            <span>Completed payouts</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Revenue by Organization */}
-      <div className="bg-white rounded-xl shadow-md overflow-hidden">
-        <div className=" px-6 py-4">
-          <h2 className="text-xl sm:text-2xl font-bold text-black flex items-center gap-2">
-            <Building2 className="w-6 h-6" />
-            Revenue by Organization
-          </h2>
-          <p className="text-black text-sm mt-1">Breakdown of revenue and fees per organization</p>
-        </div>
-
-        {!revenue || revenue.revenueByOrganization.length === 0 ? (
-          <div className="p-12 text-center">
-            <PieChart className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-            <p className="text-gray-500 font-medium">No revenue data available yet</p>
-            <p className="text-sm text-gray-400 mt-1">Revenue will appear once organizations start generating income</p>
+        {orgs.length === 0 ? (
+          <div className="py-20 text-center text-sm text-gray-400">
+            No revenue data yet — appears once organizations generate income
           </div>
         ) : (
           <>
-            {/* Desktop Table View */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full">
+            {/* Desktop table */}
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-gray-50 border-b-2 border-gray-200">
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">
-                      Organization
-                    </th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">
-                      Total Revenue
-                    </th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">
-                      Platform Fee
-                    </th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">
-                      Transferred to Organizer
-                    </th>
+                  <tr className="border-b border-gray-50">
+                    {["Organization", "Total Revenue", "Platform Fee", "Net to Organizer"].map((h) => (
+                      <th
+                        key={h}
+                        className="text-left py-3 px-5 text-[11px] font-semibold uppercase tracking-wider text-gray-400"
+                      >
+                        {h}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
-                <tbody>
-                  {revenue.revenueByOrganization.map((org, index) => (
-                    <tr 
-                      key={org.organizationId} 
-                      className={`border-b hover:bg-indigo-50 transition-colors ${
-                        index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                      }`}
-                    >
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-linear-to-br from-indigo-500 to-purple-500 rounded-lg flex items-center justify-center text-white font-bold">
-                            {org.organizationName.charAt(0).toUpperCase()}
+                <tbody className="divide-y divide-gray-50">
+                  {orgs.map((org) => {
+                    const pal = orgPal(org.organizationName);
+                    return (
+                      <tr key={org.organizationId} className="hover:bg-gray-50/70 transition-colors">
+
+                        {/* Org */}
+                        <td className="py-3.5 px-5">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 ${pal.bg} ${pal.text}`}>
+                              {org.organizationName.charAt(0).toUpperCase()}
+                            </div>
+                            <span className="font-semibold text-gray-900 truncate">
+                              {org.organizationName}
+                            </span>
                           </div>
-                          <span className="font-semibold text-gray-900">{org.organizationName}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <DollarSign className="w-4 h-4 text-blue-600" />
-                          <span className="font-semibold text-gray-900">
-                            GHS {org.totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+
+                        {/* Total revenue */}
+                        <td className="py-3.5 px-5 font-semibold text-gray-900 tabular-nums">
+                          {fmtAmt(org.totalRevenue)}
+                        </td>
+
+                        {/* Platform fee */}
+                        <td className="py-3.5 px-5">
+                          <span className="font-semibold text-green-700 tabular-nums">
+                            {fmtAmt(org.platformFee)}
                           </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <Wallet className="w-4 h-4 text-green-600" />
-                          <span className="font-bold text-green-600">
-                            GHS {org.platformFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          <span className="ml-1.5 text-[11px] text-gray-400">
+                            {org.serviceFeePercentage}%
                           </span>
-                          <span className="text-xs text-gray-500">({org.serviceFeePercentage}%)</span>
-                        </div>
+                        </td>
+
+                        {/* Net to organizer */}
+                        <td className="py-3.5 px-5 font-semibold text-gray-900 tabular-nums">
+                          {fmtAmt(org.transferredToOrganizer)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+
+                {/* Totals footer */}
+                {orgs.length > 1 && (
+                  <tfoot>
+                    <tr className="border-t border-gray-100 bg-gray-50/60">
+                      <td className="py-3 px-5 text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                        Total
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <Award className="w-4 h-4 text-purple-600" />
-                          <span className="font-semibold text-gray-900">
-                            GHS {org.transferredToOrganizer.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </span>
-                        </div>
+                      <td className="py-3 px-5 font-bold text-gray-900 tabular-nums">
+                        {fmtAmt(revenue?.totalRevenue ?? 0)}
+                      </td>
+                      <td className="py-3 px-5 font-bold text-green-700 tabular-nums">
+                        {fmtAmt(revenue?.totalPlatformFees ?? 0)}
+                      </td>
+                      <td className="py-3 px-5 font-bold text-gray-900 tabular-nums">
+                        {fmtAmt(revenue?.totalTransferred ?? 0)}
                       </td>
                     </tr>
-                  ))}
-                </tbody>
+                  </tfoot>
+                )}
               </table>
             </div>
 
-            {/* Mobile Card View */}
-            <div className="md:hidden p-4 space-y-4">
-              {revenue.revenueByOrganization.map((org) => (
-                <div 
-                  key={org.organizationId} 
-                  className="bg-gray-50 rounded-xl p-4 border border-gray-200 hover:border-indigo-300 hover:shadow-md transition-all"
-                >
-                  {/* Header */}
-                  <div className="flex items-center gap-3 mb-4 pb-3 border-b border-gray-200">
-                    <div className="w-12 h-12 bg-linear-to-br from-indigo-500 to-purple-500 rounded-lg flex items-center justify-center text-white font-bold text-lg shrink-0">
-                      {org.organizationName.charAt(0).toUpperCase()}
-                    </div>
-                    <h3 className="font-bold text-gray-900 flex-1">{org.organizationName}</h3>
-                  </div>
-
-                  {/* Stats */}
-                  <div className="space-y-3">
-                    <div className="bg-blue-50 rounded-lg p-3">
-                      <div className="flex items-center gap-2 mb-1">
-                        <DollarSign className="w-4 h-4 text-blue-600" />
-                        <p className="text-xs text-gray-600 font-medium">Total Revenue</p>
+            {/* Mobile list */}
+            <div className="sm:hidden divide-y divide-gray-50">
+              {orgs.map((org) => {
+                const pal = orgPal(org.organizationName);
+                return (
+                  <div key={org.organizationId} className="px-4 py-4">
+                    {/* Org name */}
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 ${pal.bg} ${pal.text}`}>
+                        {org.organizationName.charAt(0).toUpperCase()}
                       </div>
-                      <p className="text-xl font-bold text-gray-900">
-                        GHS {org.totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </p>
+                      <p className="font-semibold text-gray-900 text-sm truncate">{org.organizationName}</p>
                     </div>
 
-                    <div className="bg-green-50 rounded-lg p-3">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Wallet className="w-4 h-4 text-green-600" />
-                        <p className="text-xs text-gray-600 font-medium">Platform Fee ({org.serviceFeePercentage}%)</p>
+                    {/* Three amounts */}
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="bg-gray-50 rounded-xl p-2.5">
+                        <p className="text-[10px] text-gray-400 font-medium mb-0.5">Revenue</p>
+                        <p className="text-xs font-bold text-gray-900 tabular-nums leading-tight">
+                          {fmtAmt(org.totalRevenue)}
+                        </p>
                       </div>
-                      <p className="text-xl font-bold text-green-600">
-                        GHS {org.platformFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </p>
-                    </div>
-
-                    <div className="bg-purple-50 rounded-lg p-3">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Award className="w-4 h-4 text-purple-600" />
-                        <p className="text-xs text-gray-600 font-medium">Transferred to Organizer</p>
+                      <div className="bg-green-50 rounded-xl p-2.5">
+                        <p className="text-[10px] text-green-600 font-medium mb-0.5">
+                          Fee · {org.serviceFeePercentage}%
+                        </p>
+                        <p className="text-xs font-bold text-green-700 tabular-nums leading-tight">
+                          {fmtAmt(org.platformFee)}
+                        </p>
                       </div>
-                      <p className="text-xl font-bold text-gray-900">
-                        GHS {org.transferredToOrganizer.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </p>
+                      <div className="bg-gray-50 rounded-xl p-2.5">
+                        <p className="text-[10px] text-gray-400 font-medium mb-0.5">Paid out</p>
+                        <p className="text-xs font-bold text-gray-900 tabular-nums leading-tight">
+                          {fmtAmt(org.transferredToOrganizer)}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </>
         )}
       </div>
     </div>
   );
-};
-
-export default PlatformRevenuePage;
+}

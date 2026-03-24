@@ -14,15 +14,20 @@ import toast from "react-hot-toast";
 import ConfirmModal from "@/components/ConfirmModal";
 import { authFetch } from '@/lib/authFetch';
 
+
 interface Award {
   _id: string;
   name: string;
   code: string;
   organizationName: string;
+  awardServiceFeePercentage: number;
   status: string;
   categories: number;
   settings?: { showResults: boolean };
   banner?: string;
+  pricing?: {
+    votingCost: number;
+  };
 }
 
 interface Category {
@@ -342,8 +347,8 @@ const ManageCategoriesApp = () => {
                               className="mt-0.5 sm:mt-0 shrink-0"
                             />
                             <span>
-                              {serviceFeePercentage}% service fee later applied
-                              for all awards.
+                              {award.awardServiceFeePercentage != null ? award.awardServiceFeePercentage : serviceFeePercentage}% service fee later applied
+                              for this award.
                             </span>
                           </p>
                         </div>

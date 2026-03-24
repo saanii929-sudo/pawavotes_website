@@ -126,7 +126,10 @@ export async function POST(req: NextRequest) {
 
     const Organization = (await import('@/models/Organization')).default;
     const organization = await Organization.findById(decoded.id);
-    const serviceFeePercentage = organization?.serviceFeePercentage || 10;
+    const serviceFeePercentage =
+      award.awardServiceFeePercentage != null
+        ? award.awardServiceFeePercentage
+        : (organization?.serviceFeePercentage || 10);
 
     // Calculate revenue
     const votes = await Vote.find({ awardId, paymentStatus: 'completed' });
