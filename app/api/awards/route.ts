@@ -94,17 +94,25 @@ async function getAwards(req: NextRequest) {
       ? (userDoc as any)?.organizationId?.serviceFeePercentage ?? 10
       : (userDoc as any)?.serviceFeePercentage ?? 10;
 
-    return NextResponse.json({
-      success: true,
-      data: awards,
-      serviceFeePercentage,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit),
+    return NextResponse.json(
+      {
+        success: true,
+        data: awards,
+        serviceFeePercentage,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit),
+        },
       },
-    });
+      {
+        headers: {
+          // Cache for 30s in the browser — awards rarely change mid-session
+          'Cache-Control': 'private, max-age=30, stale-while-revalidate=60',
+        },
+      }
+    );
   } catch (error: any) {
     return NextResponse.json(
       { error: 'Failed to fetch awards', details: process.env.NODE_ENV === 'development' ? error.message : undefined },

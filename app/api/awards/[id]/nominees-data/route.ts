@@ -79,17 +79,25 @@ export async function GET(
       },
     }));
 
-    return NextResponse.json({
-      success: true,
-      categories,
-      nominees: nomineesWithCategory,
-      pagination: {
-        page,
-        limit,
-        total: totalNominees,
-        pages: Math.ceil(totalNominees / limit),
+    return NextResponse.json(
+      {
+        success: true,
+        categories,
+        nominees: nomineesWithCategory,
+        pagination: {
+          page,
+          limit,
+          total: totalNominees,
+          pages: Math.ceil(totalNominees / limit),
+        },
       },
-    });
+      {
+        headers: {
+          // Cache for 15s — nominees change during active nominations but not every second
+          'Cache-Control': 'private, max-age=15, stale-while-revalidate=30',
+        },
+      }
+    );
   } catch (error: any) {
     return NextResponse.json(
       { error: 'Failed to fetch data', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
