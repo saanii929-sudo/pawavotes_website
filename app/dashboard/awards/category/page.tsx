@@ -237,12 +237,24 @@ const ManageCategoriesApp = () => {
               className={`${awards.length === 0 ? "bg-white rounded-xl border border-gray-200" : ""}`}
             >
               {loading ? (
-                <>
-                  <div className="text-center py-20">
-                    <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mb-4"></div>
-                    <p className="text-gray-500">Loading awards...</p>
-                  </div>
-                </>
+                <div className="grid gap-4 sm:gap-5 md:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 animate-pulse">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="overflow-hidden rounded-xl bg-white shadow-sm">
+                      <div className="aspect-square sm:h-48 md:h-56 lg:h-60 w-full bg-gray-200" />
+                      <div className="px-3 py-2 sm:px-4 sm:py-3 space-y-2.5">
+                        <div className="flex justify-between items-center">
+                          <div className="h-4 bg-gray-200 rounded w-2/5" />
+                          <div className="h-3 bg-gray-100 rounded w-1/6" />
+                        </div>
+                        <div className="h-3 bg-gray-100 rounded w-1/3" />
+                        <div className="flex justify-between items-center pt-1">
+                          <div className="h-3 bg-gray-100 rounded w-1/4" />
+                          <div className="h-3 bg-gray-100 rounded w-1/4" />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               ) : awards.length === 0 ? (
                 <div className="text-center py-16 sm:py-24 px-4">
                   <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">
@@ -424,9 +436,17 @@ const ManageCategoriesApp = () => {
                   </button>
                 </div>
               ) : loadingCategories ? (
-                <div className="text-center py-16">
-                  <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mb-4"></div>
-                  <p className="text-gray-500">Loading categories...</p>
+                <div className="divide-y divide-gray-100 animate-pulse">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-3 p-4">
+                      <div className="w-9 h-9 bg-gray-200 rounded-full shrink-0" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-3.5 bg-gray-200 rounded w-1/3" />
+                        <div className="h-3 bg-gray-100 rounded w-1/5" />
+                      </div>
+                      <div className="h-5 w-14 bg-gray-100 rounded-full" />
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <div className="divide-y divide-gray-200">

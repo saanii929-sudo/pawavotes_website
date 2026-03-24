@@ -300,9 +300,17 @@ const ContestantManagement = () => {
         </div>
 
         {loading ? (
-          <div className="text-center py-20">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mb-4"></div>
-            <p className="text-gray-500">Loading contestants...</p>
+          <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100 animate-pulse">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 p-4">
+                <div className="w-10 h-10 bg-gray-200 rounded-full shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3.5 bg-gray-200 rounded w-1/3" />
+                  <div className="h-3 bg-gray-100 rounded w-1/5" />
+                </div>
+                <div className="h-5 w-20 bg-gray-100 rounded-full" />
+              </div>
+            ))}
           </div>
         ) : filteredContestants.length === 0 ? (
           <div
@@ -430,9 +438,16 @@ const ContestantManagement = () => {
 
               <div className="p-6">
                 {loadingNominees ? (
-                  <div className="text-center py-12">
-                    <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mb-4"></div>
-                    <p className="text-gray-500">Loading nominees...</p>
+                  <div className="space-y-2 animate-pulse">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-3 p-3 border border-gray-100 rounded-lg">
+                        <div className="w-8 h-8 bg-gray-200 rounded-full shrink-0" />
+                        <div className="flex-1 space-y-1.5">
+                          <div className="h-3.5 bg-gray-200 rounded w-2/5" />
+                          <div className="h-3 bg-gray-100 rounded w-1/4" />
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ) : filteredAvailableNominees.length === 0 ? (
                   <div className="text-center py-12">

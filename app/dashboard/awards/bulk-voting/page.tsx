@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Plus, ChevronLeft, X, Info, Edit2, Trash2, MoreVertical } from "lucide-react";
 import Image from "next/image";
 import toast from "react-hot-toast";
@@ -264,9 +264,23 @@ const BulkVotingManager = () => {
           </div>
 
           {loading ? (
-            <div className="text-center py-20">
-              <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mb-4"></div>
-              <p className="text-gray-500">Loading awards...</p>
+            <div className="grid gap-4 sm:gap-5 md:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 animate-pulse">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="overflow-hidden rounded-xl bg-white shadow-sm">
+                  <div className="aspect-square sm:h-48 md:h-56 lg:h-60 w-full bg-gray-200" />
+                  <div className="px-3 py-2 sm:px-4 sm:py-3 space-y-2.5">
+                    <div className="flex justify-between items-center">
+                      <div className="h-4 bg-gray-200 rounded w-2/5" />
+                      <div className="h-3 bg-gray-100 rounded w-1/6" />
+                    </div>
+                    <div className="h-3 bg-gray-100 rounded w-1/3" />
+                    <div className="flex justify-between items-center pt-1">
+                      <div className="h-3 bg-gray-100 rounded w-1/4" />
+                      <div className="h-3 bg-gray-100 rounded w-1/4" />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : awards.length === 0 ? (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 sm:p-16 md:p-24 flex flex-col items-center justify-center">
@@ -390,9 +404,16 @@ const BulkVotingManager = () => {
           </div>
 
           {loadingPackages ? (
-            <div className="text-center py-20">
-              <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mb-4"></div>
-              <p className="text-gray-500">Loading packages...</p>
+            <div className="space-y-3 animate-pulse py-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-gray-200 rounded w-1/4" />
+                    <div className="h-3 bg-gray-100 rounded w-1/3" />
+                  </div>
+                  <div className="h-6 w-14 bg-gray-100 rounded-full" />
+                </div>
+              ))}
             </div>
           ) : bulkVotePackages.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200 flex items-center justify-center" style={{ minHeight: "400px" }}>

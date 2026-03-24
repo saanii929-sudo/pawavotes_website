@@ -441,9 +441,23 @@ const AwardPage = () => {
               className={`${awards.length === 0 && !loading ? "bg-white rounded-xl border border-gray-200 p-8" : ""}`}
             >
               {loading ? (
-                <div className="text-center py-20">
-                  <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mb-4"></div>
-                  <p className="text-gray-500">Loading awards...</p>
+                <div className="grid gap-4 sm:gap-5 md:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 animate-pulse">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="overflow-hidden rounded-xl bg-white shadow-sm">
+                      <div className="aspect-square sm:h-48 md:h-56 lg:h-60 w-full bg-gray-200" />
+                      <div className="px-3 py-2 sm:px-4 sm:py-3 space-y-2.5">
+                        <div className="flex justify-between items-center">
+                          <div className="h-4 bg-gray-200 rounded w-2/5" />
+                          <div className="h-3 bg-gray-100 rounded w-1/6" />
+                        </div>
+                        <div className="h-3 bg-gray-100 rounded w-1/3" />
+                        <div className="flex justify-between items-center pt-1">
+                          <div className="h-3 bg-gray-100 rounded w-1/4" />
+                          <div className="h-3 bg-gray-100 rounded w-1/4" />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : awards.length === 0 ? (
                 <div className="text-center py-20">
@@ -1015,11 +1029,13 @@ const StepContent = ({
                           </p>
                         </div>
                       ) : loadingCategories ? (
-                        <div className="text-center py-12">
-                          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mb-2"></div>
-                          <p className="text-gray-500 text-sm">
-                            Loading categories...
-                          </p>
+                        <div className="space-y-2 animate-pulse py-2">
+                          {Array.from({ length: 3 }).map((_, i) => (
+                            <div key={i} className="flex items-center gap-3 p-2.5 border border-gray-100 rounded-lg">
+                              <div className="w-7 h-7 bg-gray-200 rounded-full shrink-0" />
+                              <div className="flex-1 h-3.5 bg-gray-200 rounded w-1/2" />
+                            </div>
+                          ))}
                         </div>
                       ) : categories.length === 0 ? (
                         <div className="text-center py-12 border border-gray-200 rounded-lg">
@@ -1256,8 +1272,10 @@ const StepContent = ({
                     Categories List
                   </h4>
                   {loadingCategories ? (
-                    <div className="text-center py-8">
-                      <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-green-600"></div>
+                    <div className="space-y-2 animate-pulse">
+                      {Array.from({ length: 4 }).map((_, i) => (
+                        <div key={i} className="h-8 bg-gray-100 rounded-lg" />
+                      ))}
                     </div>
                   ) : categories.length === 0 ? (
                     <p className="text-gray-500 italic text-center py-8">
