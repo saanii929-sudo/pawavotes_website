@@ -911,7 +911,7 @@ const PublicVotingPlatform = () => {
                   className="bg-white rounded-2xl overflow-hidden border border-gray-100 hover:shadow-md transition-shadow cursor-pointer group"
                 >
                   {/* Image — portrait ratio, face-optimized */}
-                  <div className="relative aspect-square overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200">
+                  <div className="relative aspect-square overflow-hidden bg-linear-to-br from-gray-100 to-gray-200">
                     {nominee.image ? (
                       nominee.image.startsWith("data:") ? (
                         <img
@@ -936,7 +936,7 @@ const PublicVotingPlatform = () => {
                       </div>
                     )}
                     {/* Gradient fade at bottom for text legibility */}
-                    <div className="absolute bottom-0 inset-x-0 h-16 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
+                    <div className="absolute bottom-0 inset-x-0 h-16 bg-linear-to-t from-black/40 to-transparent pointer-events-none" />
                     {/* Hover vote overlay */}
                     {votingOpen && (
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-all flex items-center justify-center">
