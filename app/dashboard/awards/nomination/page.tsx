@@ -785,7 +785,7 @@ const AwardNomineesManager = () => {
           <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[calc(100%-2rem)] sm:w-full max-w-2xl z-50 max-h-[90vh] overflow-y-auto">
             <div className="bg-white rounded-xl shadow-2xl">
               {/* Modal Header */}
-              <div className="bg-gradient-to-r from-green-600 to-green-700 text-white px-6 py-5 rounded-t-xl">
+              <div className="bg-linear-to-r from-green-600 to-green-700 text-white px-6 py-5 rounded-t-xl">
                 <h3 className="font-bold text-xl mb-1">Nominee Details</h3>
                 <p className="text-sm text-green-50">
                   Review nomination information before approval
@@ -796,7 +796,7 @@ const AwardNomineesManager = () => {
               <div className="p-6 space-y-6">
                 {/* Nominee Image and Basic Info */}
                 <div className="flex flex-col sm:flex-row gap-6">
-                  <div className="flex-shrink-0">
+                  <div className="shrink-0">
                     {selectedNominee.image ? (
                       <img
                         src={selectedNominee.image}
@@ -804,7 +804,7 @@ const AwardNomineesManager = () => {
                         className="w-32 h-32 rounded-lg object-cover border-2 border-gray-200"
                       />
                     ) : (
-                      <div className="w-32 h-32 rounded-lg bg-gradient-to-br from-green-100 to-green-200 flex items-center justify-center border-2 border-gray-200">
+                      <div className="w-32 h-32 rounded-lg bg-linear-to-br from-green-100 to-green-200 flex items-center justify-center border-2 border-gray-200">
                         <span className="text-4xl font-bold text-green-700">
                           {selectedNominee.name.charAt(0).toUpperCase()}
                         </span>

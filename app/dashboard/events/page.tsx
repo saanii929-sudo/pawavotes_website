@@ -19,24 +19,19 @@ import {
   X,
   ChevronRight,
   ChevronLeft,
-  Globe,
   Video,
-  Tag,
   DollarSign,
   CheckCircle,
-  AlertCircle,
-  Layers,
   Zap,
   Star,
-  BarChart3,
-  ArrowUpRight,
   Upload,
   ImageIcon,
+  Palette,
+  Wand2,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { authFetch } from "@/lib/authFetch";
 
-/* ─────────────────── Types ─────────────────── */
 interface TicketType {
   id: string;
   name: string;
@@ -98,6 +93,41 @@ const CATEGORIES = [
 const TICKET_COLORS = [
   "#10b981", "#3b82f6", "#8b5cf6", "#f59e0b",
   "#ef4444", "#06b6d4", "#ec4899", "#84cc16",
+];
+
+const TEMPLATE_CATEGORIES = [
+  { id: "all",     label: "All",      emoji: "✦" },
+  { id: "dark",    label: "Dark",     emoji: "🌑" },
+  { id: "vibrant", label: "Vibrant",  emoji: "⚡" },
+  { id: "elegant", label: "Elegant",  emoji: "✨" },
+  { id: "nature",  label: "Nature",   emoji: "🌿" },
+];
+
+const TICKET_TEMPLATES = [
+  { id: "midnight", name: "Midnight",  description: "Deep cosmos",      gradient: "linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%)", textColor: "light" as const, category: "dark" },
+  { id: "abyss",    name: "Abyss",     description: "Dark navy depth",  gradient: "linear-gradient(135deg, #0c1445 0%, #1a237e 100%)",               textColor: "light" as const, category: "dark" },
+  { id: "noir",     name: "Noir",      description: "Timeless black",   gradient: "linear-gradient(135deg, #141414 0%, #2d1b69 100%)",               textColor: "light" as const, category: "dark" },
+  { id: "eclipse",  name: "Eclipse",   description: "Black to crimson", gradient: "linear-gradient(135deg, #0a0a0a 0%, #1a0000 50%, #5a0000 100%)",  textColor: "light" as const, category: "dark" },
+  { id: "carbon",   name: "Carbon",    description: "Sleek & minimal",  gradient: "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)",  textColor: "light" as const, category: "dark" },
+  { id: "cosmic",   name: "Cosmic",    description: "Space teal",       gradient: "linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)",  textColor: "light" as const, category: "dark" },
+
+  { id: "ember",    name: "Ember",     description: "Fire & heat",      gradient: "linear-gradient(135deg, #f12711 0%, #f5af19 100%)",               textColor: "light" as const, category: "vibrant" },
+  { id: "candy",    name: "Candy",     description: "Sweet & bold",     gradient: "linear-gradient(135deg, #fc5c7d 0%, #6a3093 100%)",               textColor: "light" as const, category: "vibrant" },
+  { id: "neon",     name: "Neon",      description: "Electric glow",    gradient: "linear-gradient(135deg, #00b09b 0%, #96c93d 100%)",               textColor: "dark"  as const, category: "vibrant" },
+  { id: "citrus",   name: "Citrus",    description: "Bright & zesty",   gradient: "linear-gradient(135deg, #f7971e 0%, #ffd200 100%)",               textColor: "dark"  as const, category: "vibrant" },
+  { id: "ocean",    name: "Ocean",     description: "Deep sea blue",    gradient: "linear-gradient(135deg, #0575e6 0%, #021b79 100%)",               textColor: "light" as const, category: "vibrant" },
+  { id: "aurora",   name: "Aurora",    description: "Northern lights",  gradient: "linear-gradient(135deg, #1a0533 0%, #0f3460 60%, #53354a 100%)",  textColor: "light" as const, category: "vibrant" },
+
+  { id: "royal",    name: "Royal",     description: "Gold & prestige",  gradient: "linear-gradient(135deg, #0d0d0d 0%, #2d1b00 50%, #7a5c00 100%)",  textColor: "light" as const, category: "elegant" },
+  { id: "rose",     name: "Rose Gold", description: "Soft luxury",      gradient: "linear-gradient(135deg, #c9a0dc 0%, #e8b4b8 50%, #b8797c 100%)",  textColor: "dark"  as const, category: "elegant" },
+  { id: "steel",    name: "Steel",     description: "Modern corporate", gradient: "linear-gradient(135deg, #2c3e50 0%, #4ca1af 100%)",               textColor: "light" as const, category: "elegant" },
+  { id: "ivory",    name: "Ivory",     description: "Clean & warm",     gradient: "linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%)",               textColor: "dark"  as const, category: "elegant" },
+  { id: "champagne",name: "Champagne", description: "Golden warmth",    gradient: "linear-gradient(135deg, #f5f0e8 0%, #e8d5b7 50%, #d4af7a 100%)",  textColor: "dark"  as const, category: "elegant" },
+
+  { id: "emerald",  name: "Emerald",   description: "Fresh & lush",     gradient: "linear-gradient(135deg, #11998e 0%, #38ef7d 100%)",               textColor: "dark"  as const, category: "nature" },
+  { id: "forest",   name: "Forest",    description: "Deep woodland",    gradient: "linear-gradient(135deg, #134e5e 0%, #71b280 100%)",               textColor: "light" as const, category: "nature" },
+  { id: "lagoon",   name: "Lagoon",    description: "Tropical waters",  gradient: "linear-gradient(135deg, #43c6ac 0%, #191654 100%)",               textColor: "light" as const, category: "nature" },
+  { id: "dusk",     name: "Dusk",      description: "Evening sky",      gradient: "linear-gradient(135deg, #2c3e50 0%, #fd746c 100%)",               textColor: "light" as const, category: "nature" },
 ];
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; dot: string }> = {
@@ -312,11 +342,17 @@ function TicketBgUploader({
     if (file) handleFile(file);
   }
 
+  const isCssGradient = value.startsWith("linear-gradient") || value.startsWith("radial-gradient");
+
   return (
     <div>
       {value ? (
         <div className="relative rounded-xl overflow-hidden border border-gray-200 group" style={{ height: 96 }}>
-          <img src={value} alt="Uploaded image" className="w-full h-full object-cover" />
+          {isCssGradient ? (
+            <div className="w-full h-full" style={{ background: value }} />
+          ) : (
+            <img src={value} alt="Uploaded image" className="w-full h-full object-cover" />
+          )}
           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
             <button
               type="button"
@@ -394,6 +430,7 @@ function TicketPreview({
   const subColor = isLight ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.55)";
   const overlayBg = isLight ? "rgba(0,0,0,0.48)" : "rgba(255,255,255,0.55)";
   const accentColor = activeType?.color || "#10b981";
+  const isCssGradient = ticketBg.startsWith("linear-gradient") || ticketBg.startsWith("radial-gradient");
   const shortDate = startDate
     ? new Date(startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
     : "Date TBD";
@@ -407,18 +444,18 @@ function TicketPreview({
         boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
         position: "relative",
         ...(ticketBg
-          ? { backgroundImage: `url(${ticketBg})`, backgroundSize: "cover", backgroundPosition: "center" }
+          ? isCssGradient
+            ? { background: ticketBg }
+            : { backgroundImage: `url(${ticketBg})`, backgroundSize: "cover", backgroundPosition: "center" }
           : { background: `linear-gradient(135deg, ${accentColor}cc, ${accentColor}66)` }),
         border: "1px solid rgba(255,255,255,0.1)",
       }}
     >
-      {ticketBg && (
+      {ticketBg && !isCssGradient && (
         <div style={{ position: "absolute", inset: 0, background: overlayBg, zIndex: 0, pointerEvents: "none" }} />
       )}
 
-      {/* Content */}
       <div style={{ position: "relative", zIndex: 1, padding: "16px 18px 12px" }}>
-        {/* Brand row */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
           <div style={{ fontSize: 9, fontWeight: 700, color: subColor, letterSpacing: "0.1em", textTransform: "uppercase" }}>
             PAWAVOTES · E-TICKET
@@ -429,13 +466,9 @@ function TicketPreview({
             </span>
           )}
         </div>
-
-        {/* Event title */}
         <div style={{ fontSize: 15, fontWeight: 800, color: textColor, lineHeight: 1.25, marginBottom: 10 }}>
           {title || "Event Title"}
         </div>
-
-        {/* Info row */}
         <div style={{ display: "flex", gap: 12, marginBottom: 10 }}>
           <div>
             <div style={{ fontSize: 8, color: subColor, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 2 }}>DATE</div>
@@ -454,14 +487,11 @@ function TicketPreview({
             </div>
           )}
         </div>
-
-        {/* Perforated line + QR row */}
         <div style={{ borderTop: `1px dashed ${isLight ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.15)"}`, paddingTop: 10, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
             <div style={{ fontSize: 8, color: subColor, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 2 }}>TICKET CODE</div>
             <div style={{ fontFamily: "monospace", fontSize: 10, fontWeight: 700, color: textColor, letterSpacing: "0.12em" }}>XXXX-XXXX-XXXX</div>
           </div>
-          {/* Mini QR placeholder */}
           <div style={{ width: 38, height: 38, background: "#fff", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid rgba(0,0,0,0.08)" }}>
             <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
               <rect x="2" y="2" width="10" height="10" rx="1" fill="#111" />
@@ -484,7 +514,6 @@ function TicketPreview({
         </div>
       </div>
     </div>
-    {/* Ticket type dot navigation */}
     {ticketTypes.length > 1 && (
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 5, marginTop: 8 }}>
         {ticketTypes.map((t, i) => (
@@ -511,6 +540,367 @@ function TicketPreview({
   );
 }
 
+function TicketTemplateModal({
+  currentBg,
+  eventTitle,
+  onApply,
+  onClose,
+}: {
+  currentBg: string;
+  eventTitle: string;
+  onApply: (gradient: string, textColor: "light" | "dark") => void;
+  onClose: () => void;
+}) {
+  const [tab, setTab] = useState<"gallery" | "custom">("gallery");
+  const [category, setCategory] = useState("all");
+  const [color1, setColor1] = useState("#10b981");
+  const [color2, setColor2] = useState("#0575e6");
+  const [angle, setAngle] = useState(135);
+  const [customTextColor, setCustomTextColor] = useState<"light" | "dark">("light");
+
+  const customGradient = `linear-gradient(${angle}deg, ${color1} 0%, ${color2} 100%)`;
+  const filtered = category === "all" ? TICKET_TEMPLATES : TICKET_TEMPLATES.filter((t) => t.category === category);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/20"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <motion.div
+        initial={{ scale: 0.93, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.93, opacity: 0, y: 20 }}
+        transition={{ type: "spring", damping: 28, stiffness: 300 }}
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[88vh] flex flex-col overflow-hidden"
+      >
+        <div
+          className="relative px-6 pt-5 pb-4 shrink-0 overflow-hidden"
+        >
+          <div className="relative flex items-start justify-between mb-4">
+            <div>
+              <div className="flex items-center gap-2.5 mb-1">
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "rgba(255,255,255,0.12)" }}>
+                  <Palette className="w-4 h-4 text-black" />
+                </div>
+                <h3 className="text-lg font-bold text-black tracking-tight">Ticket Designer</h3>
+              </div>
+              <p className="text-sm text-black leading-relaxed">Choose a style or craft your own — the preview updates live</p>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 flex items-center justify-center rounded-xl text-black hover:text-black transition-colors shrink-0 mt-0.5"
+              style={{ background: "rgba(255,255,255,0.08)" }}
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="flex gap-1 p-1 rounded-xl w-fit" style={{ background: "rgba(255,255,255,0.08)" }}>
+            {([
+              { id: "gallery", label: "Gallery",  Icon: Star    },
+              { id: "custom",  label: "Custom",   Icon: Palette },
+            ] as const).map(({ id, label, Icon }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setTab(id)}
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+                  tab === id
+                    ? "bg-green-600 text-white  shadow-sm"
+                    : "text-gray-500 hover:text-gray-600"
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto min-h-0">
+          <AnimatePresence mode="wait">
+            {tab === "gallery" && (
+              <motion.div
+                key="gallery"
+                initial={{ opacity: 0, x: -12 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -12 }}
+                transition={{ duration: 0.18 }}
+                className="p-5 space-y-4"
+              >
+                <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
+                  {TEMPLATE_CATEGORIES.map((cat) => {
+                    const count = cat.id === "all" ? TICKET_TEMPLATES.length : TICKET_TEMPLATES.filter((t) => t.category === cat.id).length;
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setCategory(cat.id)}
+                        className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all border ${
+                          category === cat.id
+                            ? "bg-green-600 text-white border-green-600 shadow-sm"
+                            : "bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-800"
+                        }`}
+                      >
+                        <span className="text-sm leading-none">{cat.emoji}</span>
+                        {cat.label}
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${category === cat.id ? "bg-white/20 text-white" : "bg-gray-100 text-gray-400"}`}>{count}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { onApply("", "light"); onClose(); }}
+                  className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl border-2 text-left transition-all ${
+                    !currentBg ? "border-green-500 bg-green-50/60 shadow-sm shadow-green-100" : "border-gray-100 bg-gray-50 hover:border-gray-200"
+                  }`}
+                >
+                  <div className="w-14 h-9 rounded-xl border-2 border-dashed border-gray-300 bg-white flex items-center justify-center shrink-0">
+                    <span className="text-[10px] text-gray-400 font-bold tracking-wide">AUTO</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-gray-800">Auto (ticket colour)</p>
+                    <p className="text-xs text-gray-400">Inherits the ticket type's accent colour</p>
+                  </div>
+                  {!currentBg && <CheckCircle className="w-4 h-4 text-green-600 shrink-0" />}
+                </button>
+                <div className="grid grid-cols-3 gap-3">
+                  {filtered.map((tpl) => {
+                    const isActive = currentBg === tpl.gradient;
+                    return (
+                      <motion.button
+                        key={tpl.id}
+                        type="button"
+                        whileHover={{ scale: 1.04, y: -3 }}
+                        whileTap={{ scale: 0.97 }}
+                        transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                        onClick={() => { onApply(tpl.gradient, tpl.textColor); onClose(); }}
+                        className={`relative overflow-hidden rounded-2xl text-left group transition-shadow ${
+                          isActive
+                            ? "ring-2 ring-green-500 ring-offset-2 shadow-lg shadow-green-100"
+                            : "shadow-sm hover:shadow-lg"
+                        }`}
+                      >
+                        <div className="w-full h-22 flex flex-col justify-end p-2.5" style={{ background: tpl.gradient }}>
+                          <p
+                            className="text-[11px] font-bold leading-tight line-clamp-1"
+                            style={{
+                              color: tpl.textColor === "light" ? "#fff" : "#111",
+                              textShadow: tpl.textColor === "light" ? "0 1px 4px rgba(0,0,0,0.55)" : "none",
+                            }}
+                          >
+                            {eventTitle || "Your Event"}
+                          </p>
+                        </div>
+                        <div className="px-2.5 py-2 bg-white border-t border-gray-100 flex items-center justify-between gap-1">
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-gray-800 leading-tight truncate">{tpl.name}</p>
+                            <p className="text-[10px] text-gray-400 truncate">{tpl.description}</p>
+                          </div>
+                          <div
+                            className="w-4 h-4 rounded-full border-2 border-gray-200 shrink-0"
+                            style={{ background: tpl.textColor === "light" ? "#18181b" : "#f4f4f5" }}
+                            title={tpl.textColor === "light" ? "Light text" : "Dark text"}
+                          />
+                        </div>
+
+                        {/* Selected badge */}
+                        {isActive && (
+                          <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-green-500 flex items-center justify-center shadow-md">
+                            <CheckCircle className="w-3.5 h-3.5 text-white" />
+                          </div>
+                        )}
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
+
+            {/* ───── CUSTOM TAB ───── */}
+            {tab === "custom" && (
+              <motion.div
+                key="custom"
+                initial={{ opacity: 0, x: 12 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 12 }}
+                transition={{ duration: 0.18 }}
+                className="p-5"
+              >
+                <div className="flex gap-5">
+                  {/* ── Controls column ── */}
+                  <div className="flex-1 min-w-0 space-y-5">
+                    <div>
+                      <p className="text-sm font-bold text-gray-900">Build Your Gradient</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Pick two colours and an angle to create your unique ticket style</p>
+                    </div>
+
+                    {/* Color pickers */}
+                    <div className="space-y-3">
+                      {([
+                        { label: "Start Colour", value: color1, set: setColor1 },
+                        { label: "End Colour",   value: color2, set: setColor2 },
+                      ] as const).map(({ label, value, set }) => (
+                        <div key={label}>
+                          <label className="block text-xs font-semibold text-gray-600 mb-2">{label}</label>
+                          <div className="flex items-center gap-3">
+                            {/* Color swatch + native picker overlay */}
+                            <div className="relative w-11 h-11 rounded-xl border-2 border-white shadow-md shrink-0 cursor-pointer overflow-hidden" style={{ background: value }}>
+                              <input
+                                type="color"
+                                value={value}
+                                onChange={(e) => set(e.target.value)}
+                                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                              />
+                            </div>
+                            <input
+                              type="text"
+                              value={value}
+                              onChange={(e) => { if (/^#[0-9a-fA-F]{0,6}$/.test(e.target.value)) set(e.target.value); }}
+                              className="flex-1 px-3 py-2 text-sm font-mono border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-400 bg-gray-50 uppercase tracking-widest"
+                              maxLength={7}
+                              placeholder="#000000"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-xs font-semibold text-gray-600">Direction</label>
+                        <span className="text-xs font-bold text-gray-900 bg-gray-100 px-2 py-0.5 rounded-lg tabular-nums">{angle}°</span>
+                      </div>
+                      <div className="flex gap-1.5 mb-3">
+                        {[45, 90, 135, 180].map((a) => (
+                          <button
+                            key={a}
+                            type="button"
+                            onClick={() => setAngle(a)}
+                            className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                              angle === a
+                                ? "bg-gray-900 text-white border-gray-900 shadow-sm"
+                                : "bg-white text-gray-500 border-gray-200 hover:border-gray-300"
+                            }`}
+                          >
+                            {a}°
+                          </button>
+                        ))}
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={360}
+                        value={angle}
+                        onChange={(e) => setAngle(Number(e.target.value))}
+                        className="w-full accent-green-600 cursor-pointer"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-2">Text on Ticket</label>
+                      <div className="flex gap-2">
+                        {([
+                          { value: "light", label: "Light", bg: "#18181b", fg: "#fff"  },
+                          { value: "dark",  label: "Dark",  bg: "#f4f4f5", fg: "#111" },
+                        ] as const).map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => setCustomTextColor(opt.value)}
+                            className={`flex-1 flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 transition-all ${
+                              customTextColor === opt.value
+                                ? "border-green-500 bg-green-50 shadow-sm"
+                                : "border-gray-200 hover:border-gray-300"
+                            }`}
+                          >
+                            <div
+                              className="w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-bold shrink-0"
+                              style={{ background: opt.bg, color: opt.fg }}
+                            >
+                              Aa
+                            </div>
+                            <span className="text-xs font-semibold text-gray-700">{opt.label} text</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { onApply(customGradient, customTextColor); onClose(); }}
+                      className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 active:scale-95 text-white py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm shadow-green-200"
+                    >
+                      <Wand2 className="w-4 h-4" />
+                      Apply Custom Style
+                    </button>
+                  </div>
+                  <div className="w-44 shrink-0 flex flex-col gap-3">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Live Preview</p>
+
+                    <div className="rounded-2xl overflow-hidden shadow-xl border border-gray-100 flex-1" style={{ minHeight: 180 }}>
+                      
+                      <div
+                        className="flex flex-col justify-end p-3"
+                        style={{ background: customGradient, minHeight: 140 }}
+                      >
+                        <p
+                          className="text-xs font-bold leading-tight"
+                          style={{
+                            color: customTextColor === "light" ? "#fff" : "#111",
+                            textShadow: customTextColor === "light" ? "0 1px 4px rgba(0,0,0,0.55)" : "none",
+                          }}
+                        >
+                          {eventTitle || "Your Event"}
+                        </p>
+                        <p
+                          className="text-[10px] mt-0.5 opacity-70"
+                          style={{ color: customTextColor === "light" ? "#fff" : "#333" }}
+                        >
+                          E-Ticket · Custom
+                        </p>
+                      </div>
+                      <div className="px-3 py-2 bg-white flex items-center gap-2 border-t border-gray-100">
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ background: color1 }} />
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ background: color2 }} />
+                        <span className="text-[10px] text-gray-400 font-mono ml-1">{angle}°</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-center gap-1.5 py-2 px-3 bg-gray-50 rounded-xl border border-gray-100">
+                      <div
+                        className="w-10 h-10 rounded-full border-2 border-gray-200 relative flex items-center justify-center overflow-hidden"
+                      >
+                        <div
+                          className="absolute w-0.5 rounded-full bg-green-600"
+                          style={{
+                            height: 18,
+                            bottom: "50%",
+                            left: "calc(50% - 1px)",
+                            transformOrigin: "bottom center",
+                            transform: `rotate(${angle}deg)`,
+                          }}
+                        />
+                        <div className="w-1.5 h-1.5 rounded-full bg-green-600 relative z-10" />
+                      </div>
+                      <p className="text-[10px] text-gray-400 font-medium">{angle}° direction</p>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+          </AnimatePresence>
+        </div>
+        <div className="px-5 py-3 border-t border-gray-100 bg-gray-50/80 rounded-b-3xl flex items-center justify-between shrink-0">
+          <p className="text-xs text-gray-400">
+            {tab === "gallery" ? `${filtered.length} template${filtered.length !== 1 ? "s" : ""}` : "Custom gradient builder"}
+          </p>
+          <p className="text-xs text-gray-400">Upload a custom image in the main form</p>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 export default function EventsPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
@@ -524,12 +914,11 @@ export default function EventsPage() {
   const [formStep, setFormStep] = useState(1);
   const [formData, setFormData] = useState<typeof INITIAL_FORM>({ ...INITIAL_FORM });
   const [saving, setSaving] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [actionMenu, setActionMenu] = useState<string | null>(null);
   const [pagination, setPagination] = useState({ page: 1, total: 0, pages: 1 });
   const actionMenuRef = useRef<HTMLDivElement>(null);
-
-  /* ── Role & Assign Admins state (event-organizer only) ── */
   const [userRole, setUserRole] = useState<string>("");
   const [assignEvent, setAssignEvent] = useState<Event | null>(null);
   const [assignedAdmins, setAssignedAdmins] = useState<{ _id: string; name: string; email: string }[]>([]);
@@ -542,16 +931,12 @@ export default function EventsPage() {
     const userData = localStorage.getItem("user");
     if (userData) setUserRole(JSON.parse(userData).role || "");
   }, []);
-
-  /* ── Stats derived ── */
   const stats = {
     total: pagination.total,
     published: events.filter((e) => e.status === "published" || e.status === "ongoing").length,
     revenue: events.reduce((s, e) => s + (e.totalRevenue || 0), 0),
     attendees: events.reduce((s, e) => s + (e.totalSold || 0), 0),
   };
-
-  /* ── Fetch events ── */
   const fetchEvents = useCallback(async (page = 1) => {
     setLoading(true);
     try {
@@ -578,8 +963,6 @@ export default function EventsPage() {
   }, [search, filterStatus, filterCategory]);
 
   useEffect(() => { fetchEvents(); }, [fetchEvents]);
-
-  /* ── Assign Admins helpers ── */
   const openAssignModal = async (event: Event) => {
     setAssignEvent(event);
     setAdminSearch("");
@@ -642,8 +1025,6 @@ export default function EventsPage() {
       setAssignSaving(false);
     }
   };
-
-  /* ── Close action menu on outside click ── */
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (actionMenuRef.current && !actionMenuRef.current.contains(e.target as Node)) {
@@ -653,8 +1034,6 @@ export default function EventsPage() {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
-
-  /* ── Open create / edit modal ── */
   const openCreate = () => {
     setEditingEvent(null);
     setFormData({ ...INITIAL_FORM });
@@ -684,8 +1063,6 @@ export default function EventsPage() {
     setShowModal(true);
     setActionMenu(null);
   };
-
-  /* ── Save event ── */
   const handleSave = async () => {
     if (!formData.title.trim()) { toast.error("Event title is required"); return; }
     if (!formData.startDate || !formData.endDate) { toast.error("Start and end dates are required"); return; }
@@ -714,8 +1091,6 @@ export default function EventsPage() {
       setSaving(false);
     }
   };
-
-  /* ── Delete event ── */
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this event? This cannot be undone.")) return;
     setDeleting(id);
@@ -734,8 +1109,6 @@ export default function EventsPage() {
       setActionMenu(null);
     }
   };
-
-  /* ── Ticket type helpers ── */
   const addTicketType = () => {
     setFormData((prev) => ({
       ...prev,
@@ -769,12 +1142,8 @@ export default function EventsPage() {
       ticketTypes: prev.ticketTypes.filter((_, i) => i !== index),
     }));
   };
-
-  /* ─────────────────── Render ─────────────────── */
   return (
     <div className="min-h-screen bg-gray-50/50 p-4 sm:p-6 lg:p-8">
-
-      {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">
@@ -792,16 +1161,12 @@ export default function EventsPage() {
           Create Event
         </motion.button>
       </div>
-
-      {/* ── Stats row ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard label="Total Events" value={stats.total} icon={Calendar} color="bg-blue-50 text-blue-600" />
         <StatCard label="Active Events" value={stats.published} icon={Zap} color="bg-green-50 text-green-600" />
         <StatCard label="Total Revenue" value={formatCurrency(stats.revenue)} icon={DollarSign} color="bg-amber-50 text-amber-600" />
         <StatCard label="Tickets Sold" value={stats.attendees.toLocaleString()} icon={Ticket} color="bg-purple-50 text-purple-600" />
       </div>
-
-      {/* ── Search & Filters ── */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-6">
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
@@ -868,8 +1233,6 @@ export default function EventsPage() {
           )}
         </AnimatePresence>
       </div>
-
-      {/* ── Events Grid ── */}
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
           {[...Array(6)].map((_, i) => (
@@ -922,7 +1285,6 @@ export default function EventsPage() {
                   transition={{ delay: index * 0.05 }}
                   className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden group"
                 >
-                  {/* Banner / Placeholder */}
                   <div className="relative h-36 bg-linear-to-br from-green-400 via-teal-500 to-blue-600 overflow-hidden">
                     {event.banner ? (
                       <img src={event.banner} alt={event.title} className="w-full h-full object-cover" />
@@ -932,12 +1294,10 @@ export default function EventsPage() {
                       </div>
                     )}
                     <div className="absolute inset-0 bg-black/20" />
-                    {/* Status badge */}
                     <div className={`absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold backdrop-blur-sm bg-white/90 ${sc.color}`}>
                       <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
                       {sc.label}
                     </div>
-                    {/* Action menu */}
                     <div className="absolute top-3 right-3" ref={actionMenu === event._id ? actionMenuRef : undefined}>
                       <button
                         onClick={(e) => { e.stopPropagation(); setActionMenu(actionMenu === event._id ? null : event._id); }}
@@ -1103,7 +1463,7 @@ export default function EventsPage() {
         </>
       )}
 
-      {/* ════════════════ Create / Edit Modal ════════════════ */}
+
       <AnimatePresence>
         {showModal && (
           <motion.div
@@ -1461,9 +1821,19 @@ export default function EventsPage() {
                             {/* Controls */}
                             <div className="flex-1 space-y-3">
                               <div>
-                                <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                                  Ticket Background Image
-                                </label>
+                                <div className="flex items-center justify-between mb-1.5">
+                                  <label className="block text-xs font-semibold text-gray-600">
+                                    Ticket Background
+                                  </label>
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowTemplates(true)}
+                                    className="flex items-center gap-1 text-xs font-semibold text-green-600 hover:text-green-700 transition-colors"
+                                  >
+                                    <Star className="w-3.5 h-3.5" />
+                                    Use a template
+                                  </button>
+                                </div>
                                 <TicketBgUploader
                                   value={formData.ticketBg}
                                   onChange={(url) => setFormData((p) => ({ ...p, ticketBg: url }))}
@@ -1590,7 +1960,19 @@ export default function EventsPage() {
         )}
       </AnimatePresence>
 
-      {/* ════════════════ Detail Drawer ════════════════ */}
+      {/* ════════════════ Ticket Template Designer ════════════════ */}
+      <AnimatePresence>
+        {showTemplates && (
+          <TicketTemplateModal
+            currentBg={formData.ticketBg}
+            eventTitle={formData.title}
+            onApply={(gradient, textColor) =>
+              setFormData((p) => ({ ...p, ticketBg: gradient, ticketTextColor: textColor }))
+            }
+            onClose={() => setShowTemplates(false)}
+          />
+        )}
+      </AnimatePresence>
       <AnimatePresence>
         {detailEvent && (
           <motion.div
@@ -1767,8 +2149,6 @@ export default function EventsPage() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* ════════════════ Assign Admins Modal (event-organizer only) ════════════════ */}
       <AnimatePresence>
         {assignEvent && (
           <motion.div

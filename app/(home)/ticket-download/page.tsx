@@ -252,6 +252,7 @@ function TicketCard({ code, index, order, isShared, sharedInfo, onShareClick, pr
   const [hovered, setHovered] = useState(false);
   const color = order.ticketTypeColor || "#10b981";
   const hasBg = !!order.ticketBg;
+  const isCssGradient = hasBg && (order.ticketBg!.startsWith("linear-gradient") || order.ticketBg!.startsWith("radial-gradient"));
   const isLightText = !hasBg || order.ticketTextColor !== "dark";
   const textColor = hasBg ? (isLightText ? "#fff" : "#111") : "#111";
   const subColor = hasBg ? (isLightText ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.55)") : "#888";
@@ -264,7 +265,9 @@ function TicketCard({ code, index, order, isShared, sharedInfo, onShareClick, pr
       onMouseLeave={() => setHovered(false)}
       style={{
         ...(hasBg
-          ? { backgroundImage: `url(${order.ticketBg})`, backgroundSize: "cover", backgroundPosition: "center" }
+          ? isCssGradient
+            ? { background: order.ticketBg }
+            : { backgroundImage: `url(${order.ticketBg})`, backgroundSize: "cover", backgroundPosition: "center" }
           : { background: "#fff" }),
         borderRadius: 20,
         overflow: "hidden",
@@ -319,8 +322,8 @@ function TicketCard({ code, index, order, isShared, sharedInfo, onShareClick, pr
           )}
         </div>
       )}
-      {/* Overlay for background image */}
-      {hasBg && (
+      {/* Overlay for background image (not needed for CSS gradients) */}
+      {hasBg && !isCssGradient && (
         <div style={{ position: "absolute", inset: 0, background: overlayBg, zIndex: 0, pointerEvents: "none" }} />
       )}
 
