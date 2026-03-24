@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { withDB } from '@/middleware/db';
+import connectDB from '@/lib/mongodb';
 import PageView from '@/models/PageView';
 
 function parseDevice(ua: string): 'mobile' | 'tablet' | 'desktop' {
@@ -17,36 +17,42 @@ function parseBrowser(ua: string): string {
   return 'Other';
 }
 
-async function trackPageView(req: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { path, referrer, sessionId } = body;
 
     if (!path || !sessionId) {
-      return NextResponse.json({ error: 'path and sessionId required' }, { status: 400 });
+      return NextResponse.json({ success: true });
     }
 
     const ua = req.headers.get('user-agent') || '';
-    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-               req.headers.get('x-real-ip') || '';
+    const ip =
+      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      req.headers.get('x-real-ip') ||
+      '';
 
-    await PageView.create({
-      path,
-      referrer: referrer || undefined,
-      userAgent: ua,
-      ip,
-      device: parseDevice(ua),
-      browser: parseBrowser(ua),
-      sessionId,
-    });
+    // Respond immediately — DB connect + write happens fully in the background.
+    // Analytics is non-critical; a missed view is better than a slow/failed response.
+    (async () => {
+      try {
+        await connectDB();
+        await PageView.create({
+          path,
+          referrer: referrer || undefined,
+          userAgent: ua,
+          ip,
+          device: parseDevice(ua),
+          browser: parseBrowser(ua),
+          sessionId,
+        });
+      } catch {
+        // swallow silently
+      }
+    })();
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: 'Failed to track', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
-      { status: 500 }
-    );
+  } catch {
+    return NextResponse.json({ success: true });
   }
 }
-
-export const POST = withDB(trackPageView);

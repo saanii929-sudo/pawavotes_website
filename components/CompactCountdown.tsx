@@ -76,11 +76,8 @@ const CompactCountdown = ({
         currentPhase = "voting";
         targetDate = votingEnd;
       } else if (votingStart && now < votingStart.getTime()) {
-        // Don't show anything if voting hasn't started
         currentPhase = "upcoming";
-        setPhase(currentPhase);
-        setTimeText("");
-        return;
+        targetDate = votingStart;
       }
 
       setPhase(currentPhase);

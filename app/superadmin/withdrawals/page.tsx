@@ -19,7 +19,7 @@ interface Transfer {
   recipientAccountNumber?: string;
   recipientPhoneNumber?: string;
   transferType: "bank" | "mobile_money";
-  status: "successful" | "pending" | "failed";
+  status: "successful" | "completed" | "pending" | "failed" | "approved" | "rejected";
   initiatedBy: string;
   notes?: string;
   createdAt: string;
@@ -39,10 +39,13 @@ function fmtAmt(currency: string, amount: number) {
   return `${currency} ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-const STATUS = {
+const STATUS: Record<string, { dot: string; text: string; label: string }> = {
   successful: { dot: "bg-green-500", text: "text-green-700",  label: "Successful" },
+  completed:  { dot: "bg-green-500", text: "text-green-700",  label: "Completed"  },
+  approved:   { dot: "bg-green-400", text: "text-green-700",  label: "Approved"   },
   pending:    { dot: "bg-amber-400", text: "text-amber-700",  label: "Pending"    },
   failed:     { dot: "bg-red-400",   text: "text-red-600",    label: "Failed"     },
+  rejected:   { dot: "bg-red-400",   text: "text-red-600",    label: "Rejected"   },
 };
 
 const TYPE = {
@@ -171,17 +174,24 @@ export default function WithdrawalsPage() {
 
   if (loading) return <PageSkeleton />;
 
+  const isSuccess = (s: string) => s === "successful" || s === "completed" || s === "approved";
+  const isFailed  = (s: string) => s === "failed" || s === "rejected";
+
   const stats = {
     all:        transfers.length,
     pending:    transfers.filter((t) => t.status === "pending").length,
-    successful: transfers.filter((t) => t.status === "successful").length,
-    failed:     transfers.filter((t) => t.status === "failed").length,
-    paidOut:    transfers.filter((t) => t.status === "successful").reduce((s, t) => s + t.amount, 0),
+    successful: transfers.filter((t) => isSuccess(t.status)).length,
+    failed:     transfers.filter((t) => isFailed(t.status)).length,
+    paidOut:    transfers.filter((t) => isSuccess(t.status)).reduce((s, t) => s + t.amount, 0),
     currency:   transfers[0]?.currency ?? "GHS",
   };
 
   const filtered = transfers.filter((t) => {
-    const matchFilter = filter === "all" || t.status === filter;
+    const matchFilter =
+      filter === "all" ||
+      (filter === "successful" && isSuccess(t.status)) ||
+      (filter === "failed" && isFailed(t.status)) ||
+      (filter === "pending" && t.status === "pending");
     const q = search.toLowerCase();
     const matchSearch =
       !q ||

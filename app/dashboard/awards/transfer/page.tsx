@@ -9,6 +9,7 @@ import {
   Info,
   Eye,
   EyeOff,
+  RefreshCw,
 } from "lucide-react";
 import Image from "next/image";
 import toast from "react-hot-toast";
@@ -91,11 +92,23 @@ const TransferManagementSystem = () => {
   }, []);
 
   useEffect(() => {
-    if (selectedAward) {
+    if (selectedAward && currentScreen === "transfer") {
       fetchTransfers(selectedAward._id);
       fetchRevenueInfo(selectedAward._id);
     }
-  }, [selectedAward]);
+  }, [selectedAward, currentScreen]);
+
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    if (!selectedAward) return;
+    setRefreshing(true);
+    await Promise.all([
+      fetchTransfers(selectedAward._id),
+      fetchRevenueInfo(selectedAward._id),
+    ]);
+    setRefreshing(false);
+  };
 
   const fetchServiceFee = async () => {
     try {
@@ -517,13 +530,23 @@ const TransferManagementSystem = () => {
                 Transparent history of all manually reassigned votes.
               </p>
             </div>
-            <button
-              onClick={handleAddTransferClick}
-              className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white px-4 sm:px-6 py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm sm:text-base whitespace-nowrap"
-            >
-              <Plus size={18} />
-              Add New Transfer
-            </button>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                onClick={handleRefresh}
+                disabled={refreshing}
+                title="Refresh balance"
+                className="p-2.5 rounded-lg border border-gray-200 text-gray-500 hover:text-gray-700 hover:border-gray-300 transition-colors disabled:opacity-50"
+              >
+                <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
+              </button>
+              <button
+                onClick={handleAddTransferClick}
+                className="flex-1 sm:flex-none bg-green-600 hover:bg-green-700 text-white px-4 sm:px-6 py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm sm:text-base whitespace-nowrap"
+              >
+                <Plus size={18} />
+                Add New Transfer
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
@@ -562,13 +585,16 @@ const TransferManagementSystem = () => {
                 <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
                   <Smartphone className="text-orange-600" size={20} />
                 </div>
-                <span className="text-gray-600 text-sm">Total Requested</span>
+                <span className="text-gray-600 text-sm">Transferred Out</span>
               </div>
               <p className="text-2xl sm:text-3xl font-bold text-orange-600">
-                GHS {(revenueInfo?.totalRequested || 0).toFixed(2)}
+                GHS {(revenueInfo?.alreadyTransferred || 0).toFixed(2)}
               </p>
               <p className="text-xs text-gray-500 mt-2">
-                Pending + Approved transfers
+                Completed transfers
+{revenueInfo && revenueInfo.totalRequested > 0 && (
+                  <span className="ml-1 text-amber-600">· GHS {revenueInfo.totalRequested.toFixed(2)} pending</span>
+                )}
               </p>
             </div>
 
