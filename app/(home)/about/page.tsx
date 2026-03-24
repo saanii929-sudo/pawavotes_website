@@ -1,408 +1,265 @@
-"use client";
-
-import { motion, Variants } from "framer-motion";
-import PublicNav from "@/components/PublicNav";
-import { 
-  Target, 
-  Eye, 
-  Heart, 
-  Shield, 
-  Users, 
-  Award,
-  TrendingUp,
-  Globe,
-  CheckCircle,
-  Zap
-} from "lucide-react";
+import Link from "next/link";
 import Image from "next/image";
+import PublicNav from "@/components/PublicNav";
+import {
+  Shield,
+  Heart,
+  Users,
+  Zap,
+  Target,
+  Eye,
+  CheckCircle,
+  Globe,
+  ChevronRight,
+} from "lucide-react";
 
-const AboutPage = () => {
-  const fadeIn: Variants = {
-    hidden: { opacity: 0, y: 30 },
-    visible: { 
-      opacity: 1, 
-      y: 0,
-      transition: { duration: 0.6, ease: "easeOut" }
-    },
-  };
+// ─── data ─────────────────────────────────────────────────────────────────────
 
-  const staggerContainer: Variants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.2,
-      },
-    },
-  };
+const STATS = [
+  { number: "50K+",  label: "Votes cast"     },
+  { number: "100+",  label: "Events hosted"  },
+  { number: "99.9%", label: "Uptime"         },
+  { number: "24/7",  label: "Support"        },
+];
 
-  const scaleIn = {
-    hidden: { scale: 0.8, opacity: 0 },
-    visible: {
-      scale: 1,
-      opacity: 1,
-      transition: { duration: 0.5 }
-    },
-  };
+const VALUES = [
+  {
+    icon: Shield,
+    title: "Trust & Transparency",
+    description: "We build trust through complete transparency in every vote cast and every result published.",
+  },
+  {
+    icon: Heart,
+    title: "Integrity First",
+    description: "Our commitment to electoral integrity drives every decision we make and every feature we build.",
+  },
+  {
+    icon: Users,
+    title: "Community Focused",
+    description: "We serve communities across Africa, ensuring every voice is heard and every vote counts.",
+  },
+  {
+    icon: Zap,
+    title: "Innovation",
+    description: "We continuously innovate to make voting more accessible, secure, and efficient for everyone.",
+  },
+];
 
-  const values = [
-    {
-      icon: Shield,
-      title: "Trust & Transparency",
-      description: "We believe in building trust through complete transparency in every vote cast and every result published.",
-      color: "from-blue-500 to-blue-600"
-    },
-    {
-      icon: Heart,
-      title: "Integrity First",
-      description: "Our commitment to electoral integrity drives every decision we make and every feature we build.",
-      color: "from-red-500 to-red-600"
-    },
-    {
-      icon: Users,
-      title: "Community Focused",
-      description: "We serve communities across Africa, ensuring every voice is heard and every vote counts.",
-      color: "from-green-500 to-green-600"
-    },
-    {
-      icon: Zap,
-      title: "Innovation",
-      description: "We continuously innovate to make voting more accessible, secure, and efficient for everyone.",
-      color: "from-yellow-500 to-yellow-600"
-    },
-  ];
+const FEATURES = [
+  "Secure & encrypted voting system",
+  "Real-time results and analytics",
+  "USSD voting for accessibility",
+  "Multi-stage competition support",
+  "Fraud detection & prevention",
+  "Audit-ready reporting",
+];
 
-  const stats = [
-    { number: "50K+", label: "Votes Cast", icon: CheckCircle },
-    { number: "100+", label: "Events Hosted", icon: Award },
-    { number: "99.9%", label: "Uptime", icon: TrendingUp },
-    { number: "24/7", label: "Support", icon: Users },
-  ];
+const PILLARS = [
+  {
+    icon: Globe,
+    title: "Pan-African Reach",
+    description: "Serving communities across Ghana and expanding throughout Africa.",
+  },
+  {
+    icon: Shield,
+    title: "Bank-Level Security",
+    description: "End-to-end encryption protecting every vote and every voter.",
+  },
+  {
+    icon: Users,
+    title: "24/7 Support",
+    description: "A dedicated team ready to assist organizers and voters anytime.",
+  },
+];
 
-  const features = [
-    "Secure & encrypted voting system",
-    "Real-time results and analytics",
-    "USSD voting for accessibility",
-    "Multi-stage competition support",
-    "Fraud detection & prevention",
-    "Audit-ready reporting",
-  ];
+// ─── page ─────────────────────────────────────────────────────────────────────
 
+export default function AboutPage() {
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-50">
       <PublicNav />
 
-      {/* Hero Section */}
-      <section className="relative bg-[#006726] text-white py-20 md:py-32 overflow-hidden">
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={staggerContainer}
-            className="text-center"
-          >
-            <motion.div variants={fadeIn} className="mb-6">
-              <span className="inline-block bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full text-sm font-semibold">
-                About Pawavotes
-              </span>
-            </motion.div>
-            
-            <motion.h1
-              variants={fadeIn}
-              className="text-4xl md:text-6xl font-bold mb-6"
+      {/* ── page header ──────────────────────────────────────────────────────── */}
+      <div className="bg-white border-b border-slate-200">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
+          <p className="text-xs font-semibold text-green-600 uppercase tracking-widest mb-3">
+            About Pawavotes
+          </p>
+          <h1 className="text-3xl sm:text-4xl font-black text-slate-900 leading-tight max-w-xl mb-4">
+            Building trust in Africa's democratic processes
+          </h1>
+          <p className="text-slate-500 text-base max-w-2xl leading-relaxed mb-8">
+            Pawavotes is Africa's most trusted digital voting platform — built for public awards,
+            institutional elections, and community decisions. We combine modern technology with
+            local accessibility to make every vote count.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href="/contact-us"
+              className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold text-sm px-5 py-2.5 rounded-xl transition-colors"
             >
-              Building Trust in
-            </motion.h1>
-            
-            <motion.p
-              variants={fadeIn}
-              className="text-xl md:text-2xl text-green-100 max-w-3xl mx-auto mb-8"
+              Get started <ChevronRight className="w-4 h-4" />
+            </Link>
+            <Link
+              href="/find-vote"
+              className="inline-flex items-center gap-2 border border-slate-200 bg-white hover:border-slate-300 text-slate-700 font-semibold text-sm px-5 py-2.5 rounded-xl transition-colors"
             >
-              Africa's most trusted digital voting platform for public awards and institutional elections
-            </motion.p>
-
-            <motion.div
-              variants={fadeIn}
-              className="flex flex-wrap justify-center gap-4"
-            >
-              <a
-                href="/contact-us"
-                className="bg-white text-green-600 px-8 py-3 rounded-lg font-semibold hover:bg-green-50 transition-colors"
-              >
-                Get Started
-              </a>
-              <a
-                href="/find-vote"
-                className="bg-white/10 backdrop-blur-sm border-2 border-white/30 text-white px-8 py-3 rounded-lg font-semibold hover:bg-white/20 transition-colors"
-              >
-                Explore Events
-              </a>
-            </motion.div>
-          </motion.div>
+              Explore events
+            </Link>
+          </div>
         </div>
-      </section>
+      </div>
 
-      {/* Stats Section */}
-      <section className="py-12 bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={staggerContainer}
-            className="grid grid-cols-2 md:grid-cols-4 gap-8"
-          >
-            {stats.map((stat, index) => (
-              <motion.div
-                key={index}
-                variants={scaleIn}
-                className="text-center"
-              >
-                <div className="flex justify-center mb-3">
-                  <div className="bg-green-100 p-3 rounded-full">
-                    <stat.icon className="w-6 h-6 text-green-600" />
-                  </div>
-                </div>
-                <div className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
-                  {stat.number}
-                </div>
-                <div className="text-gray-600 text-sm md:text-base">{stat.label}</div>
-              </motion.div>
+      {/* ── stats strip ──────────────────────────────────────────────────────── */}
+      <div className="bg-white border-b border-slate-100">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 sm:gap-0 sm:divide-x sm:divide-slate-100">
+            {STATS.map((s) => (
+              <div key={s.label} className="sm:px-8 first:pl-0 last:pr-0 text-center sm:text-left">
+                <p className="text-3xl font-black text-slate-900 leading-none">{s.number}</p>
+                <p className="text-sm text-slate-400 mt-1">{s.label}</p>
+              </div>
             ))}
-          </motion.div>
+          </div>
         </div>
-      </section>
+      </div>
 
-      {/* Mission & Vision Section */}
-      <section className="py-20 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={staggerContainer}
-            className="grid md:grid-cols-2 gap-12"
-          >
-            {/* Mission */}
-            <motion.div variants={fadeIn} className="bg-white rounded-2xl p-8 shadow-lg">
-              <div className="bg-linear-to-br from-green-500 to-green-600 w-16 h-16 rounded-2xl flex items-center justify-center mb-6">
-                <Target className="w-8 h-8 text-white" />
-              </div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-4">Our Mission</h2>
-              <p className="text-gray-600 leading-relaxed text-lg">
-                To democratize access to secure, transparent, and verifiable voting systems across Africa, 
-                ensuring every voice is heard and every vote counts. We're committed to building trust in 
-                democratic processes through technology.
-              </p>
-            </motion.div>
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-12 space-y-12">
 
-            {/* Vision */}
-            <motion.div variants={fadeIn} className="bg-white rounded-2xl p-8 shadow-lg">
-              <div className="bg-linear-to-br from-blue-500 to-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mb-6">
-                <Eye className="w-8 h-8 text-white" />
-              </div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-4">Our Vision</h2>
-              <p className="text-gray-600 leading-relaxed text-lg">
-                To become Africa's leading digital voting platform, setting the standard for electoral 
-                integrity and transparency. We envision a future where every election, award, and decision 
-                is powered by trust and technology.
-              </p>
-            </motion.div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Values Section */}
-      <section className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={fadeIn}
-            className="text-center mb-16"
-          >
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">Our Core Values</h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              The principles that guide everything we do
+        {/* ── mission & vision ─────────────────────────────────────────────── */}
+        <div className="grid sm:grid-cols-2 gap-6">
+          <div className="bg-white rounded-2xl border border-slate-100 p-7">
+            <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center mb-5">
+              <Target className="w-5 h-5 text-green-600" />
+            </div>
+            <h2 className="text-lg font-bold text-slate-900 mb-3">Our Mission</h2>
+            <p className="text-sm text-slate-500 leading-relaxed">
+              To democratize access to secure, transparent, and verifiable voting systems across
+              Africa — ensuring every voice is heard and every vote counts. We're committed to
+              building trust in democratic processes through technology.
             </p>
-          </motion.div>
+          </div>
 
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={staggerContainer}
-            className="grid md:grid-cols-2 lg:grid-cols-4 gap-8"
-          >
-            {values.map((value, index) => (
-              <motion.div
-                key={index}
-                variants={scaleIn}
-                whileHover={{ y: -10 }}
-                className="bg-gray-50 rounded-2xl p-6 hover:shadow-xl transition-all duration-300"
-              >
-                <div className={`bg-linear-to-br ${value.color} w-14 h-14 rounded-xl flex items-center justify-center mb-4`}>
-                  <value.icon className="w-7 h-7 text-white" />
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3">{value.title}</h3>
-                <p className="text-gray-600 leading-relaxed">{value.description}</p>
-              </motion.div>
-            ))}
-          </motion.div>
+          <div className="bg-white rounded-2xl border border-slate-100 p-7">
+            <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center mb-5">
+              <Eye className="w-5 h-5 text-slate-500" />
+            </div>
+            <h2 className="text-lg font-bold text-slate-900 mb-3">Our Vision</h2>
+            <p className="text-sm text-slate-500 leading-relaxed">
+              To become Africa's leading digital voting platform — setting the standard for
+              electoral integrity and transparency. We envision a future where every election,
+              award, and community decision is powered by trust and technology.
+            </p>
+          </div>
         </div>
-      </section>
 
-      {/* What We Offer Section */}
-      <section className="py-20 bg-linear-to-br from-gray-900 to-gray-800 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={staggerContainer}
-            className="grid lg:grid-cols-2 gap-12 items-center"
-          >
-            <motion.div variants={fadeIn}>
-              <h2 className="text-4xl font-bold mb-6">What We Offer</h2>
-              <p className="text-gray-300 text-lg mb-8">
-                Pawavotes provides a comprehensive voting platform designed for the African context, 
-                combining cutting-edge technology with local accessibility.
+        {/* ── values ───────────────────────────────────────────────────────── */}
+        <div>
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-slate-900">Our core values</h2>
+            <p className="text-sm text-slate-400 mt-1">The principles that guide everything we do</p>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {VALUES.map((v) => (
+              <div
+                key={v.title}
+                className="bg-white rounded-xl border border-slate-100 p-5 hover:border-slate-200 hover:shadow-sm transition-all duration-200"
+              >
+                <div className="w-9 h-9 rounded-lg bg-slate-50 flex items-center justify-center mb-4">
+                  <v.icon className="w-4 h-4 text-slate-500" />
+                </div>
+                <h3 className="font-bold text-slate-800 text-sm mb-2">{v.title}</h3>
+                <p className="text-xs text-slate-400 leading-relaxed">{v.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── what we offer ────────────────────────────────────────────────── */}
+        <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+          <div className="grid lg:grid-cols-2">
+            {/* Left: feature list */}
+            <div className="p-7 sm:p-10">
+              <h2 className="text-xl font-bold text-slate-900 mb-2">What we offer</h2>
+              <p className="text-sm text-slate-400 mb-7 leading-relaxed">
+                A comprehensive voting platform designed for the African context — combining
+                cutting-edge technology with local accessibility.
               </p>
-              
-              <div className="space-y-4">
-                {features.map((feature, index) => (
-                  <motion.div
-                    key={index}
-                    variants={fadeIn}
-                    className="flex items-center gap-3"
-                  >
-                    <div className="bg-green-500 rounded-full p-1">
-                      <CheckCircle className="w-5 h-5 text-white" />
-                    </div>
-                    <span className="text-gray-200">{feature}</span>
-                  </motion.div>
+              <ul className="space-y-3">
+                {FEATURES.map((f) => (
+                  <li key={f} className="flex items-center gap-3 text-sm text-slate-600">
+                    <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
+                    {f}
+                  </li>
                 ))}
-              </div>
+              </ul>
+              <Link
+                href="/contact-us"
+                className="inline-flex items-center gap-2 mt-8 bg-green-600 hover:bg-green-700 text-white font-semibold text-sm px-5 py-2.5 rounded-xl transition-colors"
+              >
+                Talk to us <ChevronRight className="w-4 h-4" />
+              </Link>
+            </div>
 
-              <motion.div variants={fadeIn} className="mt-8">
-                <a
-                  href="/contact-us"
-                  className="inline-block bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-lg font-semibold transition-colors"
-                >
-                  Learn More
-                </a>
-              </motion.div>
-            </motion.div>
-
-            <motion.div
-              variants={scaleIn}
-              className="relative"
-            >
-              <div className="bg-linear-to-br from-green-500 to-green-600 rounded-2xl p-8 shadow-2xl">
-                <div className="space-y-6">
-                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6">
-                    <Globe className="w-12 h-12 text-white mb-4" />
-                    <h3 className="text-xl font-bold mb-2">Pan-African Reach</h3>
-                    <p className="text-green-100">
-                      Serving communities across Ghana and expanding throughout Africa
-                    </p>
+            {/* Right: pillars */}
+            <div className="bg-slate-50 border-t lg:border-t-0 lg:border-l border-slate-100 p-7 sm:p-10 space-y-5">
+              {PILLARS.map((p) => (
+                <div key={p.title} className="flex items-start gap-4">
+                  <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                    <p.icon className="w-4 h-4 text-slate-500" />
                   </div>
-                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6">
-                    <Shield className="w-12 h-12 text-white mb-4" />
-                    <h3 className="text-xl font-bold mb-2">Bank-Level Security</h3>
-                    <p className="text-green-100">
-                      Military-grade encryption protecting every vote and voter
-                    </p>
-                  </div>
-                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6">
-                    <Users className="w-12 h-12 text-white mb-4" />
-                    <h3 className="text-xl font-bold mb-2">24/7 Support</h3>
-                    <p className="text-green-100">
-                      Dedicated team ready to assist organizers and voters anytime
-                    </p>
+                  <div>
+                    <h3 className="font-semibold text-slate-800 text-sm mb-1">{p.title}</h3>
+                    <p className="text-xs text-slate-400 leading-relaxed">{p.description}</p>
                   </div>
                 </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-20 bg-linear-to-r from-green-600 to-green-700">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={staggerContainer}
-          >
-            <motion.h2
-              variants={fadeIn}
-              className="text-4xl md:text-5xl font-bold text-white mb-6"
-            >
-              Ready to Get Started?
-            </motion.h2>
-            <motion.p
-              variants={fadeIn}
-              className="text-xl text-green-100 mb-8"
-            >
-              Join thousands of organizations using Pawavotes for their voting needs
-            </motion.p>
-            <motion.div
-              variants={fadeIn}
-              className="flex flex-col sm:flex-row gap-4 justify-center"
-            >
-              <a
-                href="/contact-us"
-                className="bg-white text-green-600 px-8 py-4 rounded-lg font-semibold hover:bg-green-50 transition-colors text-lg"
-              >
-                Contact Us
-              </a>
-              <a
-                href="/find-vote"
-                className="bg-green-800 text-white px-8 py-4 rounded-lg font-semibold hover:bg-green-900 transition-colors text-lg"
-              >
-                Explore Events
-              </a>
-            </motion.div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="bg-gray-900 text-white py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Image
-                src="/images/logo.png"
-                alt="Pawavotes"
-                width={50}
-                height={50}
-              />
-              <span className="text-xl font-bold text-green-400">Pawavotes</span>
+              ))}
             </div>
-            <p className="text-gray-400 text-sm text-center md:text-left">
-              © {new Date().getFullYear()} Pawavotes. All rights reserved. Built for trust and transparency in Africa.
+          </div>
+        </div>
+
+        {/* ── CTA ──────────────────────────────────────────────────────────── */}
+        <div className="bg-white rounded-2xl border border-slate-100 px-7 py-10 sm:px-10 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900 mb-1">Ready to get started?</h2>
+            <p className="text-sm text-slate-400">
+              Join hundreds of organisations using Pawavotes for their voting needs.
             </p>
-            <div className="flex gap-6 text-sm">
-              <a href="/privacy" className="text-gray-400 hover:text-green-400 transition-colors">
-                Privacy
-              </a>
-              <a href="/terms" className="text-gray-400 hover:text-green-400 transition-colors">
-                Terms
-              </a>
-              <a href="/contact-us" className="text-gray-400 hover:text-green-400 transition-colors">
-                Contact
-              </a>
-            </div>
+          </div>
+          <div className="flex flex-wrap gap-3 shrink-0">
+            <Link
+              href="/contact-us"
+              className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold text-sm px-5 py-2.5 rounded-xl transition-colors"
+            >
+              Contact us <ChevronRight className="w-4 h-4" />
+            </Link>
+            <Link
+              href="/find-vote"
+              className="inline-flex items-center gap-2 border border-slate-200 bg-white hover:border-slate-300 text-slate-700 font-semibold text-sm px-5 py-2.5 rounded-xl transition-colors"
+            >
+              Explore events
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* ── footer ───────────────────────────────────────────────────────────── */}
+      <footer className="mt-4 border-t border-slate-200 bg-white">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <Image src="/images/logo.png" alt="Pawavotes" width={28} height={28} />
+            <span className="font-bold text-slate-800 text-sm">Pawavotes</span>
+          </div>
+          <p className="text-xs text-slate-400 text-center">
+            © {new Date().getFullYear()} Pawavotes — Built for trust & transparency in Africa.
+          </p>
+          <div className="flex gap-5 text-xs text-slate-400">
+            <Link href="/privacy"    className="hover:text-slate-700 transition-colors">Privacy</Link>
+            <Link href="/terms"      className="hover:text-slate-700 transition-colors">Terms</Link>
+            <Link href="/contact-us" className="hover:text-slate-700 transition-colors">Contact</Link>
           </div>
         </div>
       </footer>
     </div>
   );
-};
-
-export default AboutPage;
+}

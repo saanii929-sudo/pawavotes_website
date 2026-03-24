@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import PublicNav from "@/components/PublicNav";
 import {
@@ -10,17 +9,14 @@ import {
   Video,
   Search,
   Ticket,
-  Users,
-  ChevronRight,
-  Filter,
   Clock,
   ArrowRight,
-  Sparkles,
-  TrendingUp,
-  Globe,
+  ChevronRight,
+  X,
 } from "lucide-react";
 
-/* ─── Types ─── */
+// ─── types ────────────────────────────────────────────────────────────────────
+
 interface TicketType {
   id: string;
   name: string;
@@ -47,128 +43,181 @@ interface Event {
   organizationName: string;
 }
 
+// ─── constants ────────────────────────────────────────────────────────────────
+
 const CATEGORIES = [
-  { value: "", label: "All Events", emoji: "🌐" },
-  { value: "conference", label: "Conference", emoji: "🎤" },
-  { value: "concert", label: "Concert", emoji: "🎵" },
-  { value: "sports", label: "Sports", emoji: "⚽" },
-  { value: "workshop", label: "Workshop", emoji: "🛠️" },
-  { value: "gala", label: "Gala", emoji: "✨" },
-  { value: "festival", label: "Festival", emoji: "🎉" },
-  { value: "networking", label: "Networking", emoji: "🤝" },
+  { value: "",             label: "All Events"  },
+  { value: "conference",   label: "Conference"  },
+  { value: "concert",      label: "Concert"     },
+  { value: "sports",       label: "Sports"      },
+  { value: "workshop",     label: "Workshop"    },
+  { value: "gala",         label: "Gala"        },
+  { value: "festival",     label: "Festival"    },
+  { value: "networking",   label: "Networking"  },
 ];
 
-function formatDate(d: string) {
-  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+// subtle placeholder bg per category (when no banner)
+const CAT_BG: Record<string, string> = {
+  conference: "bg-blue-50",
+  concert:    "bg-purple-50",
+  sports:     "bg-green-50",
+  workshop:   "bg-orange-50",
+  gala:       "bg-yellow-50",
+  festival:   "bg-pink-50",
+  networking: "bg-teal-50",
+};
+
+// ─── helpers ─────────────────────────────────────────────────────────────────
+
+function fmtDate(d: string) {
+  return new Date(d).toLocaleDateString("en-US", {
+    month: "short", day: "numeric", year: "numeric",
+  });
 }
 
 function lowestPrice(tickets: TicketType[]) {
   if (!tickets.length) return null;
-  const prices = tickets.map((t) => t.price);
-  const min = Math.min(...prices);
+  const min = Math.min(...tickets.map(t => t.price));
   return min === 0 ? "Free" : `GHS ${min.toFixed(2)}`;
 }
 
-function soldPct(event: Event) {
-  return event.totalCapacity > 0 ? (event.totalSold / event.totalCapacity) * 100 : 0;
+// ─── skeleton card ────────────────────────────────────────────────────────────
+
+function CardSkeleton() {
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden animate-pulse">
+      <div className="h-44 bg-slate-100" />
+      <div className="p-4 space-y-3">
+        <div className="h-4 bg-slate-100 rounded w-3/4" />
+        <div className="h-3 bg-slate-100 rounded w-1/2" />
+        <div className="h-3 bg-slate-100 rounded w-2/3" />
+        <div className="h-9 bg-slate-100 rounded-xl mt-4" />
+      </div>
+    </div>
+  );
 }
 
-/* ─── Event card ─── */
-function EventCard({ event, index }: { event: Event; index: number }) {
-  const cat = CATEGORIES.find((c) => c.value === event.category);
-  const pct = soldPct(event);
-  const isSoldOut = pct >= 100;
+// ─── event card ───────────────────────────────────────────────────────────────
+
+function EventCard({ event }: { event: Event }) {
+  const isSoldOut = event.totalCapacity > 0 && event.totalSold >= event.totalCapacity;
   const price = lowestPrice(event.ticketTypes);
+  const placeholderBg = CAT_BG[event.category] || "bg-slate-100";
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 24 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.06, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      whileHover={{ y: -4 }}
-      className="group bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-400"
-    >
+    <div className="group bg-white rounded-2xl border border-slate-100 overflow-hidden hover:border-slate-200 hover:shadow-md transition-all duration-200 flex flex-col">
+
       {/* Banner */}
-      <div className="relative h-48 overflow-hidden">
+      <div className={`relative h-44 overflow-hidden ${!event.banner ? placeholderBg : ""}`}>
         {event.banner ? (
-          <img src={event.banner} alt={event.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+          <img
+            src={event.banner}
+            alt={event.title}
+            className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
+          />
         ) : (
-          <div className="w-full h-full bg-linear-to-br from-emerald-400 via-teal-500 to-cyan-600 flex items-center justify-center">
-            <span className="text-6xl opacity-70">{cat?.emoji || "📅"}</span>
+          <div className="w-full h-full flex items-center justify-center">
+            <Ticket className="w-12 h-12 text-slate-300" />
           </div>
         )}
-        <div className="absolute inset-0 bg-linear-to-t from-black/50 via-transparent" />
 
-        {/* Category badge */}
-        <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full text-xs font-semibold text-gray-800">
-          <span>{cat?.emoji}</span> {cat?.label || "Event"}
-        </div>
+        {/* overlay for text readability on real images */}
+        {event.banner && (
+          <div className="absolute inset-0 bg-linear-to-t from-black/30 to-transparent" />
+        )}
 
-        {/* Price badge */}
-        <div className="absolute top-3 right-3 bg-emerald-600 text-white px-3 py-1 rounded-full text-xs font-bold">
+        {/* Price or sold out */}
+        <div className={`absolute top-3 right-3 text-xs font-bold px-2.5 py-1 rounded-full ${
+          isSoldOut
+            ? "bg-slate-800/80 text-white"
+            : price === "Free"
+            ? "bg-green-600 text-white"
+            : "bg-white/90 text-slate-800"
+        }`}>
           {isSoldOut ? "Sold Out" : price ?? "Free"}
         </div>
 
-        {/* Virtual indicator */}
+        {/* Virtual badge */}
         {event.venue?.isVirtual && (
-          <div className="absolute bottom-3 left-3 flex items-center gap-1 bg-blue-600 text-white px-2.5 py-1 rounded-full text-xs font-medium">
-            <Video className="w-3 h-3" /> Virtual
+          <div className="absolute top-3 left-3 flex items-center gap-1 bg-white/90 text-slate-700 text-xs font-medium px-2 py-1 rounded-full">
+            <Video className="w-3 h-3" />
+            Online
           </div>
         )}
       </div>
 
       {/* Body */}
-      <div className="p-5">
-        <h3 className="font-bold text-gray-900 text-base leading-snug mb-1 line-clamp-2 group-hover:text-emerald-700 transition-colors">
+      <div className="p-4 flex flex-col flex-1">
+        {/* Category pill */}
+        <span className="inline-block text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full mb-2 self-start capitalize">
+          {event.category || "Event"}
+        </span>
+
+        <h3 className="font-bold text-slate-900 text-sm leading-snug mb-1 line-clamp-2">
           {event.title}
         </h3>
-        <p className="text-xs text-gray-500 mb-3 line-clamp-2 leading-relaxed">{event.description}</p>
 
-        <div className="space-y-1.5 mb-4">
-          <div className="flex items-center gap-1.5 text-xs text-gray-500">
-            <Calendar className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-            <span>{formatDate(event.startDate)} · {event.startTime}</span>
+        {event.description && (
+          <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed mb-3">
+            {event.description}
+          </p>
+        )}
+
+        {/* Meta */}
+        <div className="space-y-1.5 mt-auto mb-4">
+          <div className="flex items-center gap-1.5 text-xs text-slate-500">
+            <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <span>{fmtDate(event.startDate)}</span>
+            {event.startTime && (
+              <>
+                <span className="text-slate-300">·</span>
+                <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                <span>{event.startTime}</span>
+              </>
+            )}
           </div>
-          <div className="flex items-center gap-1.5 text-xs text-gray-500">
+          <div className="flex items-center gap-1.5 text-xs text-slate-500">
             {event.venue?.isVirtual ? (
-              <Video className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+              <Video className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             ) : (
-              <MapPin className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+              <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             )}
             <span className="truncate">
               {event.venue?.isVirtual
                 ? "Online event"
-                : [event.venue?.name, event.venue?.city].filter(Boolean).join(", ")}
+                : [event.venue?.name, event.venue?.city].filter(Boolean).join(", ") || "Venue TBA"}
             </span>
           </div>
         </div>
 
         {/* CTA */}
-        <Link
-          href={`/ticketing/${event._id}`}
-          className={`flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-semibold transition-all ${
-            isSoldOut
-              ? "bg-gray-100 text-gray-400 cursor-not-allowed pointer-events-none"
-              : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm hover:shadow-emerald-200"
-          }`}
-        >
-          {isSoldOut ? "Sold Out" : "Get Tickets"}
-          {!isSoldOut && <ArrowRight className="w-4 h-4" />}
-        </Link>
+        {isSoldOut ? (
+          <div className="w-full py-2.5 rounded-xl text-xs font-semibold text-slate-400 bg-slate-100 text-center">
+            Sold Out
+          </div>
+        ) : (
+          <Link
+            href={`/ticketing/${event._id}`}
+            className="flex items-center justify-center gap-1.5 w-full py-2.5 rounded-xl text-xs font-semibold bg-green-600 hover:bg-green-700 text-white transition-colors"
+          >
+            Get Tickets <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        )}
       </div>
-    </motion.div>
+    </div>
   );
 }
 
-/* ─── Page ─── */
+// ─── page ─────────────────────────────────────────────────────────────────────
+
 export default function TicketingPage() {
-  const [events, setEvents] = useState<Event[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("");
-  const [page, setPage] = useState(1);
+  const [events, setEvents]         = useState<Event[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [search, setSearch]         = useState("");
+  const [category, setCategory]     = useState("");
+  const [page, setPage]             = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
+  const [total, setTotal]           = useState(0);
 
   const fetchEvents = useCallback(async (p = 1) => {
     setLoading(true);
@@ -176,7 +225,7 @@ export default function TicketingPage() {
       const params = new URLSearchParams({
         page: String(p),
         limit: "9",
-        ...(search && { search }),
+        ...(search   && { search }),
         ...(category && { category }),
       });
       const res = await fetch(`/api/public/events?${params}`);
@@ -193,157 +242,139 @@ export default function TicketingPage() {
 
   useEffect(() => { setPage(1); fetchEvents(1); }, [search, category]);
 
+  const hasFilters = !!(search || category);
+
   return (
     <>
       <PublicNav />
-      <main className="min-h-screen bg-gray-50">
 
-        {/* ── Hero ── */}
-        <section className="relative bg-linear-to-br from-green-700 to-green-800 overflow-hidden">
-          <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute top-0 left-0 w-96 h-96 bg-white/5 rounded-full -translate-x-1/2 -translate-y-1/2" />
-            <div className="absolute bottom-0 right-0 w-150 h-150 bg-white/5 rounded-full translate-x-1/3 translate-y-1/3" />
-          </div>
-          <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24 text-center">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="inline-flex items-center gap-2 bg-white/15 backdrop-blur-sm text-white px-4 py-1.5 rounded-full text-sm font-medium mb-6"
-            >
-              <Sparkles className="w-4 h-4" /> Live Events & Ticketing
-            </motion.div>
-            <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="text-3xl sm:text-5xl font-extrabold text-white mb-4 tracking-tight leading-tight"
-            >
-              Find Your Next <br className="hidden sm:block" />
-              <span className="text-emerald-300">Unforgettable Experience</span>
-            </motion.h1>
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="text-white/80 text-lg max-w-xl mx-auto mb-8"
-            >
-              Discover concerts, conferences, galas and more — buy tickets in seconds, get them delivered to your inbox.
-            </motion.p>
+      <main className="min-h-screen bg-slate-50">
 
-            {/* Search bar */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="relative max-w-lg mx-auto"
-            >
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search events, venues, cities…"
-                className="w-full pl-12 pr-4 py-4 rounded-2xl text-gray-900 text-sm font-medium bg-white shadow-xl focus:outline-none focus:ring-2 focus:ring-emerald-400"
-              />
-            </motion.div>
-          </div>
-        </section>
+        {/* ── page header ────────────────────────────────────────────────────── */}
+        <div className="bg-white border-b border-slate-200">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+            <div className="max-w-2xl">
+              <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight mb-1">
+                Events & Ticketing
+              </h1>
+              <p className="text-sm text-slate-400 mb-6">
+                Discover events near you — buy tickets in seconds, get them delivered instantly.
+              </p>
 
-        {/* ── Stats strip ── */}
-        <div className="bg-white border-b border-gray-100">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center gap-6 overflow-x-auto">
-            <div className="flex items-center gap-2 text-sm text-gray-600 shrink-0">
-              <TrendingUp className="w-4 h-4 text-emerald-600" />
-              <span className="font-bold text-gray-900">{total}</span> events available
-            </div>
-            <span className="text-gray-200">|</span>
-            <div className="flex items-center gap-2 text-sm text-gray-600 shrink-0">
-              <Ticket className="w-4 h-4 text-emerald-600" /> Instant delivery to your email
-            </div>
-            <span className="text-gray-200">|</span>
-            <div className="flex items-center gap-2 text-sm text-gray-600 shrink-0">
-              <Globe className="w-4 h-4 text-emerald-600" /> Physical & virtual events
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Search by event name, venue or city…"
+                  className="w-full pl-10 pr-10 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 bg-white text-slate-700 placeholder:text-slate-300"
+                />
+                {search && (
+                  <button
+                    onClick={() => setSearch("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
-          {/* ── Category filters ── */}
-          <div className="flex gap-2 overflow-x-auto pb-2 mb-8 scrollbar-hide">
-            {CATEGORIES.map((c) => (
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+
+          {/* ── category filters ───────────────────────────────────────────── */}
+          <div className="flex gap-2 overflow-x-auto pb-1 mb-6 scrollbar-hide">
+            {CATEGORIES.map(c => (
               <button
                 key={c.value}
                 onClick={() => setCategory(c.value)}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap border transition-all ${
+                className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap border transition-all ${
                   category === c.value
-                    ? "bg-emerald-600 border-emerald-600 text-white shadow-sm"
-                    : "bg-white border-gray-200 text-gray-600 hover:border-emerald-300 hover:text-emerald-700"
+                    ? "bg-green-600 border-green-600 text-white"
+                    : "bg-white border-slate-200 text-slate-600 hover:border-green-300 hover:text-green-700"
                 }`}
               >
-                <span>{c.emoji}</span> {c.label}
+                {c.label}
               </button>
             ))}
           </div>
 
-          {/* ── Events grid ── */}
-          {loading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="bg-white rounded-3xl border border-gray-100 overflow-hidden animate-pulse">
-                  <div className="h-48 bg-gray-200" />
-                  <div className="p-5 space-y-3">
-                    <div className="h-4 bg-gray-200 rounded w-3/4" />
-                    <div className="h-3 bg-gray-200 rounded w-1/2" />
-                    <div className="h-10 bg-gray-200 rounded-xl mt-4" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : events.length === 0 ? (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="flex flex-col items-center justify-center py-24 text-center"
-            >
-              <div className="w-20 h-20 bg-emerald-50 rounded-2xl flex items-center justify-center mb-4">
-                <Calendar className="w-10 h-10 text-emerald-400" />
-              </div>
-              <h3 className="text-lg font-bold text-gray-700 mb-2">No events found</h3>
-              <p className="text-gray-400 text-sm max-w-xs">
-                {search || category
-                  ? "Try adjusting your search or filters."
-                  : "No events are currently available. Check back soon!"}
+          {/* ── results meta ───────────────────────────────────────────────── */}
+          {!loading && (
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm text-slate-500">
+                {hasFilters ? (
+                  <>
+                    <span className="font-semibold text-slate-800">{total}</span> result{total !== 1 ? "s" : ""}
+                    {category && <> in <span className="font-semibold text-slate-800 capitalize">{category}</span></>}
+                    {search && <> for <span className="font-semibold text-slate-800">"{search}"</span></>}
+                  </>
+                ) : (
+                  <><span className="font-semibold text-slate-800">{total}</span> events available</>
+                )}
               </p>
-              {(search || category) && (
+              {hasFilters && (
                 <button
                   onClick={() => { setSearch(""); setCategory(""); }}
-                  className="mt-4 text-sm text-emerald-600 font-semibold hover:underline"
+                  className="text-xs text-slate-400 hover:text-slate-700 flex items-center gap-1 transition-colors"
+                >
+                  <X className="w-3 h-3" /> Clear filters
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* ── grid ───────────────────────────────────────────────────────── */}
+          {loading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} />)}
+            </div>
+          ) : events.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center mb-4">
+                <Ticket className="w-7 h-7 text-slate-300" />
+              </div>
+              <h3 className="font-bold text-slate-700 mb-1">No events found</h3>
+              <p className="text-sm text-slate-400 max-w-xs">
+                {hasFilters
+                  ? "Try adjusting your search or clearing the filters."
+                  : "No events are available right now. Check back soon!"}
+              </p>
+              {hasFilters && (
+                <button
+                  onClick={() => { setSearch(""); setCategory(""); }}
+                  className="mt-4 text-sm text-green-600 font-semibold hover:underline"
                 >
                   Clear filters
                 </button>
               )}
-            </motion.div>
+            </div>
           ) : (
             <>
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-sm text-gray-500">
-                  Showing <span className="font-semibold text-gray-900">{events.length}</span> of <span className="font-semibold">{total}</span> events
-                </p>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {events.map((event, i) => (
-                  <EventCard key={event._id} event={event} index={i} />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                {events.map(event => (
+                  <EventCard key={event._id} event={event} />
                 ))}
               </div>
 
               {/* Pagination */}
               {totalPages > 1 && (
-                <div className="flex items-center justify-center gap-2 mt-10">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                <div className="flex items-center justify-center gap-1.5 mt-10">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
                     <button
                       key={p}
-                      onClick={() => { setPage(p); fetchEvents(p); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-                      className={`w-9 h-9 rounded-full text-sm font-semibold transition-colors ${
-                        page === p ? "bg-emerald-600 text-white" : "bg-white border border-gray-200 text-gray-600 hover:border-emerald-400"
+                      onClick={() => {
+                        setPage(p);
+                        fetchEvents(p);
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                      }}
+                      className={`w-8 h-8 rounded-lg text-sm font-semibold transition-colors ${
+                        page === p
+                          ? "bg-green-600 text-white"
+                          : "bg-white border border-slate-200 text-slate-600 hover:border-green-400 hover:text-green-700"
                       }`}
                     >
                       {p}
@@ -355,19 +386,23 @@ export default function TicketingPage() {
           )}
         </div>
 
-        {/* ── Footer CTA ── */}
-        <section className="bg-linear-to-r from-green-700 to-green-700 py-16 mt-16">
-          <div className="max-w-2xl mx-auto px-4 text-center">
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-white mb-3">Organising an event?</h2>
-            <p className="text-white/80 mb-6 text-sm">Create your event, set up ticketing, and start selling in minutes.</p>
+        {/* ── organiser CTA ──────────────────────────────────────────────────── */}
+        <div className="border-t border-slate-200 bg-white mt-16">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div>
+              <h2 className="font-bold text-slate-900 text-base">Organising an event?</h2>
+              <p className="text-sm text-slate-400 mt-0.5">
+                Create your event, set up ticketing, and start selling in minutes.
+              </p>
+            </div>
             <Link
               href="/contact-us"
-              className="inline-flex items-center gap-2 bg-white text-emerald-700 font-bold px-6 py-3 rounded-xl hover:bg-emerald-50 transition-colors"
+              className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold text-sm px-5 py-2.5 rounded-xl transition-colors shrink-0"
             >
               Get Started <ChevronRight className="w-4 h-4" />
             </Link>
           </div>
-        </section>
+        </div>
       </main>
     </>
   );

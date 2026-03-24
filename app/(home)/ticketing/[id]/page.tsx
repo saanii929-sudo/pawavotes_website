@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import PublicNav from "@/components/PublicNav";
@@ -11,11 +10,9 @@ import {
   MapPin,
   Video,
   Clock,
-  Users,
   Ticket,
   ChevronLeft,
   CheckCircle,
-  X,
   Minus,
   Plus,
   Shield,
@@ -25,13 +22,10 @@ import {
   ArrowRight,
   Loader2,
   AlertCircle,
-  Globe,
-  Tag,
-  Building2,
-  Star,
 } from "lucide-react";
 
-/* ─── Types ─── */
+// ─── types ────────────────────────────────────────────────────────────────────
+
 interface TicketType {
   id: string;
   name: string;
@@ -72,6 +66,8 @@ interface EventData {
   };
 }
 
+// ─── helpers ──────────────────────────────────────────────────────────────────
+
 const CATEGORY_LABELS: Record<string, string> = {
   conference: "Conference", concert: "Concert", sports: "Sports",
   workshop: "Workshop", gala: "Gala", festival: "Festival",
@@ -88,27 +84,59 @@ function formatShort(d: string) {
   return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-/* ─── Page ─── */
+const inputCls = (err?: string) =>
+  `w-full px-3 py-2.5 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 ${
+    err ? "border-red-400" : "border-slate-200"
+  } text-slate-800 placeholder:text-slate-300`;
+
+// ─── skeleton ─────────────────────────────────────────────────────────────────
+
+function PageSkeleton() {
+  return (
+    <>
+      <PublicNav />
+      <div className="min-h-screen bg-slate-50 animate-pulse">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-6">
+          <div className="h-56 sm:h-80 lg:h-96 bg-slate-200 rounded-2xl" />
+        </div>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2 space-y-4">
+              <div className="h-16 bg-slate-100 rounded-xl" />
+              <div className="h-40 bg-slate-100 rounded-xl" />
+            </div>
+            <div className="space-y-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="h-24 bg-slate-100 rounded-xl" />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── main content ─────────────────────────────────────────────────────────────
+
 function EventDetailContent() {
-  const params = useParams();
-  const router = useRouter();
+  const params      = useParams();
+  const router      = useRouter();
   const searchParams = useSearchParams();
   const id = params?.id as string;
 
-  const [event, setEvent] = useState<EventData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
-  const [cancelled, setCancelled] = useState(false);
+  const [event, setEvent]           = useState<EventData | null>(null);
+  const [loading, setLoading]       = useState(true);
+  const [notFound, setNotFound]     = useState(false);
+  const [cancelled, setCancelled]   = useState(false);
 
-  /* Purchase state */
   const [selectedTicket, setSelectedTicket] = useState<TicketType | null>(null);
-  const [quantity, setQuantity] = useState(1);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", phone: "" });
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  const [purchasing, setPurchasing] = useState(false);
+  const [quantity, setQuantity]             = useState(1);
+  const [showForm, setShowForm]             = useState(false);
+  const [form, setForm]                     = useState({ name: "", email: "", phone: "" });
+  const [formErrors, setFormErrors]         = useState<Record<string, string>>({});
+  const [purchasing, setPurchasing]         = useState(false);
 
-  /* Fetch event */
   useEffect(() => {
     if (!id) return;
     if (searchParams.get("cancelled")) setCancelled(true);
@@ -123,10 +151,7 @@ function EventDetailContent() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  const available = selectedTicket
-    ? Math.max(0, selectedTicket.capacity - selectedTicket.sold)
-    : 0;
-
+  const available  = selectedTicket ? Math.max(0, selectedTicket.capacity - selectedTicket.sold) : 0;
   const totalPrice = selectedTicket ? selectedTicket.price * quantity : 0;
 
   function selectTicket(ticket: TicketType) {
@@ -175,12 +200,10 @@ function EventDetailContent() {
       }
 
       if (data.free) {
-        // Free tickets — redirect to success page immediately
         router.push(`/ticket-success?ref=${data.reference}&free=1`);
         return;
       }
 
-      // Paid — redirect to Hubtel checkout
       if (data.checkoutUrl) {
         window.location.href = data.checkoutUrl;
       } else {
@@ -193,27 +216,19 @@ function EventDetailContent() {
     }
   }
 
-  /* ── Loading ── */
-  if (loading) {
-    return (
-      <>
-        <PublicNav />
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-          <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
-        </div>
-      </>
-    );
-  }
+  // ── states ──
+
+  if (loading) return <PageSkeleton />;
 
   if (notFound) {
     return (
       <>
         <PublicNav />
-        <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center text-center px-4">
-          <AlertCircle className="w-14 h-14 text-gray-300 mb-4" />
-          <h2 className="text-xl font-bold text-gray-700 mb-2">Event Not Found</h2>
-          <p className="text-gray-400 text-sm mb-6">This event may not be available or has ended.</p>
-          <Link href="/ticketing" className="text-emerald-600 font-semibold hover:underline flex items-center gap-1">
+        <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center text-center px-4">
+          <AlertCircle className="w-12 h-12 text-slate-300 mb-4" />
+          <h2 className="text-xl font-bold text-slate-700 mb-2">Event Not Found</h2>
+          <p className="text-slate-400 text-sm mb-6">This event may not be available or has ended.</p>
+          <Link href="/ticketing" className="text-green-600 font-semibold hover:underline flex items-center gap-1 text-sm">
             <ChevronLeft className="w-4 h-4" /> Browse all events
           </Link>
         </div>
@@ -224,141 +239,159 @@ function EventDetailContent() {
   if (!event) return null;
 
   const isSameDay = event.startDate.split("T")[0] === event.endDate.split("T")[0];
+  const venueLabel = event.venue?.isVirtual
+    ? "Online event"
+    : [event.venue?.name, event.venue?.city].filter(Boolean).join(", ") || "Venue TBA";
 
   return (
     <>
       <PublicNav />
-      <main className="min-h-screen bg-gray-50">
+      <main className="min-h-screen bg-slate-50">
 
-        {/* Cancelled banner */}
-        <AnimatePresence>
-          {cancelled && (
-            <motion.div
-              initial={{ y: -50, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -50, opacity: 0 }}
-              className="bg-amber-50 border-b border-amber-200 px-4 py-3 text-center"
-            >
-              <p className="text-amber-700 text-sm font-medium">
-                Payment was cancelled. You can try again below.
-              </p>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* ── Hero banner ── */}
-        <div className="relative h-72 sm:h-96 overflow-hidden">
-          {event.banner ? (
-            <img src={event.banner} alt={event.title} className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full bg-linear-to-br from-emerald-500 via-teal-600 to-cyan-700" />
-          )}
-          <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent" />
-
-          <div className="absolute bottom-6 left-4 sm:left-8">
-            <div className="flex flex-wrap items-center gap-2 mb-2">
-              <span className="bg-white/20 backdrop-blur-sm text-white text-xs font-semibold px-2.5 py-1 rounded-full">
-                {CATEGORY_LABELS[event.category] || "Event"}
-              </span>
-              <span className="bg-emerald-500 text-white text-xs font-semibold px-2.5 py-1 rounded-full">
-                {event.status === "ongoing" ? "Happening Now" : "Upcoming"}
-              </span>
-            </div>
-            <h1 className="text-2xl sm:text-4xl font-extrabold text-white leading-tight max-w-2xl">
-              {event.title}
-            </h1>
-            <p className="text-white/70 text-sm mt-1">by {event.organizationName} · #{event.code}</p>
+        {/* Cancelled notice */}
+        {cancelled && (
+          <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 text-center">
+            <p className="text-amber-700 text-sm font-medium">
+              Payment was cancelled. You can try again below.
+            </p>
           </div>
+        )}
 
-          <Link
-            href="/ticketing"
-            className="absolute top-4 left-4 flex items-center gap-1.5 bg-white/20 backdrop-blur-sm text-white text-sm font-medium px-3 py-1.5 rounded-full hover:bg-white/30 transition-colors"
-          >
-            <ChevronLeft className="w-4 h-4" /> All Events
-          </Link>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-6 pb-0">
+          {/* ── banner ───────────────────────────────────────────────────────── */}
+          <div className="relative h-56 sm:h-80 lg:h-96 overflow-hidden rounded-2xl bg-slate-200">
+            {event.banner ? (
+              <img src={event.banner} alt={event.title} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <Ticket className="w-16 h-16 text-slate-300" />
+              </div>
+            )}
+            {event.banner && (
+              <div className="absolute inset-0 bg-linear-to-t from-black/30 via-transparent to-transparent" />
+            )}
+          </div>
         </div>
 
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+
+          {/* ── breadcrumb ──────────────────────────────────────────────────── */}
+          <div className="flex items-center gap-2 mb-5">
+            <Link
+              href="/ticketing"
+              className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" /> Events
+            </Link>
+            <span className="text-slate-300">/</span>
+            <span className="text-sm text-slate-500 truncate">{event.title}</span>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-            {/* ── Left column: Event details ── */}
+            {/* ── left: event details ────────────────────────────────────────── */}
             <div className="lg:col-span-2 space-y-6">
 
-              {/* Info cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-                  <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
-                    <Calendar className="w-3.5 h-3.5 text-emerald-500" /> Date
-                  </div>
-                  <p className="font-bold text-gray-900 text-sm">{formatShort(event.startDate)}</p>
-                  {!isSameDay && <p className="text-xs text-gray-500">to {formatShort(event.endDate)}</p>}
-                </div>
-                <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-                  <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
-                    <Clock className="w-3.5 h-3.5 text-blue-500" /> Time
-                  </div>
-                  <p className="font-bold text-gray-900 text-sm">{event.startTime}</p>
-                  <p className="text-xs text-gray-500">— {event.endTime}</p>
-                </div>
-                <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm col-span-2 sm:col-span-1">
-                  <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
-                    {event.venue?.isVirtual ? <Video className="w-3.5 h-3.5 text-purple-500" /> : <MapPin className="w-3.5 h-3.5 text-orange-500" />}
-                    Venue
-                  </div>
-                  <p className="font-bold text-gray-900 text-sm truncate">
-                    {event.venue?.isVirtual ? "Virtual Event" : (event.venue?.name || "TBA")}
-                  </p>
-                  {!event.venue?.isVirtual && event.venue?.city && (
-                    <p className="text-xs text-gray-500">{[event.venue.city, event.venue.country].filter(Boolean).join(", ")}</p>
+              {/* Title block */}
+              <div>
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <span className="text-xs font-semibold text-green-700 bg-green-50 px-2.5 py-1 rounded-full capitalize">
+                    {CATEGORY_LABELS[event.category] || "Event"}
+                  </span>
+                  {event.status === "ongoing" && (
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-green-700 bg-green-50 border border-green-200 px-2.5 py-1 rounded-full">
+                      <span className="relative flex h-1.5 w-1.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500" />
+                      </span>
+                      Happening Now
+                    </span>
                   )}
+                </div>
+                <h1 className="text-2xl sm:text-3xl font-black text-slate-900 leading-tight mb-1">
+                  {event.title}
+                </h1>
+                <p className="text-sm text-slate-400">
+                  by {event.organizationName} · #{event.code}
+                </p>
+              </div>
+
+              {/* Info strip */}
+              <div className="bg-white rounded-xl border border-slate-100 divide-y divide-slate-100">
+                <div className="flex items-center gap-3 px-4 py-3">
+                  <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
+                  <div>
+                    <p className="text-xs text-slate-400 mb-0.5">Date</p>
+                    <p className="text-sm font-semibold text-slate-800">
+                      {formatDate(event.startDate)}
+                      {!isSameDay && <span className="font-normal text-slate-400"> — {formatShort(event.endDate)}</span>}
+                    </p>
+                  </div>
+                </div>
+                {(event.startTime || event.endTime) && (
+                  <div className="flex items-center gap-3 px-4 py-3">
+                    <Clock className="w-4 h-4 text-slate-400 shrink-0" />
+                    <div>
+                      <p className="text-xs text-slate-400 mb-0.5">Time</p>
+                      <p className="text-sm font-semibold text-slate-800">
+                        {event.startTime}
+                        {event.endTime && <span className="font-normal text-slate-400"> — {event.endTime}</span>}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                <div className="flex items-center gap-3 px-4 py-3">
+                  {event.venue?.isVirtual
+                    ? <Video className="w-4 h-4 text-slate-400 shrink-0" />
+                    : <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
+                  }
+                  <div>
+                    <p className="text-xs text-slate-400 mb-0.5">Venue</p>
+                    <p className="text-sm font-semibold text-slate-800">{venueLabel}</p>
+                    {!event.venue?.isVirtual && event.venue?.address && (
+                      <p className="text-xs text-slate-400 mt-0.5">{event.venue.address}</p>
+                    )}
+                  </div>
                 </div>
               </div>
 
               {/* Description */}
               {event.description && (
-                <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-                  <h2 className="text-base font-bold text-gray-900 mb-3">About this event</h2>
-                  <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">{event.description}</p>
-                </div>
-              )}
-
-              {/* Full venue details */}
-              {!event.venue?.isVirtual && event.venue?.address && (
-                <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-                  <h2 className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-orange-500" /> Venue Details
-                  </h2>
-                  <p className="text-sm font-semibold text-gray-800">{event.venue.name}</p>
-                  <p className="text-sm text-gray-500">
-                    {[event.venue.address, event.venue.city, event.venue.country].filter(Boolean).join(", ")}
+                <div className="bg-white rounded-xl border border-slate-100 p-5">
+                  <h2 className="text-sm font-bold text-slate-700 mb-3">About this event</h2>
+                  <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-line">
+                    {event.description}
                   </p>
                 </div>
               )}
 
-              {/* Safety notice */}
-              <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 flex items-start gap-3">
-                <Shield className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-sm font-semibold text-emerald-800">Secure & Instant Delivery</p>
-                  <p className="text-xs text-emerald-700 mt-0.5">Your tickets are delivered instantly to your email after purchase. Keep your ticket codes safe — present them at the venue entrance.</p>
-                </div>
+              {/* Security notice */}
+              <div className="flex items-start gap-3 bg-slate-50 border border-slate-100 rounded-xl px-4 py-3">
+                <Shield className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Tickets are delivered instantly to your email after purchase. Keep your ticket codes safe — present them at the venue entrance.
+                </p>
               </div>
             </div>
 
-            {/* ── Right column: Ticket selection ── */}
-            <div className="space-y-4">
-              <div className="sticky top-20">
-                <h2 className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
-                  <Ticket className="w-4 h-4 text-emerald-600" /> Select Tickets
+            {/* ── right: ticket selection ────────────────────────────────────── */}
+            <div>
+              <div className="sticky top-20 space-y-4">
+
+                <h2 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                  <Ticket className="w-4 h-4 text-slate-400" /> Select Tickets
                 </h2>
 
-                {/* Attendee count */}
+                {/* Overall capacity bar */}
                 {event.settings?.showAttendeeCount && event.totalCapacity > 0 && (
-                  <div className="bg-white border border-gray-100 rounded-2xl p-3 mb-4 shadow-sm">
-                    
-                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="bg-white border border-slate-100 rounded-xl p-4">
+                    <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
+                      <span>{event.totalSold} attending</span>
+                      <span>{event.totalCapacity} capacity</span>
+                    </div>
+                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-emerald-500 rounded-full"
+                        className="h-full bg-green-500 rounded-full transition-all"
                         style={{ width: `${Math.min((event.totalSold / event.totalCapacity) * 100, 100)}%` }}
                       />
                     </div>
@@ -367,74 +400,74 @@ function EventDetailContent() {
 
                 {/* Ticket types */}
                 {event.ticketTypes.length === 0 ? (
-                  <div className="bg-white border border-gray-100 rounded-2xl p-6 text-center shadow-sm">
-                    <Ticket className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                    <p className="text-sm text-gray-500">No tickets configured for this event yet.</p>
+                  <div className="bg-white border border-slate-100 rounded-xl p-6 text-center">
+                    <Ticket className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                    <p className="text-sm text-slate-400">No tickets configured yet.</p>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {event.ticketTypes.map((ticket) => {
-                      const avail = ticket.capacity - ticket.sold;
-                      const isSoldOut = avail <= 0;
+                      const avail      = ticket.capacity - ticket.sold;
+                      const isSoldOut  = avail <= 0;
                       const isSelected = selectedTicket?.id === ticket.id;
-                      const pct = (ticket.sold / ticket.capacity) * 100;
+                      const pct        = ticket.capacity > 0 ? (ticket.sold / ticket.capacity) * 100 : 0;
 
                       return (
-                        <motion.button
+                        <button
                           key={ticket.id}
                           onClick={() => selectTicket(ticket)}
                           disabled={isSoldOut}
-                          whileTap={isSoldOut ? {} : { scale: 0.99 }}
-                          className={`w-full text-left p-4 rounded-2xl border-2 transition-all ${
+                          className={`w-full text-left p-4 rounded-xl border transition-all duration-150 ${
                             isSelected
-                              ? "border-emerald-500 bg-emerald-50 shadow-md"
+                              ? "border-green-500 bg-green-50"
                               : isSoldOut
-                              ? "border-gray-100 bg-gray-50 opacity-60 cursor-not-allowed"
-                              : "border-gray-100 bg-white hover:border-emerald-300 shadow-sm cursor-pointer"
+                              ? "border-slate-100 bg-slate-50 opacity-50 cursor-not-allowed"
+                              : "border-slate-200 bg-white hover:border-green-400 cursor-pointer"
                           }`}
                         >
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-2.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2.5 min-w-0">
                               <div
-                                className="w-3.5 h-3.5 rounded-full shrink-0 mt-0.5"
+                                className="w-3 h-3 rounded-full shrink-0 mt-0.5"
                                 style={{ backgroundColor: ticket.color }}
                               />
-                              <div>
-                                <p className="font-bold text-gray-900 text-sm">{ticket.name}</p>
+                              <div className="min-w-0">
+                                <p className="font-semibold text-slate-900 text-sm leading-snug">{ticket.name}</p>
                                 {ticket.description && (
-                                  <p className="text-xs text-gray-500 mt-0.5">{ticket.description}</p>
+                                  <p className="text-xs text-slate-400 mt-0.5 line-clamp-1">{ticket.description}</p>
                                 )}
                               </div>
                             </div>
-                            <div className="text-right shrink-0 ml-2">
-                              <p className="font-extrabold text-gray-900 text-base">
+                            <div className="text-right shrink-0">
+                              <p className="font-bold text-slate-900 text-sm">
                                 {ticket.price === 0 ? "Free" : `GHS ${ticket.price.toFixed(2)}`}
                               </p>
-                              {isSoldOut ? (
-                                <span className="text-xs text-red-500 font-semibold">Sold Out</span>
-                              ) : (
-                                <span className="text-xs text-gray-400"></span>
+                              {isSoldOut && (
+                                <span className="text-xs text-red-400 font-medium">Sold out</span>
+                              )}
+                              {isSelected && !isSoldOut && (
+                                <CheckCircle className="w-4 h-4 text-green-600 ml-auto mt-0.5" />
                               )}
                             </div>
                           </div>
 
                           {/* Perks */}
                           {ticket.perks && ticket.perks.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-2">
+                            <div className="flex flex-wrap gap-1 mt-2.5">
                               {ticket.perks.map((perk, i) => (
-                                <span key={i} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                                  ✓ {perk}
+                                <span key={i} className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
+                                  {perk}
                                 </span>
                               ))}
                             </div>
                           )}
 
                           {/* Availability bar */}
-                          {!isSoldOut && (
-                            <div className="mt-2.5">
-                              <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
+                          {!isSoldOut && pct > 0 && (
+                            <div className="mt-3">
+                              <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
                                 <div
-                                  className="h-full rounded-full"
+                                  className="h-full rounded-full transition-all"
                                   style={{
                                     width: `${pct}%`,
                                     backgroundColor: pct >= 80 ? "#ef4444" : ticket.color,
@@ -443,164 +476,135 @@ function EventDetailContent() {
                               </div>
                             </div>
                           )}
-
-                          {/* Selected check */}
-                          {isSelected && (
-                            <div className="absolute top-3 right-3">
-                              <CheckCircle className="w-5 h-5 text-emerald-600" />
-                            </div>
-                          )}
-                        </motion.button>
+                        </button>
                       );
                     })}
                   </div>
                 )}
 
-                {/* Quantity + form */}
-                <AnimatePresence>
-                  {selectedTicket && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="bg-white border border-gray-100 rounded-2xl p-5 mt-4 shadow-sm space-y-5">
-                        {/* Quantity selector */}
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-700 mb-2">Quantity</label>
-                          <div className="flex items-center gap-3">
-                            <button
-                              onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                              className="w-9 h-9 rounded-full border border-gray-200 flex items-center justify-center text-gray-700 hover:bg-gray-50 transition-colors"
-                            >
-                              <Minus className="w-4 h-4" />
-                            </button>
-                            <span className="w-10 text-center font-bold text-gray-900 text-lg">{quantity}</span>
-                            <button
-                              onClick={() => setQuantity((q) => Math.min(available, q + 1))}
-                              disabled={quantity >= available}
-                              className="w-9 h-9 rounded-full border border-gray-200 flex items-center justify-center text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-40"
-                            >
-                              <Plus className="w-4 h-4" />
-                            </button>
-                            <span className="text-xs text-gray-400 ml-1">(max {Math.min(available, 20)})</span>
-                          </div>
-                        </div>
+                {/* Quantity + buyer form */}
+                {selectedTicket && (
+                  <div className="bg-white border border-slate-100 rounded-xl p-5 space-y-5">
 
-                        {/* Total */}
-                        <div className="bg-gray-50 rounded-xl p-3 flex items-center justify-between">
-                          <div>
-                            <p className="text-xs text-gray-500">{quantity} × {selectedTicket.name}</p>
-                            <p className="text-lg font-extrabold text-gray-900">
-                              {totalPrice === 0 ? "Free" : `GHS ${totalPrice.toFixed(2)}`}
-                            </p>
-                          </div>
-                          <div
-                            className="w-10 h-10 rounded-xl flex items-center justify-center"
-                            style={{ backgroundColor: selectedTicket.color + "20" }}
-                          >
-                            <Ticket className="w-5 h-5" style={{ color: selectedTicket.color }} />
-                          </div>
-                        </div>
-
-                        {/* Buyer form */}
-                        {!showForm ? (
-                          <button
-                            onClick={() => setShowForm(true)}
-                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
-                          >
-                            Continue <ArrowRight className="w-4 h-4" />
-                          </button>
-                        ) : (
-                          <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            className="space-y-3"
-                          >
-                            <div>
-                              <label className="block text-xs font-semibold text-gray-600 mb-1">
-                                <User className="w-3 h-3 inline mr-1" /> Full Name
-                              </label>
-                              <input
-                                value={form.name}
-                                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                                placeholder="Your full name"
-                                className={`w-full px-3 py-2.5 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400 ${formErrors.name ? "border-red-400" : "border-gray-200"}`}
-                              />
-                              {formErrors.name && <p className="text-xs text-red-500 mt-1">{formErrors.name}</p>}
-                            </div>
-                            <div>
-                              <label className="block text-xs font-semibold text-gray-600 mb-1">
-                                <Mail className="w-3 h-3 inline mr-1" /> Email Address
-                              </label>
-                              <input
-                                type="email"
-                                value={form.email}
-                                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                                placeholder="tickets@example.com"
-                                className={`w-full px-3 py-2.5 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400 ${formErrors.email ? "border-red-400" : "border-gray-200"}`}
-                              />
-                              {formErrors.email ? (
-                                <p className="text-xs text-red-500 mt-1">{formErrors.email}</p>
-                              ) : (
-                                <p className="text-xs text-gray-400 mt-1">Tickets will be sent to this email</p>
-                              )}
-                            </div>
-                            <div>
-                              <label className="block text-xs font-semibold text-gray-600 mb-1">
-                                <Phone className="w-3 h-3 inline mr-1" /> Phone Number
-                              </label>
-                              <input
-                                type="tel"
-                                value={form.phone}
-                                onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                                placeholder="+233 XX XXX XXXX"
-                                className={`w-full px-3 py-2.5 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400 ${formErrors.phone ? "border-red-400" : "border-gray-200"}`}
-                              />
-                              {formErrors.phone && <p className="text-xs text-red-500 mt-1">{formErrors.phone}</p>}
-                            </div>
-
-                            {/* Trust signals */}
-                            <div className="flex items-center gap-1.5 text-xs text-gray-400">
-                              <Shield className="w-3 h-3 text-emerald-500" />
-                              Secured by Hubtel · Your data is protected
-                            </div>
-
-                            <button
-                              onClick={handlePurchase}
-                              disabled={purchasing}
-                              className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold py-3.5 rounded-xl transition-colors flex items-center justify-center gap-2"
-                            >
-                              {purchasing ? (
-                                <>
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                  Processing…
-                                </>
-                              ) : totalPrice === 0 ? (
-                                <>
-                                  <CheckCircle className="w-4 h-4" />
-                                  Claim Free Tickets
-                                </>
-                              ) : (
-                                <>
-                                  Pay GHS {totalPrice.toFixed(2)}
-                                  <ArrowRight className="w-4 h-4" />
-                                </>
-                              )}
-                            </button>
-                          </motion.div>
-                        )}
+                    {/* Quantity */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-2">Quantity</label>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                          className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-50 transition-colors"
+                        >
+                          <Minus className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="w-8 text-center font-bold text-slate-900">{quantity}</span>
+                        <button
+                          onClick={() => setQuantity((q) => Math.min(available, q + 1))}
+                          disabled={quantity >= available}
+                          className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-40"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="text-xs text-slate-400">max {Math.min(available, 20)}</span>
                       </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                    </div>
+
+                    {/* Order summary */}
+                    <div className="bg-slate-50 rounded-lg px-4 py-3 flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-slate-400">{quantity} × {selectedTicket.name}</p>
+                        <p className="font-black text-slate-900 text-lg leading-tight">
+                          {totalPrice === 0 ? "Free" : `GHS ${totalPrice.toFixed(2)}`}
+                        </p>
+                      </div>
+                      <Ticket className="w-5 h-5 text-slate-300" />
+                    </div>
+
+                    {/* Buyer form or continue button */}
+                    {!showForm ? (
+                      <button
+                        onClick={() => setShowForm(true)}
+                        className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold text-sm py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+                      >
+                        Continue <ArrowRight className="w-4 h-4" />
+                      </button>
+                    ) : (
+                      <div className="space-y-3">
+                        {/* Name */}
+                        <div>
+                          <label className="flex items-center gap-1 text-xs font-semibold text-slate-600 mb-1">
+                            <User className="w-3 h-3" /> Full Name
+                          </label>
+                          <input
+                            value={form.name}
+                            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                            placeholder="Your full name"
+                            className={inputCls(formErrors.name)}
+                          />
+                          {formErrors.name && <p className="text-xs text-red-500 mt-1">{formErrors.name}</p>}
+                        </div>
+
+                        {/* Email */}
+                        <div>
+                          <label className="flex items-center gap-1 text-xs font-semibold text-slate-600 mb-1">
+                            <Mail className="w-3 h-3" /> Email Address
+                          </label>
+                          <input
+                            type="email"
+                            value={form.email}
+                            onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                            placeholder="you@example.com"
+                            className={inputCls(formErrors.email)}
+                          />
+                          {formErrors.email
+                            ? <p className="text-xs text-red-500 mt-1">{formErrors.email}</p>
+                            : <p className="text-xs text-slate-400 mt-1">Tickets will be sent here</p>
+                          }
+                        </div>
+
+                        {/* Phone */}
+                        <div>
+                          <label className="flex items-center gap-1 text-xs font-semibold text-slate-600 mb-1">
+                            <Phone className="w-3 h-3" /> Phone Number
+                          </label>
+                          <input
+                            type="tel"
+                            value={form.phone}
+                            onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                            placeholder="+233 XX XXX XXXX"
+                            className={inputCls(formErrors.phone)}
+                          />
+                          {formErrors.phone && <p className="text-xs text-red-500 mt-1">{formErrors.phone}</p>}
+                        </div>
+
+                        <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                          <Shield className="w-3 h-3" />
+                          Secured by Hubtel · Your data is protected
+                        </div>
+
+                        <button
+                          onClick={handlePurchase}
+                          disabled={purchasing}
+                          className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white font-semibold text-sm py-3.5 rounded-xl transition-colors flex items-center justify-center gap-2"
+                        >
+                          {purchasing ? (
+                            <><Loader2 className="w-4 h-4 animate-spin" /> Processing…</>
+                          ) : totalPrice === 0 ? (
+                            <><CheckCircle className="w-4 h-4" /> Claim Free Tickets</>
+                          ) : (
+                            <>Pay GHS {totalPrice.toFixed(2)} <ArrowRight className="w-4 h-4" /></>
+                          )}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Trust badges */}
-                <div className="flex items-center justify-center gap-4 mt-4 text-xs text-gray-400">
-                  <div className="flex items-center gap-1"><Shield className="w-3 h-3" /> Secure payment</div>
-                  <div className="flex items-center gap-1"><Mail className="w-3 h-3" /> Email delivery</div>
+                <div className="flex items-center justify-center gap-4 text-xs text-slate-400">
+                  <span className="flex items-center gap-1"><Shield className="w-3 h-3" /> Secure</span>
+                  <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> Email delivery</span>
                 </div>
+
               </div>
             </div>
           </div>
@@ -610,16 +614,11 @@ function EventDetailContent() {
   );
 }
 
+// ─── page wrapper ─────────────────────────────────────────────────────────────
+
 export default function EventDetailPage() {
   return (
-    <Suspense fallback={
-      <>
-        <PublicNav />
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-          <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
-        </div>
-      </>
-    }>
+    <Suspense fallback={<PageSkeleton />}>
       <EventDetailContent />
     </Suspense>
   );
