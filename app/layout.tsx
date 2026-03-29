@@ -22,11 +22,10 @@ export const metadata: Metadata = {
   description: "A simple and transparent voting experience",
   icons: {
     icon: [
-      { url: "/images/fav_icon.png", type: "image/svg+xml" },
-      { url: "/favicon.ico", sizes: "any" },
+      { url: "/images/logo.png", type: "image/png" },
     ],
-    shortcut: "/favicon.ico",
-    apple: "/images/fav_icon.png",
+    shortcut: "/images/logo.png",
+    apple: "/images/logo.png",
   },
 };
 

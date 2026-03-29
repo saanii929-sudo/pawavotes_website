@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { authFetch } from "@/lib/authFetch";
+import ConfirmModal from "@/components/ConfirmModal";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface Election {
   _id: string;
@@ -323,7 +325,19 @@ export default function ReportsPage() {
   const [pinkSheetDates, setPinkSheetDates] = useState<Record<string, string>>({});
   const [tiebreakerDecisions, setTiebreakerDecisions] = useState<Record<string, string>>({});
   const [pinkSheetSaving, setPinkSheetSaving] = useState(false);
+  const [showClearSigsModal, setShowClearSigsModal] = useState(false);
   const saveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Agent password verification before signature pad
+  const [agentPwdModal, setAgentPwdModal] = useState<{
+    key: string;
+    label: string;
+    candidateName: string;
+    position: string;
+  } | null>(null);
+  const [agentPwdInput, setAgentPwdInput] = useState("");
+  const [agentPwdError, setAgentPwdError] = useState("");
+  const [agentPwdVerifying, setAgentPwdVerifying] = useState(false);
 
   // Load signatures + dates + decisions from DB when election changes
   useEffect(() => {
@@ -363,6 +377,46 @@ export default function ReportsPage() {
   const openSigModal = useCallback((key: string, label: string) => {
     setSigModal({ key, label });
   }, []);
+
+  // Intercept agent signature requests — require password first
+  const handleAgentSign = useCallback((key: string, label: string, candidateName: string, position: string) => {
+    setAgentPwdInput("");
+    setAgentPwdError("");
+    setAgentPwdModal({ key, label, candidateName, position });
+  }, []);
+
+  const handleVerifyAgentPassword = useCallback(async () => {
+    if (!agentPwdModal || !agentPwdInput.trim()) {
+      setAgentPwdError("Please enter the agent password");
+      return;
+    }
+    setAgentPwdVerifying(true);
+    setAgentPwdError("");
+    try {
+      const res = await fetch("/api/elections/agents/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          electionId: selectedElection,
+          candidateName: agentPwdModal.candidateName,
+          position: agentPwdModal.position,
+          password: agentPwdInput,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const { key, label } = agentPwdModal;
+        setAgentPwdModal(null);
+        setSigModal({ key, label });
+      } else {
+        setAgentPwdError(data.error === "No agent assigned to this candidate" ? "No agent is assigned to this candidate" : "Incorrect password");
+      }
+    } catch {
+      setAgentPwdError("Verification failed. Please try again.");
+    } finally {
+      setAgentPwdVerifying(false);
+    }
+  }, [agentPwdModal, agentPwdInput, selectedElection]);
 
   const handleSaveSignature = useCallback((dataUrl: string) => {
     if (!sigModal) return;
@@ -1270,7 +1324,7 @@ export default function ReportsPage() {
                                     fieldKey={`polling_agent_${pos.position}_${c.name}`}
                                     label={`${c.name} — Agent Signature (${pos.position})`}
                                     signatures={signatures}
-                                    onSign={openSigModal}
+                                    onSign={(key, label) => handleAgentSign(key, label, c.name, pos.position)}
                                   />
                                 </td>
                               </tr>
@@ -1474,17 +1528,7 @@ export default function ReportsPage() {
                   )}
                   {Object.keys(signatures).length > 0 && (
                     <button
-                      onClick={async () => {
-                        if (!confirm('Clear all signatures and dates for this election?')) return;
-                        try {
-                          await authFetch(`/api/elections/pinksheet?electionId=${selectedElection}`, { method: 'DELETE' });
-                          setSignatures({});
-                          setPinkSheetDates({});
-                          toast.success('Signatures cleared');
-                        } catch {
-                          toast.error('Failed to clear signatures');
-                        }
-                      }}
+                      onClick={() => setShowClearSigsModal(true)}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-500 border border-gray-200 rounded-lg hover:text-red-600 hover:border-red-200 transition"
                     >
                       <Trash2 size={14} /> Clear Signatures
@@ -1571,7 +1615,7 @@ export default function ReportsPage() {
                                       fieldKey={`agent_${pos.position}_${c.name}`}
                                       label={`${c.name} — Agent Signature`}
                                       signatures={signatures}
-                                      onSign={openSigModal}
+                                      onSign={(key, label) => handleAgentSign(key, label, c.name, pos.position)}
                                     />
                                   </td>
                                 </tr>
@@ -1628,6 +1672,111 @@ export default function ReportsPage() {
           )}
         </>
       )}
+
+      {/* Clear signatures confirmation */}
+      <ConfirmModal
+        isOpen={showClearSigsModal}
+        onClose={() => setShowClearSigsModal(false)}
+        onConfirm={async () => {
+          setShowClearSigsModal(false);
+          try {
+            await authFetch(`/api/elections/pinksheet?electionId=${selectedElection}`, { method: 'DELETE' });
+            setSignatures({});
+            setPinkSheetDates({});
+            setTiebreakerDecisions({});
+            toast.success('All signatures and dates cleared');
+          } catch {
+            toast.error('Failed to clear signatures');
+          }
+        }}
+        title="Clear All Signatures"
+        message="This will permanently remove all signatures, dates, and tiebreaker decisions recorded for this election. This action cannot be undone."
+        confirmText="Yes, Clear All"
+        cancelText="Keep Signatures"
+        type="danger"
+      />
+
+      {/* Agent password modal */}
+      <AnimatePresence>
+        {agentPwdModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setAgentPwdModal(null)}
+              className="fixed inset-0 bg-black/50 z-50 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4"
+            >
+              <div className="flex flex-col items-center text-center">
+                {/* Icon */}
+                <div className="bg-green-100 p-3 rounded-full mb-4">
+                  <Shield size={28} className="text-green-600" />
+                </div>
+
+                <h3 className="text-xl font-bold text-gray-900 mb-1">Agent Verification</h3>
+                <p className="text-sm text-gray-500 mb-1">
+                  <span className="font-semibold text-gray-700">{agentPwdModal.candidateName}</span>
+                </p>
+                <p className="text-xs text-gray-400 mb-5">{agentPwdModal.position}</p>
+
+                <p className="text-gray-600 text-sm mb-5 leading-relaxed">
+                  Enter the password sent to this candidate&apos;s assigned agent to unlock the signature pad.
+                </p>
+
+                {/* Password input */}
+                <div className="w-full text-left mb-1">
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Agent Password</label>
+                  <input
+                    type="password"
+                    value={agentPwdInput}
+                    onChange={(e) => { setAgentPwdInput(e.target.value); setAgentPwdError(""); }}
+                    onKeyDown={(e) => e.key === "Enter" && handleVerifyAgentPassword()}
+                    placeholder="Enter agent password"
+                    autoFocus
+                    className={`w-full border-2 rounded-lg px-3 py-2.5 text-sm focus:outline-none transition ${
+                      agentPwdError
+                        ? "border-red-400 focus:border-red-500 bg-red-50"
+                        : "border-gray-200 focus:border-green-500"
+                    }`}
+                  />
+                  {agentPwdError && (
+                    <p className="mt-2 text-xs text-red-600 font-medium flex items-center gap-1.5">
+                      <AlertCircle size={13} /> {agentPwdError}
+                    </p>
+                  )}
+                </div>
+
+                {/* Buttons */}
+                <div className="flex gap-3 w-full mt-6">
+                  <button
+                    onClick={() => setAgentPwdModal(null)}
+                    disabled={agentPwdVerifying}
+                    className="flex-1 px-4 py-2.5 border-2 border-gray-300 rounded-lg hover:bg-gray-50 transition disabled:opacity-50 font-medium text-gray-700 text-sm"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleVerifyAgentPassword}
+                    disabled={agentPwdVerifying || !agentPwdInput.trim()}
+                    className="flex-1 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg transition disabled:opacity-50 font-medium text-sm flex items-center justify-center gap-2"
+                  >
+                    {agentPwdVerifying
+                      ? <><RefreshCw size={14} className="animate-spin" /> Verifying…</>
+                      : "Verify & Sign"
+                    }
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Signature pad modal */}
       {sigModal && (
