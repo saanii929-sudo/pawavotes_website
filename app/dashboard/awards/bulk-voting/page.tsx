@@ -44,6 +44,7 @@ const BulkVotingManager = () => {
   const [loading, setLoading] = useState(true);const [serviceFeePercentage, setServiceFeePercentage] = useState<number>(10);
   const [loadingPackages, setLoadingPackages] = useState(false);
   const [editingPackageId, setEditingPackageId] = useState<string | null>(null);
+  const [failedBanners, setFailedBanners] = useState<Set<string>>(new Set());
   const [formData, setFormData] = useState({
     amount: "",
     votes: "",
@@ -103,7 +104,7 @@ const BulkVotingManager = () => {
   const fetchBulkVotePackages = async (awardId: string) => {
     setLoadingPackages(true);
     try {
-      const response = await fetch(`/api/bulk-vote-packages?awardId=${awardId}&onlyActive=false`);
+      const response = await authFetch(`/api/bulk-vote-packages?awardId=${awardId}&onlyActive=false`);
       if (response.ok) {
         const data = await response.json();
         setBulkVotePackages(data.data || []);
@@ -147,7 +148,7 @@ const BulkVotingManager = () => {
         ...(isEditing ? {} : { awardId: selectedAward._id }),
       };
 
-      const response = await fetch(url, {
+      const response = await authFetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -201,7 +202,7 @@ const BulkVotingManager = () => {
         
         const loadingToast = toast.loading("Deleting package...");
         try {
-          const response = await fetch(`/api/bulk-vote-packages/${packageId}`, {
+          const response = await authFetch(`/api/bulk-vote-packages/${packageId}`, {
             method: "DELETE",
           });
 
@@ -224,7 +225,7 @@ const BulkVotingManager = () => {
   const handleToggleActive = async (packageId: string, currentStatus: boolean) => {
     const loadingToast = toast.loading("Updating package status...");
     try {
-      const response = await fetch(`/api/bulk-vote-packages/${packageId}`, {
+      const response = await authFetch(`/api/bulk-vote-packages/${packageId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isActive: !currentStatus }),
@@ -310,11 +311,12 @@ const BulkVotingManager = () => {
                 >
                   <div className="relative aspect-square h-48 sm:h-56 md:h-60 w-full overflow-hidden">
                     <Image
-                      src={award.banner || "/images/events/event-1.png"}
+                      src={award.banner && !failedBanners.has(award._id) ? award.banner : "/images/events/event-1.png"}
                       alt={award.name}
                       fill
                       sizes="(max-width: 768px) 100vw, 400px"
                       className="object-cover transition-transform duration-300 group-hover:scale-110"
+                      onError={() => setFailedBanners(prev => new Set([...prev, award._id]))}
                     />
                     <div className="absolute inset-0 bg-black/20" />
                     <div className="absolute top-0 p-3 sm:p-4 left-0 right-0 flex justify-between items-center">

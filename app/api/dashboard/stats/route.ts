@@ -124,7 +124,7 @@ export async function GET(req: NextRequest) {
     const paymentStats = paymentAgg[0] || { count: 0, amount: 0 };
     const ticketStats = ticketAgg[0] || { count: 0, amount: 0 };
     const totalAmount = voteStats.amount + paymentStats.amount + ticketStats.amount;
-    const totalPayments = voteStats.count + paymentStats.count + ticketStats.count;
+    const totalPayments = voteStats.count;
 
     // Voting velocity — last 7 days aggregation
     const sevenDaysAgo = new Date();
