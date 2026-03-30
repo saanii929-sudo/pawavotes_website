@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Vote, CheckCircle, Calendar, Clock, LogOut, ShieldCheck, ArrowRight } from "lucide-react";
+import { Vote, CheckCircle, Calendar, Clock, LogOut, ShieldCheck, ArrowRight, ChevronDown } from "lucide-react";
 import Image from "next/image";
 import toast, { Toaster } from "react-hot-toast";
 
@@ -104,6 +104,7 @@ function ElectionHomeContent() {
   const [voterData, setVoterData] = useState<any>(null);
   const [loading, setLoading]     = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   const refreshVoterData = async (voterToken: string) => {
     setRefreshing(true);
@@ -258,9 +259,9 @@ function ElectionHomeContent() {
               {vIsActive && !voterData.hasVoted && (
                 <button
                   onClick={handleVoteNow}
-                  className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold text-sm px-5 py-2.5 rounded-xl transition-colors shrink-0"
+                  className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold text-base px-8 py-4 rounded-xl transition-colors shrink-0"
                 >
-                  <Vote className="w-4 h-4" />
+                  <Vote className="w-5 h-5" />
                   Cast your vote
                   <ArrowRight className="w-4 h-4" />
                 </button>
@@ -368,34 +369,56 @@ function ElectionHomeContent() {
 
           {/* ── how to vote (active, not voted) ──────────────────────────── */}
           {!voterData.hasVoted && vIsActive && (
-            <div className="bg-white border border-slate-100 rounded-xl p-6">
-              <h3 className="text-sm font-bold text-slate-800 mb-5">How to cast your vote</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-5">
-                {[
-                  { step: 1, title: 'Click "Cast your vote"', desc: "Use the button at the top of this page" },
-                  { step: 2, title: "Review candidates",      desc: "Browse all positions and nominees"      },
-                  { step: 3, title: "Make your selections",   desc: "Choose one candidate per position"      },
-                  { step: 4, title: "Submit your vote",       desc: "Confirm and finalise your choices"      },
-                ].map(({ step, title, desc }) => (
-                  <div key={step} className="flex flex-col gap-3">
-                    <div className="w-7 h-7 bg-green-600 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">
-                      {step}
-                    </div>
-                    <div>
-                      <p className="font-semibold text-slate-800 text-sm leading-snug">{title}</p>
-                      <p className="text-xs text-slate-400 mt-1 leading-relaxed">{desc}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-6 pt-5 border-t border-slate-100 flex justify-start">
+            <div className="bg-white border border-slate-100 rounded-xl overflow-hidden">
+              {/* header row — always visible */}
+              <div className="flex items-center justify-between px-6 py-4">
+                <h3 className="text-sm font-bold text-slate-800">How to cast your vote</h3>
                 <button
-                  onClick={handleVoteNow}
-                  className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold text-sm px-5 py-2.5 rounded-xl transition-colors"
+                  onClick={() => setGuideOpen(o => !o)}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-green-600 hover:text-green-700 transition-colors"
                 >
-                  <Vote className="w-4 h-4" />
-                  Cast your vote now
+                  {guideOpen ? "Hide guide" : "View guide"}
+                  <ChevronDown
+                    className="w-4 h-4 transition-transform duration-300"
+                    style={{ transform: guideOpen ? "rotate(180deg)" : "rotate(0deg)" }}
+                  />
                 </button>
+              </div>
+
+              {/* collapsible body */}
+              <div
+                className="transition-all duration-300 ease-in-out overflow-hidden"
+                style={{ maxHeight: guideOpen ? "500px" : "0px", opacity: guideOpen ? 1 : 0 }}
+              >
+                <div className="px-6 pb-6 border-t border-slate-100 pt-5">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-5">
+                    {[
+                      { step: 1, title: 'Click "Cast your vote"', desc: "Use the button at the top of this page" },
+                      { step: 2, title: "Review candidates",      desc: "Browse all positions and nominees"      },
+                      { step: 3, title: "Make your selections",   desc: "Choose one candidate per position"      },
+                      { step: 4, title: "Submit your vote",       desc: "Confirm and finalise your choices"      },
+                    ].map(({ step, title, desc }) => (
+                      <div key={step} className="flex flex-col gap-3">
+                        <div className="w-7 h-7 bg-green-600 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">
+                          {step}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-slate-800 text-sm leading-snug">{title}</p>
+                          <p className="text-xs text-slate-400 mt-1 leading-relaxed">{desc}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-6 pt-5 border-t border-slate-100 flex justify-start">
+                    <button
+                      onClick={handleVoteNow}
+                      className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold text-base px-8 py-4 rounded-xl transition-colors shadow-sm"
+                    >
+                      <Vote className="w-5 h-5" />
+                      Cast your vote now
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}
