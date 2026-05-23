@@ -109,6 +109,11 @@ const menu = [
       },
     ],
   },
+  {
+    name: "Settings",
+    href: "/dashboard/settings",
+    icon: Settings,
+  },
 ];
 
 export default function Sidebar() {

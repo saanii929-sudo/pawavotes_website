@@ -1,6 +1,7 @@
 'use client';
 
-import { Bell, Menu, LogOut, Building2, Check, ChevronRight } from 'lucide-react';
+import { Bell, Menu, LogOut, Building2, Check, ChevronRight, Lock } from 'lucide-react';
+import Link from 'next/link';
 import { useUI } from '@/context/ui-context';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useRef } from 'react';
@@ -164,6 +165,16 @@ export default function Topbar() {
           ))}
         </div>
       )}
+
+      {/* Change Password */}
+      <Link
+        href="/dashboard/settings"
+        onClick={() => setShowDropdown(false)}
+        className="w-full px-4 py-3 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition"
+      >
+        <Lock size={16} className="text-gray-500" />
+        Change Password
+      </Link>
 
       {/* Logout */}
       <button

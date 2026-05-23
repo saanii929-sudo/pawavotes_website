@@ -9,6 +9,7 @@ import {
   BarChart3,
   Table,
   Info,
+  FileDown,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import Image from "next/image";
@@ -65,6 +66,7 @@ const ManageResultsComplete = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalNominees, setTotalNominees] = useState(0);
+  const [printing, setPrinting] = useState(false);
 
   useEffect(() => {
     fetchAwards();
@@ -162,6 +164,186 @@ const ManageResultsComplete = () => {
     return Math.round((votes / totalVotes) * 100);
   };
 
+  const handleExportPDF = async () => {
+    if (!selectedAward) return;
+    setPrinting(true);
+    const toastId = toast.loading("Fetching results data...");
+
+    try {
+      // 1. Fetch all nominees (no pagination)
+      const params = new URLSearchParams();
+      if (selectedCategory && selectedCategory !== "all") {
+        params.set("categoryId", selectedCategory);
+      }
+      const res = await authFetch(
+        `/api/awards/${selectedAward._id}/print-results?${params.toString()}`
+      );
+      if (!res.ok) {
+        const err = await res.json();
+        toast.error(err.error || "Failed to load results", { id: toastId });
+        return;
+      }
+      const data = await res.json();
+
+      toast.loading("Converting images...", { id: toastId });
+
+      // 2. Pre-fetch all nominee images as base64 to avoid CORS issues in html2canvas
+      const fetchAsDataURL = async (url: string): Promise<string | null> => {
+        try {
+          const r = await fetch(url, { mode: "cors" });
+          if (!r.ok) return null;
+          const blob = await r.blob();
+          return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+          });
+        } catch {
+          return null;
+        }
+      };
+
+      const imageCache = new Map<string, string | null>();
+      const imageUrls: string[] = [];
+      for (const cat of data.categories as any[]) {
+        for (const n of cat.nominees as any[]) {
+          if (n.image && !imageCache.has(n.image)) {
+            imageCache.set(n.image, null);
+            imageUrls.push(n.image);
+          }
+        }
+      }
+      await Promise.all(
+        imageUrls.map(async (url) => {
+          const dataUrl = await fetchAsDataURL(url);
+          imageCache.set(url, dataUrl);
+        })
+      );
+
+      toast.loading("Rendering layout...", { id: toastId });
+
+      // 3. Build hidden off-screen container with full inline styles (no Tailwind interference)
+      const getInitials = (name: string) =>
+        name
+          .split(" ")
+          .map((n: string) => n[0])
+          .join("")
+          .toUpperCase()
+          .slice(0, 2);
+
+      const awardName: string = data.award?.name || selectedAward.name;
+      const printDate = new Date().toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      });
+
+      const categorySections = (data.categories as any[])
+        .map((cat: any) => {
+          // Card width: (714px content - 3 × 10px gap) ÷ 4 = 171px
+          const CARD_W = 171;
+          const cards = (cat.nominees as any[])
+            .map((nominee: any, rank: number) => {
+              const imgSrc = nominee.image
+                ? (imageCache.get(nominee.image) ?? null)
+                : null;
+              const initials = getInitials(nominee.name);
+              // Use line-height centering — html2canvas does not render flex correctly
+              const imgTag = imgSrc
+                ? `<img src="${imgSrc}" style="width:72px;height:72px;border-radius:50%;object-fit:cover;display:block;margin:0 auto 8px;" />`
+                : `<div style="width:72px;height:72px;border-radius:50%;background:#d1fae5;color:#16a34a;font-size:22px;font-weight:700;margin:0 auto 8px;line-height:72px;text-align:center;">${initials}</div>`;
+
+              return `<div style="float:left;width:${CARD_W}px;margin-right:10px;margin-bottom:10px;border:1px solid #e5e7eb;border-radius:8px;padding:22px 10px 12px;text-align:center;position:relative;background:#fafafa;box-sizing:border-box;">
+                <div style="position:absolute;top:6px;left:6px;background:#16a34a;color:#fff;font-size:8px;font-weight:700;border-radius:50%;width:18px;height:18px;text-align:center;padding-top:4px;box-sizing:border-box;">${rank + 1}</div>
+                ${imgTag}
+                <div style="font-size:11px;font-weight:700;color:#111111;margin-bottom:3px;word-break:break-word;line-height:1.4;">${nominee.name}</div>
+                ${nominee.nomineeCode ? `<div style="font-size:10px;color:#dc2626;font-weight:700;margin-bottom:3px;line-height:1.4;">${nominee.nomineeCode}</div>` : ""}
+                <div style="font-size:10px;color:#4b5563;line-height:1.4;">${(nominee.voteCount || 0).toLocaleString()} votes</div>
+              </div>`;
+            })
+            .join("");
+
+          return `<div style="margin-bottom:28px;">
+            <div style="background:#16a34a;color:#fff;font-size:13px;font-weight:700;padding:9px 14px;border-radius:6px;margin-bottom:14px;line-height:1.4;">${cat.categoryName}&nbsp;&nbsp;<span style="font-weight:400;font-size:11px;opacity:0.85;">(${cat.nominees.length} nominees)</span></div>
+            <div style="overflow:hidden;">${cards}</div>
+            <div style="clear:both;"></div>
+          </div>`;
+        })
+        .join("");
+
+      const container = document.createElement("div");
+      container.style.cssText =
+        "position:fixed;top:-99999px;left:-99999px;width:794px;background:#ffffff;padding:40px 40px 32px;font-family:Arial,Helvetica,sans-serif;color:#111;box-sizing:border-box;";
+      container.innerHTML = `
+        <div style="text-align:center;padding-bottom:18px;margin-bottom:22px;border-bottom:3px solid #16a34a;">
+          <div style="font-size:20px;font-weight:700;color:#16a34a;margin-bottom:4px;">${awardName}</div>
+          <div style="font-size:11px;color:#6b7280;">Results Report &bull; Generated ${printDate}</div>
+        </div>
+        ${categorySections}
+        <div style="text-align:center;margin-top:20px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:10px;color:#9ca3af;">
+          Powered by Pawavotes &bull; ${printDate}
+        </div>`;
+      document.body.appendChild(container);
+
+      // 4. Capture with html2canvas
+      toast.loading("Generating PDF...", { id: toastId });
+      const html2canvasModule = await import("html2canvas");
+      const html2canvas = html2canvasModule.default;
+
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: false,
+        backgroundColor: "#ffffff",
+        logging: false,
+      });
+      document.body.removeChild(container);
+
+      // 5. Build multi-page PDF
+      const jsPDFModule = await import("jspdf");
+      const jsPDF = jsPDFModule.default;
+
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pageWidth = pdf.internal.pageSize.getWidth();   // 210mm
+      const pageHeight = pdf.internal.pageSize.getHeight(); // 297mm
+
+      const imgData = canvas.toDataURL("image/jpeg", 0.92);
+      const imgWidthMM = pageWidth;
+      const imgHeightMM = (canvas.height * pageWidth) / canvas.width;
+
+      let yOffset = 0;
+      const totalPages = Math.ceil(imgHeightMM / pageHeight);
+
+      for (let i = 0; i < totalPages; i++) {
+        if (i > 0) pdf.addPage();
+        pdf.addImage(
+          imgData,
+          "JPEG",
+          0,
+          -yOffset,
+          imgWidthMM,
+          imgHeightMM,
+          undefined,
+          "FAST"
+        );
+        yOffset += pageHeight;
+      }
+
+      // 6. Download
+      const safeName = awardName.replace(/[^a-z0-9]/gi, "_").replace(/_+/g, "_");
+      pdf.save(`${safeName}_Results.pdf`);
+      toast.success("PDF downloaded successfully!", { id: toastId });
+    } catch (err) {
+      console.error("PDF export error:", err);
+      toast.error("Failed to generate PDF. Please try again.", { id: toastId });
+      // Safety cleanup in case the container was added but not removed
+      const stale = document.getElementById("__pdf-container__");
+      if (stale) document.body.removeChild(stale);
+    } finally {
+      setPrinting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -396,47 +578,57 @@ const ManageResultsComplete = () => {
               )}
             </div>
 
-            <div className="flex justify-end">
-              {" "}
+            <div className="flex items-center gap-2 justify-end">
+              {/* Export PDF */}
+              <button
+                onClick={handleExportPDF}
+                disabled={printing || nominees.length === 0}
+                className="px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 disabled:bg-gray-300 disabled:cursor-not-allowed whitespace-nowrap"
+                title="Download results as PDF with all nominee pictures"
+              >
+                {printing ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <FileDown size={18} />
+                )}
+                <span>{printing ? "Generating..." : "Export PDF"}</span>
+              </button>
+
               {showMoreOptions ? (
-                <>
-                  <div className="inline-flex rounded-lg border border-gray-300 bg-white">
-                    <button
-                      onClick={() => {
-                        setViewMode("table");
-                      }}
-                      className={`px-4 py-2 flex items-center gap-2 rounded-l-lg transition-colors ${
-                        viewMode === "table"
-                          ? "bg-green-600 text-white"
-                          : "text-gray-700 hover:bg-gray-50"
-                      }`}
-                    >
-                      <Table size={18} />
-                      <span>Table</span>
-                    </button>
-                    <button
-                      onClick={() => setViewMode("graph")}
-                      className={`px-4 py-2 flex items-center gap-2 rounded-r-lg transition-colors ${
-                        viewMode === "graph"
-                          ? "bg-green-600 text-white"
-                          : "text-gray-700 hover:bg-gray-50"
-                      }`}
-                    >
-                      <BarChart3 size={18} />
-                      <span>Graph</span>
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
+                <div className="inline-flex rounded-lg border border-gray-300 bg-white">
                   <button
-                    onClick={() => setShowMoreOptions(true)}
-                    className="px-4 py-2.5 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 flex items-center gap-2"
+                    onClick={() => {
+                      setViewMode("table");
+                    }}
+                    className={`px-4 py-2 flex items-center gap-2 rounded-l-lg transition-colors ${
+                      viewMode === "table"
+                        ? "bg-green-600 text-white"
+                        : "text-gray-700 hover:bg-gray-50"
+                    }`}
                   >
-                    <MoreHorizontal size={18} className="text-gray-500" />
-                    <span className="text-gray-700">More Options</span>
+                    <Table size={18} />
+                    <span>Table</span>
                   </button>
-                </>
+                  <button
+                    onClick={() => setViewMode("graph")}
+                    className={`px-4 py-2 flex items-center gap-2 rounded-r-lg transition-colors ${
+                      viewMode === "graph"
+                        ? "bg-green-600 text-white"
+                        : "text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    <BarChart3 size={18} />
+                    <span>Graph</span>
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowMoreOptions(true)}
+                  className="px-4 py-2.5 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 flex items-center gap-2"
+                >
+                  <MoreHorizontal size={18} className="text-gray-500" />
+                  <span className="text-gray-700">More Options</span>
+                </button>
               )}
             </div>
           </div>
