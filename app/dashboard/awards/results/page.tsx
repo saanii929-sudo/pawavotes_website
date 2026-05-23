@@ -297,7 +297,7 @@ const ManageResultsComplete = () => {
         allowTaint: false,
         backgroundColor: "#ffffff",
         logging: false,
-      });
+      } as any);
       document.body.removeChild(container);
 
       // 5. Build multi-page PDF
