@@ -34,10 +34,10 @@ export function middleware(request: NextRequest) {
 
   // Set JSON content-type on API responses, but NOT on upload endpoints
   // (multipart uploads need their own Content-Type with boundary intact)
-  if (
-    request.nextUrl.pathname.startsWith('/api/') &&
-    !request.nextUrl.pathname.startsWith('/api/upload/')
-  ) {
+  const isUploadRoute =
+    request.nextUrl.pathname.startsWith('/api/upload/') ||
+    request.nextUrl.pathname.startsWith('/api/public/upload/');
+  if (request.nextUrl.pathname.startsWith('/api/') && !isUploadRoute) {
     response.headers.set('Content-Type', 'application/json');
   }
 
