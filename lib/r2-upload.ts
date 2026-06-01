@@ -20,22 +20,21 @@ export async function uploadToR2(
   key: string,
   contentType: string
 ): Promise<string> {
+  const command = new PutObjectCommand({
+    Bucket: BUCKET_NAME,
+    Key: key,
+    Body: file,
+    ContentType: contentType,
+  });
+
   try {
-    const command = new PutObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: key,
-      Body: file,
-      ContentType: contentType,
-    });
-
     await r2Client.send(command);
-
-    // Return public URL
-    const publicUrl = `${PUBLIC_URL}/${key}`;
-    return publicUrl;
-  } catch (error) {
-    throw new Error('Failed to upload file to R2');
+  } catch (error: any) {
+    console.error('R2 upload failed:', error?.message || error);
+    throw new Error(`R2 upload failed: ${error?.message || 'unknown error'}`);
   }
+
+  return `${PUBLIC_URL}/${key}`;
 }
 
 export async function deleteFromR2(key: string): Promise<void> {

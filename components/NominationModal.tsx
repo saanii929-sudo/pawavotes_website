@@ -2,7 +2,6 @@
 import { useState, useEffect } from "react";
 import { X, Upload, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
-import Image from "next/image";
 
 interface NominationModalProps {
   isOpen: boolean;
@@ -60,34 +59,46 @@ const NominationModal = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Image size should be less than 5MB");
-      return;
-    }
-
     if (!file.type.startsWith("image/")) {
       toast.error("Please upload an image file");
       return;
     }
 
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image size should be less than 5MB");
+      return;
+    }
+
+    // Show local preview immediately while uploading
+    const reader = new FileReader();
+    reader.onloadend = () => setImagePreview(reader.result as string);
+    reader.readAsDataURL(file);
+
     setUploadingImage(true);
+    const loadingToast = toast.loading("Uploading image...");
 
     try {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-      const base64 = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.readAsDataURL(file);
+      const form = new FormData();
+      form.append("file", file);
+
+      const response = await fetch("/api/public/upload/image", {
+        method: "POST",
+        body: form,
       });
 
-      setFormData({ ...formData, image: base64 });
-      toast.success("Image uploaded successfully");
-    } catch (error) {
-      toast.error("Failed to upload image");
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Upload failed");
+      }
+
+      // Store the R2 public URL — not a base64 string
+      setFormData((prev) => ({ ...prev, image: data.url }));
+      toast.success("Image uploaded successfully", { id: loadingToast });
+    } catch (error: any) {
+      toast.error(error.message || "Failed to upload image", { id: loadingToast });
+      setImagePreview("");
+      setFormData((prev) => ({ ...prev, image: "" }));
     } finally {
       setUploadingImage(false);
     }
@@ -212,11 +223,10 @@ const NominationModal = ({
               <div className="flex items-center gap-4">
                 {imagePreview ? (
                   <div className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-gray-200">
-                    <Image
+                    <img
                       src={imagePreview}
                       alt="Preview"
-                      fill
-                      className="object-cover"
+                      className="w-full h-full object-cover"
                     />
                   </div>
                 ) : (
