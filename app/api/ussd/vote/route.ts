@@ -12,7 +12,7 @@ import TicketOrder from "@/models/TicketOrder";
 import { sendTicketConfirmationEmail } from "@/lib/email";
 import { sendTicketSmsConfirmation } from "@/services/sms.service";
 
-const MAX_MESSAGE_LENGTH = 160;
+const MAX_MESSAGE_LENGTH = 182;
 const MAX_ERROR_COUNT = 3;
 const SESSION_TIMEOUT_MS = 15 * 60 * 1000;
 const ITEMS_PER_PAGE = 5;
@@ -242,7 +242,6 @@ function handleBackNavigation(session: any) {
     enter_nominee_code: "nominee_method",
     select_nominee: "nominee_method",
     enter_votes: "nominee_method",
-    confirm_high_vote: "enter_votes",
     confirm: "enter_votes",
     confirm_network: "confirm",
     enter_payment_otp: "confirm",
@@ -944,18 +943,6 @@ async function handleVoteQuantity(session: any, userInput: string) {
 
   const pricePerVote = session.data.awardCache?.pricing?.votingCost || 0.5;
   const amount = numberOfVotes * pricePerVote;
-
-  if (numberOfVotes > HIGH_VOTE_THRESHOLD && !session.data.confirmedHighVote) {
-    session.data.confirmedHighVote = true;
-    session.data.tempVotes = numberOfVotes;
-    session.currentStep = "confirm_high_vote";
-    return {
-      message: compressMessage(
-        `Confirm ${numberOfVotes} votes?\n(GHS ${amount.toFixed(2)})\n\n1. Yes\n2. No`,
-      ),
-      continueSession: true,
-    };
-  }
 
   session.data.numberOfVotes = numberOfVotes;
   session.data.amount = amount;
@@ -1894,4 +1881,3 @@ async function checkAndCompleteTicketOrder(clientReference: string) {
     console.error("[USSD Tickets] checkAndCompleteTicketOrder error:", error);
   }
 }
-
