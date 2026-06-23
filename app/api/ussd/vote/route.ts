@@ -12,12 +12,12 @@ import TicketOrder from "@/models/TicketOrder";
 import { sendTicketConfirmationEmail } from "@/lib/email";
 import { sendTicketSmsConfirmation } from "@/services/sms.service";
 
-const MAX_MESSAGE_LENGTH = 182;
+const MAX_MESSAGE_LENGTH = 300;
 const MAX_ERROR_COUNT = 3;
 const SESSION_TIMEOUT_MS = 15 * 60 * 1000;
 const ITEMS_PER_PAGE = 5;
 const MIN_VOTES = 1;
-const MAX_VOTES = 1000;
+const MAX_VOTES = 10000;
 const HIGH_VOTE_THRESHOLD = 100;
 const MAX_TICKET_QTY = 10;
 
