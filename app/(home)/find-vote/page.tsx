@@ -584,10 +584,6 @@ const PublicVotingPlatform = () => {
             <Calendar size={14} />
             <span>{award.votingStartDate ? new Date(award.votingStartDate).toLocaleDateString() : 'TBA'}</span>
           </div>
-          <div className="flex items-center gap-1">
-            <Users size={14} className="text-green-600" />
-            <span className="text-green-600">{award.totalVotes || 0}</span>
-          </div>
         </div>
       </div>
     </div>
