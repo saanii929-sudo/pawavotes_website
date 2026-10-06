@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 
 function isChristmasSeason(): boolean {
   const d = new Date();
-  return d.getMonth() === 11 && d.getDate() >= 1; // Dec 1 – 31
+  return d.getMonth() === 9 && d.getDate() >= 1; // Dec 1 – 31
 }
 
 interface Flake { x: number; y: number; r: number; speed: number; drift: number; phase: number; opacity: number }
@@ -284,8 +284,8 @@ function SantaHatOnP() {
       const section = h1.closest("section") ?? document.documentElement;
       const sr = section.getBoundingClientRect();
       setPos({
-        top:  r.top - sr.top - r.height * 0.62,  // sit above the P
-        left: r.left - sr.left + r.width * 0.5,   // centred on the P
+        top:  r.top - sr.top - r.height * 0.04,  // sit above the P
+        left: r.left - sr.left + r.width * 0.01,   // centred on the P
       });
     };
     // Measure after fonts/layout settle
