@@ -404,7 +404,7 @@ export default function HeroSection() {
               <ul className="space-y-6 text-lg">
                 {[
                   { label: "Home", href: "/" },
-                  { label: "Ticketing", href: null },
+                  { label: "Ticketing", href: "/ticketing" },
                   { label: "Events", href: "/find-vote" },
                 ].map(({ label, href }, i) => (
                   <motion.li
