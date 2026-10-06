@@ -387,6 +387,38 @@ const AwardsManagementSystem = () => {
     }
   };
 
+  // Download a single grouped nominee (all their category entries + image)
+  const handleDownloadSingleNominee = async (nomineeCategories: any[], nomineeName: string) => {
+    if (!selectedAward) return;
+
+    const loadingToast = toast.loading(`Preparing download for ${nomineeName}...`);
+    try {
+      // Download each nomineeId entry; if only one category use nomineeId directly,
+      // otherwise download the first entry — the API deduplicates by name so the
+      // image + CSV rows for all categories come out in one zip.
+      const nomineeId = nomineeCategories[0].nomineeId;
+      const response  = await authFetch(`/api/nominees/download?nomineeId=${nomineeId}`);
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url  = window.URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href     = url;
+        a.download = `${nomineeName.replace(/[^a-z0-9]/gi, '_')}_nominee.zip`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        toast.success(`Downloaded ${nomineeName}`, { id: loadingToast });
+      } else {
+        const data = await response.json();
+        toast.error(data.error || 'Failed to download nominee', { id: loadingToast });
+      }
+    } catch {
+      toast.error('Failed to download nominee', { id: loadingToast });
+    }
+  };
+
   const handleGenerateNominationLink = async () => {
     if (!selectedAward) return;
     
@@ -789,7 +821,8 @@ const AwardsManagementSystem = () => {
                           </button>
                           
                           {showActionMenu === `${nominee.name}-${index}` && (
-                            <div className={`absolute ${index >= groupedNominees.length - 2 ? 'bottom-full mb-2' : 'top-full mt-2'} right-0 w-32 bg-white rounded-lg shadow-lg border border-gray-200 z-50`}>
+                            <div className={`absolute ${index >= groupedNominees.length - 2 ? 'bottom-full mb-2' : 'top-full mt-2'} right-0 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50`}>
+                              {/* Edit */}
                               <button 
                                 onClick={() => handleEditNominee({
                                   _id: nominee.categories[0].nomineeId,
@@ -809,24 +842,66 @@ const AwardsManagementSystem = () => {
                                 <Edit2 size={12} />
                                 Edit
                               </button>
-                              <button 
-                                onClick={() => {
-                                  setConfirmModal({
-                                    isOpen: true,
-                                    title: "Delete All Nominations",
-                                    message: `Delete all ${nominee.categories.length} nomination(s) for ${nominee.name}?`,
-                                    type: "danger",
-                                    onConfirm: () => {
-                                      setConfirmModal({ ...confirmModal, isOpen: false });
-                                      nominee.categories.forEach((cat: any) => handleDeleteNominee(cat.nomineeId));
-                                    }
-                                  });
-                                }} 
-                                className="w-full px-3 py-2 text-left text-xs text-red-600 hover:bg-gray-50 rounded-b-lg flex items-center gap-2"
+
+                              {/* Download this nominee */}
+                              <button
+                                onClick={() => { setShowActionMenu(null); handleDownloadSingleNominee(nominee.categories, nominee.name); }}
+                                className="w-full text-green-700 px-3 py-2 text-left text-xs hover:bg-green-50 flex items-center gap-2"
                               >
-                                <Trash2 size={12} />
-                                Delete All
+                                <Download size={12} />
+                                Download
                               </button>
+
+                              {/* Divider */}
+                              <div className="border-t border-gray-100 mx-2" />
+
+                              {/* Per-category delete when multiple categories */}
+                              {nominee.categories.length > 1 && (
+                                <>
+                                  <p className="px-3 pt-1.5 pb-0.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Delete by category</p>
+                                  {nominee.categories.map((cat: any) => (
+                                    <button
+                                      key={cat.nomineeId}
+                                      onClick={() => { setShowActionMenu(null); handleDeleteNominee(cat.nomineeId); }}
+                                      className="w-full px-3 py-2 text-left text-xs text-red-500 hover:bg-red-50 flex items-center gap-2 truncate"
+                                    >
+                                      <Trash2 size={12} className="shrink-0" />
+                                      <span className="truncate">{cat.name}</span>
+                                    </button>
+                                  ))}
+                                  <div className="border-t border-gray-100 mx-2" />
+                                  <button
+                                    onClick={() => {
+                                      setShowActionMenu(null);
+                                      setConfirmModal({
+                                        isOpen: true,
+                                        title: "Delete All Nominations",
+                                        message: `Delete all ${nominee.categories.length} nomination(s) for ${nominee.name}?`,
+                                        type: "danger",
+                                        onConfirm: () => {
+                                          setConfirmModal({ ...confirmModal, isOpen: false });
+                                          nominee.categories.forEach((cat: any) => handleDeleteNominee(cat.nomineeId));
+                                        }
+                                      });
+                                    }}
+                                    className="w-full px-3 py-2 text-left text-xs text-red-600 font-semibold hover:bg-red-50 rounded-b-lg flex items-center gap-2"
+                                  >
+                                    <Trash2 size={12} />
+                                    Delete All
+                                  </button>
+                                </>
+                              )}
+
+                              {/* Single-category delete */}
+                              {nominee.categories.length === 1 && (
+                                <button
+                                  onClick={() => { setShowActionMenu(null); handleDeleteNominee(nominee.categories[0].nomineeId); }}
+                                  className="w-full px-3 py-2 text-left text-xs text-red-600 hover:bg-red-50 rounded-b-lg flex items-center gap-2"
+                                >
+                                  <Trash2 size={12} />
+                                  Delete
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>
@@ -904,7 +979,8 @@ const AwardsManagementSystem = () => {
                           </button>
                           
                           {showActionMenu === `${nominee.name}-${index}` && (
-                            <div className="absolute right-0 mt-2 w-32 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                            <div className="absolute right-0 mt-2 w-52 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                              {/* Edit */}
                               <button 
                                 onClick={() => handleEditNominee({
                                   _id: nominee.categories[0].nomineeId,
@@ -924,24 +1000,66 @@ const AwardsManagementSystem = () => {
                                 <Edit2 size={14} />
                                 Edit
                               </button>
-                              <button 
-                                onClick={() => {
-                                  setConfirmModal({
-                                    isOpen: true,
-                                    title: "Delete All Nominations",
-                                    message: `Delete all ${nominee.categories.length} nomination(s) for ${nominee.name}?`,
-                                    type: "danger",
-                                    onConfirm: () => {
-                                      setConfirmModal({ ...confirmModal, isOpen: false });
-                                      nominee.categories.forEach((cat: any) => handleDeleteNominee(cat.nomineeId));
-                                    }
-                                  });
-                                }} 
-                                className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-50 rounded-b-lg flex items-center gap-2"
+
+                              {/* Download this nominee */}
+                              <button
+                                onClick={() => { setShowActionMenu(null); handleDownloadSingleNominee(nominee.categories, nominee.name); }}
+                                className="w-full text-green-700 px-4 py-2 text-left text-sm hover:bg-green-50 flex items-center gap-2"
                               >
-                                <Trash2 size={14} />
-                                Delete All
+                                <Download size={14} />
+                                Download
                               </button>
+
+                              {/* Divider */}
+                              <div className="border-t border-gray-100 mx-2" />
+
+                              {/* Per-category delete when multiple categories */}
+                              {nominee.categories.length > 1 && (
+                                <>
+                                  <p className="px-4 pt-1.5 pb-0.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Delete by category</p>
+                                  {nominee.categories.map((cat: any) => (
+                                    <button
+                                      key={cat.nomineeId}
+                                      onClick={() => { setShowActionMenu(null); handleDeleteNominee(cat.nomineeId); }}
+                                      className="w-full px-4 py-2 text-left text-sm text-red-500 hover:bg-red-50 flex items-center gap-2"
+                                    >
+                                      <Trash2 size={14} className="shrink-0" />
+                                      <span className="truncate">{cat.name}</span>
+                                    </button>
+                                  ))}
+                                  <div className="border-t border-gray-100 mx-2" />
+                                  <button
+                                    onClick={() => {
+                                      setShowActionMenu(null);
+                                      setConfirmModal({
+                                        isOpen: true,
+                                        title: "Delete All Nominations",
+                                        message: `Delete all ${nominee.categories.length} nomination(s) for ${nominee.name}?`,
+                                        type: "danger",
+                                        onConfirm: () => {
+                                          setConfirmModal({ ...confirmModal, isOpen: false });
+                                          nominee.categories.forEach((cat: any) => handleDeleteNominee(cat.nomineeId));
+                                        }
+                                      });
+                                    }}
+                                    className="w-full px-4 py-2 text-left text-sm text-red-600 font-semibold hover:bg-red-50 rounded-b-lg flex items-center gap-2"
+                                  >
+                                    <Trash2 size={14} />
+                                    Delete All
+                                  </button>
+                                </>
+                              )}
+
+                              {/* Single-category delete */}
+                              {nominee.categories.length === 1 && (
+                                <button
+                                  onClick={() => { setShowActionMenu(null); handleDeleteNominee(nominee.categories[0].nomineeId); }}
+                                  className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 rounded-b-lg flex items-center gap-2"
+                                >
+                                  <Trash2 size={14} />
+                                  Delete
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>

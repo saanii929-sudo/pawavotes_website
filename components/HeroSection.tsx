@@ -5,6 +5,7 @@ import Image from "next/image";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import { Menu, X } from "lucide-react";
 import Hero3DCanvas from "@/components/Hero3DCanvas";
+import ChristmasOverlay from "@/components/ChristmasOverlay";
 
 const fadeIn: Variants = {
   hidden: { opacity: 0 },
@@ -90,6 +91,7 @@ export default function HeroSection() {
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_40%,rgba(0,0,0,0.55)_100%)] pointer-events-none z-1" />
 
       <Hero3DCanvas />
+      <ChristmasOverlay />
 
       <motion.nav
         variants={navContainer}

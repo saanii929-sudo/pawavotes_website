@@ -11,21 +11,27 @@ async function downloadNominees(req: NextRequest) {
     await connectDB();
 
     const { searchParams } = new URL(req.url);
-    const awardId = searchParams.get('awardId');
+    const awardId    = searchParams.get('awardId');
+    const nomineeId  = searchParams.get('nomineeId');   // single-nominee mode
 
-    if (!awardId) {
+    if (!awardId && !nomineeId) {
       return NextResponse.json(
-        { error: 'Award ID is required' },
+        { error: 'Award ID or Nominee ID is required' },
         { status: 400 }
       );
     }
-    const nominees = await Nominee.find({ awardId })
+
+    // ── Build query & filename ──────────────────────────────────────────────
+    const query: any = nomineeId ? { _id: nomineeId } : { awardId };
+    const filename   = nomineeId ? 'nominee_export.zip' : 'nominees_export.zip';
+
+    const nominees = await Nominee.find(query)
       .populate('categoryId', 'name')
       .sort({ name: 1 });
 
     if (nominees.length === 0) {
       return NextResponse.json(
-        { error: 'No nominees found for this award' },
+        { error: 'No nominees found' },
         { status: 404 }
       );
     }
@@ -107,7 +113,7 @@ Generated: ${new Date().toISOString()}
     return new NextResponse(zipData, {
       headers: {
         'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename="nominees_export.zip"`,
+        'Content-Disposition': `attachment; filename="${filename}"`,
       },
     });
 

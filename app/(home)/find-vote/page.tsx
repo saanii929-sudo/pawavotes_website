@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Calendar, Users, Heart, ChevronLeft, X, Clipboard, Share2 } from "lucide-react";
+import { Search, Calendar, Users, Heart, ChevronLeft, X, Clipboard, Share2, History, Clock, ChevronDown } from "lucide-react";
 import toast from "react-hot-toast";
 import Image from "next/image";
 import AwardCountdown from "@/components/AwardCountdown";
@@ -176,6 +176,9 @@ const PublicVotingPlatform = () => {
   const [selectedAward, setSelectedAward] = useState<Award | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [awards, setAwards] = useState<Award[]>([]);
+  const [historyAwards, setHistoryAwards] = useState<Award[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
   const [nominationModalOpen, setNominationModalOpen] = useState(false);
@@ -355,6 +358,25 @@ const PublicVotingPlatform = () => {
       toast.error('Failed to fetch awards');
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  // Fetch past/completed awards for the History panel
+  const fetchHistory = useCallback(async (search?: string) => {
+    try {
+      setLoadingHistory(true);
+      const url = search
+        ? `/api/public/awards?view=history&search=${encodeURIComponent(search)}`
+        : '/api/public/awards?view=history';
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data.success) {
+        setHistoryAwards(data.awards);
+      }
+    } catch (error) {
+      console.error('Error fetching history:', error);
+    } finally {
+      setLoadingHistory(false);
     }
   }, []);
 
@@ -1163,8 +1185,7 @@ const PublicVotingPlatform = () => {
                 Find an Ongoing Vote
               </h1>
               <p className="text-sm sm:text-base text-gray-600 mb-6 sm:mb-8">
-                Enter an award or nominee code, or explore live voting events
-                below.
+                Enter an award or nominee code, or explore live voting events below.
               </p>
               <div className="max-w-2xl mx-auto relative">
                 <input
@@ -1191,7 +1212,7 @@ const PublicVotingPlatform = () => {
             </div>
           </div>
 
-          {/* Events Grid */}
+          {/* ── Live / Ongoing Events ── */}
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
             <div className="flex items-center justify-between mb-6 sm:mb-8">
               <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
@@ -1203,14 +1224,36 @@ const PublicVotingPlatform = () => {
                 </p>
               )}
             </div>
+
             {loading ? (
               <div className="text-center py-12">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" />
                 <p className="text-gray-600 mt-4">Searching...</p>
               </div>
             ) : awards.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                {searchQuery ? `No awards found matching "${searchQuery}"` : 'No ongoing events found'}
+              /* ── Empty state — no live events ── */
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <div className="w-20 h-20 rounded-full bg-green-50 flex items-center justify-center mb-5">
+                  <Clock size={36} className="text-green-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-800 mb-2">
+                  {searchQuery ? `No results for "${searchQuery}"` : 'No ongoing events right now'}
+                </h3>
+                <p className="text-sm text-gray-500 max-w-sm mb-6">
+                  {searchQuery
+                    ? 'Try a different search term, or check past events in History.'
+                    : 'Check back soon for new voting events. In the meantime, explore past awards in History.'}
+                </p>
+                <button
+                  onClick={() => {
+                    setShowHistory(true);
+                    if (historyAwards.length === 0) fetchHistory(searchQuery || undefined);
+                  }}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  <History size={16} />
+                  Browse Past Events
+                </button>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -1223,7 +1266,6 @@ const PublicVotingPlatform = () => {
                       setCurrentScreen("eventDetail");
                       setCategorySearchQuery("");
                       fetchCategories(award._id);
-                      // Set active stage from award if available, otherwise fetch it
                       if (award.activeStage) {
                         setActiveStage(award.activeStage);
                       } else {
@@ -1234,6 +1276,124 @@ const PublicVotingPlatform = () => {
                 ))}
               </div>
             )}
+
+            {/* ── History toggle button ── */}
+            <div className="mt-8 border-t border-gray-100 pt-6">
+              <button
+                onClick={() => {
+                  const next = !showHistory;
+                  setShowHistory(next);
+                  if (next && historyAwards.length === 0) fetchHistory();
+                }}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-sm font-medium transition-colors shadow-sm"
+              >
+                <History size={16} className="text-green-600" />
+                Past Events
+                <ChevronDown
+                  size={16}
+                  className={`text-gray-400 transition-transform duration-200 ${showHistory ? 'rotate-180' : ''}`}
+                />
+                {historyAwards.length > 0 && (
+                  <span className="ml-1 bg-gray-100 text-gray-600 text-xs font-semibold px-2 py-0.5 rounded-full">
+                    {historyAwards.length}
+                  </span>
+                )}
+              </button>
+
+              {/* ── History panel ── */}
+              {showHistory && (
+                <div className="mt-6">
+                  <div className="flex items-center justify-between mb-5">
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900">Past Events</h3>
+                      <p className="text-xs text-gray-500 mt-0.5">Awards whose voting has ended</p>
+                    </div>
+                  </div>
+
+                  {loadingHistory ? (
+                    <div className="text-center py-12">
+                      <div className="inline-block animate-spin rounded-full h-7 w-7 border-b-2 border-green-600" />
+                      <p className="text-gray-500 mt-3 text-sm">Loading past events…</p>
+                    </div>
+                  ) : historyAwards.length === 0 ? (
+                    <div className="text-center py-12 text-gray-400">
+                      <History size={32} className="mx-auto mb-3 opacity-40" />
+                      <p className="text-sm">No past events found</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                      {historyAwards.map((award) => (
+                        /* History card — same layout as EventCard but with a "Ended" badge */
+                        <div
+                          key={award._id}
+                          onClick={() => {
+                            setSelectedAward(award);
+                            setCurrentScreen("eventDetail");
+                            setCategorySearchQuery("");
+                            fetchCategories(award._id);
+                            if (award.activeStage) {
+                              setActiveStage(award.activeStage);
+                            } else {
+                              fetchActiveStage(award._id);
+                            }
+                          }}
+                          className="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow cursor-pointer opacity-90 hover:opacity-100"
+                        >
+                          {award.banner ? (
+                            <div className="h-48 relative">
+                              <Image src={award.banner} alt={award.name} fill className="object-cover grayscale-[30%]" />
+                              <div className="absolute inset-0 bg-black/10" />
+                              <div className="absolute top-3 left-3">
+                                <span className="inline-flex items-center gap-1 bg-gray-800/80 text-white text-[10px] font-semibold px-2 py-1 rounded-full backdrop-blur-sm">
+                                  <History size={10} />
+                                  Ended
+                                </span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="h-48 bg-gradient-to-r from-gray-700 to-gray-600 flex items-center justify-center relative">
+                              <div className="text-white text-center p-6">
+                                <div className="text-2xl font-bold">{award.name}</div>
+                              </div>
+                              <div className="absolute top-3 left-3">
+                                <span className="inline-flex items-center gap-1 bg-gray-800/80 text-white text-[10px] font-semibold px-2 py-1 rounded-full">
+                                  <History size={10} />
+                                  Ended
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                          <div className="p-4">
+                            <div className="flex items-start justify-between mb-1">
+                              <p className="text-xs text-green-600 font-medium flex-1">{award.organizationName}</p>
+                              {award.code && (
+                                <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded">
+                                  {award.code}
+                                </span>
+                              )}
+                            </div>
+                            <h3 className="font-semibold text-gray-900 mb-3 truncate">{award.name}</h3>
+                            <div className="flex items-center justify-between text-xs text-gray-400">
+                              <div className="flex items-center gap-1">
+                                <Calendar size={12} />
+                                <span>
+                                  {award.votingEndDate
+                                    ? `Ended ${new Date(award.votingEndDate).toLocaleDateString()}`
+                                    : 'Completed'}
+                                </span>
+                              </div>
+                              {award.settings?.showResults && (
+                                <span className="text-green-600 font-medium text-[10px]">Results available</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

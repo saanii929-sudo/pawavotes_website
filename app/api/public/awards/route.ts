@@ -11,12 +11,31 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const search = searchParams.get('search');
-    const status = searchParams.get('status') || 'active';
+    const view   = searchParams.get('view'); // 'history' → past awards
 
-    let query: any = {
-      status: { $in: ['active', 'voting'] },
-      'settings.allowPublicVoting': true,
-    };
+    // ── Query ──────────────────────────────────────────────────────────────
+    let query: any = view === 'history'
+      ? {
+          // Past: completed, closed, or whose voting window has already ended
+          $or: [
+            { status: { $in: ['completed', 'closed', 'ended', 'inactive'] } },
+            {
+              status: { $in: ['active', 'voting', 'published'] },
+              'settings.allowPublicVoting': true,
+              votingEndDate: { $lt: new Date() },
+            },
+          ],
+        }
+      : {
+          // Live: active/voting and public voting allowed
+          status: { $in: ['active', 'voting', 'published'] },
+          'settings.allowPublicVoting': true,
+          $or: [
+            { votingEndDate: { $exists: false } },
+            { votingEndDate: null },
+            { votingEndDate: { $gte: new Date() } },
+          ],
+        };
 
     // Search by award name, code, or ID (only if valid ObjectId)
     if (search) {
@@ -25,18 +44,20 @@ export async function GET(req: NextRequest) {
         { name: { $regex: escaped, $options: 'i' } },
         { code: { $regex: escaped, $options: 'i' } },
       ];
-      
-      // Only search by _id if the search term is a valid ObjectId
       if (mongoose.isValidObjectId(search) && search.length === 24) {
         searchConditions.push({ _id: search });
       }
-      
-      query.$or = searchConditions;
+      query.$and = [{ $or: searchConditions }];
+      // Merge existing $or into $and to avoid collision
+      if (query.$or) {
+        query.$and.push({ $or: query.$or });
+        delete query.$or;
+      }
     }
 
     const awards = await Award.find(query)
       .select('name code description organizationName startDate endDate votingStartDate votingEndDate votingStartTime votingEndTime status banner logo totalVotes totalNominees categories nomination settings pricing')
-      .sort({ createdAt: -1 })
+      .sort(view === 'history' ? { votingEndDate: -1 } : { createdAt: -1 })
       .lean();
 
     // Get category count for each award

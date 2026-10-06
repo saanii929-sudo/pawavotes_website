@@ -1283,16 +1283,19 @@ export default function EventsPage() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
-                  className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden group"
+                  className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg transition-all duration-300 group"
                 >
-                  <div className="relative h-36 bg-linear-to-br from-green-400 via-teal-500 to-blue-600 overflow-hidden">
-                    {event.banner ? (
-                      <img src={event.banner} alt={event.title} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="text-5xl opacity-60">{catEmoji}</span>
-                      </div>
-                    )}
+                  <div className="relative h-36 bg-linear-to-br from-green-400 via-teal-500 to-blue-600">
+                    {/* Image clipped inside its own wrapper, not the whole banner div */}
+                    <div className="absolute inset-0 overflow-hidden rounded-t-2xl">
+                      {event.banner ? (
+                        <img src={event.banner} alt={event.title} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="text-5xl opacity-60">{catEmoji}</span>
+                        </div>
+                      )}
+                    </div>
                     <div className="absolute inset-0 bg-black/20" />
                     <div className={`absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold backdrop-blur-sm bg-white/90 ${sc.color}`}>
                       <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
@@ -1311,7 +1314,7 @@ export default function EventsPage() {
                             initial={{ opacity: 0, scale: 0.95, y: -5 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95, y: -5 }}
-                            className="absolute right-0 mt-1 w-40 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-20"
+                            className="absolute right-0 mt-1 w-44 bg-white rounded-xl shadow-xl border border-gray-100 z-50"
                           >
                             <button
                               onClick={() => setDetailEvent(event)}

@@ -7,7 +7,7 @@ import TicketOrder from "@/models/TicketOrder";
 import { sendTicketConfirmationEmail } from "@/lib/email";
 import { sendTicketSmsConfirmation } from "@/services/sms.service";
 
-const MAX_MESSAGE_LENGTH = 160;
+const MAX_MESSAGE_LENGTH = 300;
 const MAX_ERROR_COUNT = 3;
 const SESSION_TIMEOUT_MS = 15 * 60 * 1000;
 const ITEMS_PER_PAGE = 5;
@@ -279,12 +279,11 @@ function showTicketTypeMenu(session: any) {
     return { message: "No ticket types available for this event.", continueSession: false };
   }
 
-  const eventName = truncateName(session.data.eventTitle, 22);
-  let menu = `${eventName}\n\nSelect Ticket:\n\n`;
+  const eventName = truncateName(session.data.eventTitle, 20);
+  let menu = `${eventName} (${currentPage}/${totalPages})\n\nSelect Ticket:\n\n`;
   pageTypes.forEach((tt: any, i: number) => {
-    const avail = tt.capacity - tt.sold;
     const priceStr = tt.price === 0 ? "Free" : `GHS ${tt.price.toFixed(2)}`;
-    menu += `${i + 1}. ${truncateName(tt.name, 14)} - ${priceStr} (${avail} left)\n`;
+    menu += `${i + 1}. ${truncateName(tt.name, 16)} - ${priceStr}\n`;
   });
   if (currentPage < totalPages) menu += `\n#. Next Page`;
   menu += `\n\n${getNavigationText("select_ticket_type")}`;
