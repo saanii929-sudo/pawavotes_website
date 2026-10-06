@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 
 function isChristmasSeason(): boolean {
   const d = new Date();
-  return d.getMonth() === 9 && d.getDate() >= 1; // Dec 1 – 31
+  return d.getMonth() === 11 && d.getDate() >= 1; // Dec 1 – 31
 }
 
 interface Flake { x: number; y: number; r: number; speed: number; drift: number; phase: number; opacity: number }
